@@ -3,8 +3,6 @@ bot/__pycache__/
 utils/__pycache__/
 dashboard/__pycache__/
 bot/cogs/__pycache__/
-bot/_init__.py
-bot/utils/__init__.py
 bot/utils/__pycache__/
 .env
 .venv/
