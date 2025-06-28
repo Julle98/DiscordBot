@@ -1,7 +1,7 @@
 import asyncio
 import os
 import uvicorn
-from bot.main import bot
+from bot.utils.bot_setup import bot
 from dashboard.api import app
 import sys
 import os
