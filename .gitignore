@@ -8,7 +8,7 @@ bot/utils/__init__.py
 bot/utils/__pycache__/
 .env
 .venv/
-.vscode/launch.json
+.vscode/
 data/data/data.db
 data/data/sannamaija-bot-49194b8a2825.json
 data/tasks/user_tasks.json
@@ -16,3 +16,5 @@ data/tasks/tasks.json
 data/tasks/streaks.json
 data/shop/tarjous.json
 data/shop/ostot.json
+bot/cogs/__pycache__/
+bot/__init__.py
