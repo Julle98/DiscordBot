@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Botin paneeli</title>
+</head>
+<body class="bg-slate-100">
+  <div class="max-w-xl mx-auto mt-10 bg-gradient-to-r from-slate-800 to-indigo-900 rounded-xl p-6 text-white shadow-md flex gap-4 items-center">
+    <img src="{{ avatar }}" class="w-16 h-16 rounded-full border border-white">
+    <div>
+      <h2 class="text-xl font-semibold">{{ username }}</h2>
+      <p class="text-sm opacity-90">Viestit: {{ msgs }} | XP: {{ xp }} | Taso: {{ level }}</p>
+    </div>
+  </div>
+</body>
+</html>
