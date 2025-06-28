@@ -3,8 +3,8 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import random
 
-from bot.utils.bot_setup import bot
-
+from collections import deque
+intents = discord.Intents.all()  
 from bot.utils.env_loader import load_env_and_validate
 from bot.utils.moderation_tasks import start_moderation_loops
 from bot.utils.store_utils import start_store_loops
@@ -16,6 +16,19 @@ load_env_and_validate()
 load_dotenv()
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 TEST_GUILD_ID = int(os.getenv("TEST_GUILD_ID", 0))   
+
+class MyBot(commands.Bot):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.music_queue = deque()
+        self.current_status = "Online"
+        self.command_attempts = {}
+
+    async def on_ready(self):
+        print(f'Logged in as {self.user}')
+        await self.tree.sync()
+
+bot = MyBot(command_prefix="/", intents=intents)
 
 COGS = [
     "bot.cogs.utils",
