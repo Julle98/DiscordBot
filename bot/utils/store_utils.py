@@ -60,7 +60,8 @@ async def tarkista_ostojen_kuukausi():
     except Exception as e:
         print(f"Ostojen tarkistus epäonnistui: {e}")
 
-TARJOUS_TIEDOSTO = Path("data/shop/tarjous.json")
+JSON_DIR = Path(os.getenv("JSON_DIR"))
+TARJOUS_TIEDOSTO = JSON_DIR / "tarjous.json"
 
 def hae_tai_paivita_tarjous():
     nyt = datetime.now(timezone.utc).date()

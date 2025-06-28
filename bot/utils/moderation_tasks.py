@@ -18,7 +18,10 @@ def start_moderation_loops():
 aktiiviset_paivat = dict()
 
 ostot = {}
-OSTO_TIEDOSTO = Path("data/shop/ostot.json")
+
+load_dotenv()
+JSON_DIR = Path(os.getenv("JSON_DIR"))
+OSTO_TIEDOSTO = JSON_DIR / "ostot.json"
 
 def lue_ostokset():
     try:

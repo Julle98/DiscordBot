@@ -42,7 +42,8 @@ DOUBLE_XP_ROLES = {
     1383739974767349790,
 }
 
-STREAKS_FILE = Path("data/tasks/streaks.json")
+JSON_DIR = Path(os.getenv("JSON_DIR"))
+STREAKS_FILE = JSON_DIR / "streaks.json"
 
 viestihistoria = defaultdict(list)
 dm_viestit = defaultdict(list)

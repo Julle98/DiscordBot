@@ -57,7 +57,8 @@ MONTHLY_TASKS = [
 from pathlib import Path
 import json
 
-TASKS_PATH = Path("data/tasks/tasks.json")
+JSON_DIR = Path(os.getenv("JSON_DIR"))
+TASKS_PATH = JSON_DIR / "tasks.json"
 
 def parse_task_message(content: str):
     try:
@@ -133,7 +134,8 @@ def select_random_task(tasks, last_task):
     choices = [t for t in tasks if t != last_task]
     return random.choice(choices) if choices else random.choice(tasks)
 
-STREAKS_PATH = Path("data/tasks/streaks.json")
+JSON_DIR = Path(os.getenv("JSON_DIR"))
+STREAKS_PATH = JSON_DIR / "streaks.json"
 
 def load_streaks():
     if STREAKS_PATH.exists():
