@@ -44,9 +44,10 @@ class Tasks(commands.Cog):
         if not rotate_monthly_tasks.is_running():
             rotate_monthly_tasks.start()
 
-    @cooldown("tehtavat")
+
     @app_commands.command(name="tehtavat", description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä.")
     @app_commands.checks.has_role("24G")
+    @cooldown("tehtavat")
     async def tehtavat(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/tehtävät")
         kirjaa_ga_event(interaction.user.id, "tehtävät_komento")

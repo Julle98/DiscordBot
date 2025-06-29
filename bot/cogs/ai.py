@@ -10,9 +10,10 @@ from bot.utils.antinuke import cooldown
 class AI(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-    @cooldown("tekoäly")
+    
     @app_commands.command(name="tekoäly", description="Käytä tekoälyä hakemiseen, vastaamiseen tai kuvan generointiin")
     @app_commands.describe(toiminto="Valitse toiminto", kysymys="Kysymys tai kuvaus")
+    @cooldown("tekoäly")
     @app_commands.choices(toiminto=[
         app_commands.Choice(name="Hae", value="hae"),
         app_commands.Choice(name="Kysy", value="kysy"),

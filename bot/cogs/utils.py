@@ -322,9 +322,10 @@ class Utils(commands.Cog):
         asyncio.create_task(update_status())
         asyncio.create_task(tarkkaile_kanavan_aktiivisuutta())
 
-    @cooldown("help")
+
     @app_commands.command(name="help", description="Kysy apua tai ilmoita asiasta.")
     @app_commands.checks.has_role("24G")
+    @cooldown("help")
     async def help(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/help")
         kirjaa_ga_event(interaction.user.id, "help_komento")
@@ -342,8 +343,9 @@ class Utils(commands.Cog):
             ephemeral=True
         )
 
-    @cooldown("giveaway")
+
     @app_commands.command(name="giveaway", description="Luo arvonta palkinnosta.")
+    @cooldown("giveaway")
     @app_commands.describe(
         palkinto="Mitä arvotaan?",
         kesto="Kesto minuutteina",
@@ -368,10 +370,11 @@ class Utils(commands.Cog):
         await asyncio.sleep(kesto * 60)
         await view.lopeta_arvonta(interaction.channel)
 
-    @cooldown("tag")
+
     @app_commands.command(name="tag", description="Lisää tagin käyttäjän serverinimen perään.")
     @app_commands.describe(tag="Haluttu tagi, 3-6 kirjainta pitkä.")
     @app_commands.checks.has_role("24G")
+    @cooldown("tag")
     async def tag(self, interaction: discord.Interaction, tag: str):
         await kirjaa_komento_lokiin(self.bot, interaction, "/tag")
         kirjaa_ga_event(interaction.user.id, "tag_komento")
@@ -397,10 +400,11 @@ class Utils(commands.Cog):
         except discord.HTTPException:
             await interaction.response.send_message("Virhe nimimerkkiä muokatessa. Yritä uudelleen.", ephemeral=True)
 
-    @cooldown("vaihda_tag")
+
     @app_commands.command(name="vaihda_tag", description="Vaihda käyttäjän serverinimen tag uuteen.")
     @app_commands.describe(tag="Uusi tagi (3-6 kirjainta).")
     @app_commands.checks.has_role("24G")
+    @cooldown("vaihda_tag")
     async def vaihda_tag(self, interaction: discord.Interaction, tag: str):
         await kirjaa_komento_lokiin(self.bot, interaction, "/vaihda_tag")
         kirjaa_ga_event(interaction.user.id, "vaihda_tag_komento")
@@ -427,9 +431,10 @@ class Utils(commands.Cog):
         except discord.HTTPException:
             await interaction.response.send_message("Virhe nimimerkkiä muokatessa. Yritä uudelleen.", ephemeral=True)
 
-    @cooldown("remove_tag")
+
     @app_commands.command(name="remove_tag", description="Poistaa tagin käyttäjän serverinimestä.")
     @app_commands.checks.has_role("24G")
+    @cooldown("remove_tag")
     async def remove_tag(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/remove_tag")
         kirjaa_ga_event(interaction.user.id, "remove_tag_komento")
@@ -449,9 +454,10 @@ class Utils(commands.Cog):
         else:
             await interaction.response.send_message("Serverinimesi ei sisällä tagia, joten mitään ei tarvitse poistaa.", ephemeral=True)
 
-    @cooldown("komennot")
+
     @app_commands.command(name="komennot", description="Näyttää kaikki käytettävissä olevat komennot ja niiden selitykset.")
     @app_commands.checks.has_role("24G")
+    @cooldown("komennot")
     async def komennot(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/komennot")
         kirjaa_ga_event(interaction.user.id, "komennot_komento")

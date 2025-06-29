@@ -49,7 +49,6 @@ class Store(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @cooldown("kauppa")
     @app_commands.command(name="kauppa", description="Näytä kaupan tuotteet tai osta tuote")
     @app_commands.describe(tuote="Tuotteen nimi ostamista varten (valinnainen)")
     @app_commands.checks.has_role("24G")

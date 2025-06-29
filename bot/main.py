@@ -7,6 +7,7 @@ from bot.utils.env_loader import load_env_and_validate
 from bot.utils.moderation_tasks import start_moderation_loops
 from bot.utils.store_utils import start_store_loops
 from bot.utils.tasks_utils import start_tasks_loops
+from bot.utils.status_updater import update_status
 from bot.cogs.levels import tarkista_puhekanavat
 from bot.utils.antinuke import check_deletions
 
@@ -25,7 +26,6 @@ COGS = [
     "bot.cogs.misc",
     "bot.cogs.ai",
     "bot.cogs.xp_system",
-    "bot.utils.status_updater",
     "bot.utils.welcomecog",
     "bot.utils.xptracker",
     "bot.utils.antinuke",
@@ -83,6 +83,7 @@ async def on_ready():
     start_moderation_loops()
     start_store_loops()
     start_tasks_loops()
+    update_status.start()
 
     try:
         if TEST_GUILD_ID:

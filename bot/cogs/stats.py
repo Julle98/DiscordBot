@@ -40,9 +40,9 @@ class Stats(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @cooldown("stats")
     @app_commands.command(name="stats", description="Näytä komentojen käyttömäärät, aktiivisimmat käyttäjät tai omat komennot.")
     @app_commands.checks.has_role("24G")
+    @cooldown("stats")
     @app_commands.choices(
         tyyppi=[
             app_commands.Choice(name="Komennot", value="komennot"),

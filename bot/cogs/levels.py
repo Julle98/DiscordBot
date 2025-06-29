@@ -91,9 +91,10 @@ class Levels(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @cooldown("taso")
+    
     @app_commands.command(name="taso", description="Näytä oma tasosi tai Top-10 lista.")
     @app_commands.describe(vaihtoehto="Oma taso tai kaikkien tasot")
+    @cooldown("taso")
     @app_commands.choices(vaihtoehto=[
         app_commands.Choice(name="Oma taso", value="oma"),
         app_commands.Choice(name="Kaikkien tasot", value="kaikki")
@@ -143,10 +144,11 @@ class Levels(commands.Cog):
             users.sort(key=lambda x: x[1], reverse=True)
             lines = [f"**{name}** – Taso {level} ({xp} XP)" for name, xp, level in users[:10]]
             await interaction.followup.send("Top 10 jäsenet:\n" + "\n".join(lines), ephemeral=True)
-
-    @cooldown("lisää_xp")
+ 
+    
     @app_commands.command(name="lisää_xp", description="Lisää käyttäjälle XP:tä.")
     @app_commands.describe(jäsen="Jäsen", määrä="Lisättävä XP määrä")
+    @cooldown("lisää_xp")
     @app_commands.checks.has_role("Mestari")
     async def lisää_xp(self, interaction: discord.Interaction, jäsen: discord.Member, määrä: int):
         await kirjaa_komento_lokiin(self.bot, interaction, "/lisää_xp")
@@ -171,9 +173,10 @@ class Levels(commands.Cog):
 
         await interaction.response.send_message(f"Lisättiin {määrä} XP:tä käyttäjälle {jäsen.display_name}.", ephemeral=True)
 
-    @cooldown("vähennä_xp")
+    
     @app_commands.command(name="vähennä_xp", description="Vähennä käyttäjältä XP:tä.")
     @app_commands.describe(jäsen="Jäsen", määrä="Vähennettävä XP määrä")
+    @cooldown("vähennä_xp")
     @app_commands.checks.has_role("Mestari")
     async def vähennä_xp(self, interaction: discord.Interaction, jäsen: discord.Member, määrä: int):
         await kirjaa_komento_lokiin(self.bot, interaction, "/vähennä_xp")

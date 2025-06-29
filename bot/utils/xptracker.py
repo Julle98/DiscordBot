@@ -8,3 +8,7 @@ class XPTracker(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         await käsittele_viesti_xp(self.bot, message)
+
+async def setup(bot: commands.Bot):
+    cog = XPTracker(bot)
+    await bot.add_cog(cog)
