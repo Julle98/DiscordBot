@@ -86,7 +86,6 @@ async def on_ready():
     start_moderation_loops()
     start_store_loops()
     start_tasks_loops()
-    update_status.start()
 
     try:
         if TEST_GUILD_ID:

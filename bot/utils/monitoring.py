@@ -9,17 +9,18 @@ class SlowmodeWatcher(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.channel_id: int = int(os.getenv("SLOWMODE_CHANNEL_ID", "0"))
-        self._task: asyncio.Task | None = self.bot.loop.create_task(
-            self._watch_channel()
-        )
+        self._task: asyncio.Task | None = None  
 
-    async def cog_unload(self) -> None:  
-        if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+    async def cog_load(self) -> None:  
+            self._task = asyncio.create_task(self._watch_channel())
+
+    async def cog_unload(self) -> None:
+            if self._task:
+                self._task.cancel()
+                try:
+                    await self._task
+                except asyncio.CancelledError:
+                    pass
 
     async def _watch_channel(self) -> None:
         await self.bot.wait_until_ready()

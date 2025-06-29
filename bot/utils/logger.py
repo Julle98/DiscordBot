@@ -4,6 +4,33 @@ import requests
 import discord
 from discord import app_commands
 from discord.ext import commands
+from typing import List, Optional
+from bot.utils.bot_setup import bot
+
+def _cog() -> Optional[object]:
+    return bot.get_cog("AnalyticsLogging")
+
+async def kirjaa_ga_event(user_id: int, event_name: str) -> None:
+    cog = _cog()
+    if cog:
+        await cog.kirjaa_ga_event(user_id, event_name)
+
+async def kirjaa_komento_lokiin(
+    interaction: discord.Interaction,
+    command_name: str,
+) -> None:
+    cog = _cog()
+    if cog:
+        await cog.kirjaa_komento_lokiin(interaction, command_name)
+
+async def autocomplete_bannatut_käyttäjät(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+    cog = _cog()
+    if cog:
+        return await cog.autocomplete_bannatut_käyttäjät(interaction, current)
+    return []
 
 class AnalyticsLogging(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -12,16 +39,7 @@ class AnalyticsLogging(commands.Cog):
         self.ga_api_secret: str | None = os.getenv("GA_API_SECRET")
         self.log_channel_id: int = int(os.getenv("LOG_CHANNEL_ID", "0"))
 
-    async def log_ga_event(self, user_id: int, event_name: str) -> None:
-        """Send a custom event to Google Analytics 4 via Measurement Protocol.
-
-        Parameters
-        ----------
-        user_id: int
-            Discord user ID, used as GA client_id.
-        event_name: str
-            Name of the event, e.g. "command_used".
-        """
+    async def kirjaa_ga_event(self, user_id: int, event_name: str) -> None:
         if not (self.ga_measurement_id and self.ga_api_secret):
             return
 
@@ -51,12 +69,11 @@ class AnalyticsLogging(commands.Cog):
         except Exception as exc:
             print("GA error:", exc)
 
-    async def log_command(
+    async def kirjaa_komento_lokiin(
         self,
         interaction: discord.Interaction,
         command_name: str,
     ) -> None:
-        """Write a short log message about a used application command."""
         if not self.log_channel_id:
             return
 
@@ -72,7 +89,7 @@ class AnalyticsLogging(commands.Cog):
         except Exception as exc:
             print("Logging error:", exc)
 
-    async def banned_users_autocomplete(
+    async def autocomplete_bannatut_käyttäjät(
         self,
         interaction: discord.Interaction,
         current: str,
