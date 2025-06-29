@@ -1,44 +1,58 @@
 import os
 import asyncio
 from datetime import datetime, timedelta, timezone
-from dotenv import load_dotenv
+
 import discord
 from discord.ext import commands
-import logging
-from collections import deque
-from bot.utils.bot_setup import bot
 
-load_dotenv()
-SLOWMODE_CHANNEL_ID = int(os.getenv("SLOWMODE_CHANNEL_ID", 0))
+class SlowmodeWatcher(commands.Cog):
+    def __init__(self, bot: commands.Bot) -> None:
+        self.bot = bot
+        self.channel_id: int = int(os.getenv("SLOWMODE_CHANNEL_ID", "0"))
+        self._task: asyncio.Task | None = self.bot.loop.create_task(
+            self._watch_channel()
+        )
 
-async def tarkkaile_kanavan_aktiivisuutta():
-    await bot.wait_until_ready()
-    kanava = bot.get_channel(SLOWMODE_CHANNEL_ID)
-    if not kanava:
-        print("Hidastuskanavaa ei löytynyt.")
-        return
+    async def cog_unload(self) -> None:  
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
 
-    while not bot.is_closed():
-        nyt = datetime.now(timezone.utc)
-        aktiiviset_viestit = 0
+    async def _watch_channel(self) -> None:
+        await self.bot.wait_until_ready()
 
-        try:
-            async for msg in kanava.history(limit=100, after=nyt - timedelta(seconds=30)):
-                if not msg.author.bot:
-                    aktiiviset_viestit += 1
-        except Exception as e:
-            print(f"Virhe viestien haussa: {e}")
+        channel: discord.TextChannel | None = self.bot.get_channel(self.channel_id)  
+        if channel is None:
+            print("[SlowmodeWatcher] Kanavaa ei löytynyt (SLOWMODE_CHANNEL_ID).")
+            return
+
+        while not self.bot.is_closed():
+            now = datetime.now(timezone.utc)
+            active_messages = 0
+
+            try:
+                async for msg in channel.history(limit=100, after=now - timedelta(seconds=30)):
+                    if not msg.author.bot:
+                        active_messages += 1
+            except Exception as exc:
+                print(f"[SlowmodeWatcher] Virhe viestien haussa: {exc}")
+                await asyncio.sleep(30)
+                continue
+
+            try:
+                if active_messages >= 15 and channel.slowmode_delay == 0:
+                    await channel.edit(slowmode_delay=5)
+                    print("[SlowmodeWatcher] Hidastustila asetettu 5 sekuntiin.")
+                elif active_messages < 3 and channel.slowmode_delay > 0:
+                    await channel.edit(slowmode_delay=0)
+                    print("[SlowmodeWatcher] Hidastustila poistettu.")
+            except Exception as exc:
+                print(f"[SlowmodeWatcher] Virhe hidastustilan muokkauksessa: {exc}")
+
             await asyncio.sleep(30)
-            continue
 
-        try:
-            if aktiiviset_viestit >= 15 and kanava.slowmode_delay == 0:
-                await kanava.edit(slowmode_delay=5)
-                print("Hidastustila asetettu 5 sekuntiin.")
-            elif aktiiviset_viestit < 3 and kanava.slowmode_delay > 0:
-                await kanava.edit(slowmode_delay=0)
-                print("Hidastustila poistettu.")
-        except Exception as e:
-            print(f"Virhe hidastustilan muokkauksessa: {e}")
-
-        await asyncio.sleep(30)
+async def setup(bot: commands.Bot):
+    await bot.add_cog(SlowmodeWatcher(bot))

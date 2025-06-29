@@ -30,6 +30,9 @@ COGS = [
     "bot.utils.xptracker",
     "bot.utils.antinuke",
     "bot.utils.error_handler",
+    "bot.utils.logger",
+    "bot.utils.monitoring",
+    "bot.utils.status_updater",
 ]
 
 async def load_cogs() -> None:
