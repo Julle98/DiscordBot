@@ -15,7 +15,8 @@ from bot.utils.xp_utils import (
 )
 
 from bot.utils.xp_utils import LEVEL_ROLES, DOUBLE_XP_ROLES, LEVEL_MESSAGES, XP_CHANNEL_ID, MODLOG_CHANNEL_ID
-from bot.utils.error_handler import handle_command_error
+from bot.utils.error_handler import CommandErrorHandler
+from bot.utils.antinuke import cooldown
 
 from dotenv import load_dotenv
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
@@ -90,6 +91,7 @@ class Levels(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @cooldown("taso")
     @app_commands.command(name="taso", description="Näytä oma tasosi tai Top-10 lista.")
     @app_commands.describe(vaihtoehto="Oma taso tai kaikkien tasot")
     @app_commands.choices(vaihtoehto=[
@@ -142,6 +144,7 @@ class Levels(commands.Cog):
             lines = [f"**{name}** – Taso {level} ({xp} XP)" for name, xp, level in users[:10]]
             await interaction.followup.send("Top 10 jäsenet:\n" + "\n".join(lines), ephemeral=True)
 
+    @cooldown("lisää_xp")
     @app_commands.command(name="lisää_xp", description="Lisää käyttäjälle XP:tä.")
     @app_commands.describe(jäsen="Jäsen", määrä="Lisättävä XP määrä")
     @app_commands.checks.has_role("Mestari")
@@ -168,6 +171,7 @@ class Levels(commands.Cog):
 
         await interaction.response.send_message(f"Lisättiin {määrä} XP:tä käyttäjälle {jäsen.display_name}.", ephemeral=True)
 
+    @cooldown("vähennä_xp")
     @app_commands.command(name="vähennä_xp", description="Vähennä käyttäjältä XP:tä.")
     @app_commands.describe(jäsen="Jäsen", määrä="Vähennettävä XP määrä")
     @app_commands.checks.has_role("Mestari")
@@ -196,7 +200,7 @@ class Levels(commands.Cog):
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
-        await handle_command_error(self.bot, interaction, error)
+        await CommandErrorHandler(self.bot, interaction, error)
 
 async def setup(bot: commands.Bot):
     cog = Levels(bot)

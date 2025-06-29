@@ -1,59 +1,45 @@
-import random
-import asyncio
-import discord
-from discord.ext import commands
-import os
-from dotenv import load_dotenv
-import logging
-from collections import deque
-from bot.utils.bot_setup import bot
+import random, discord
+from discord.ext import commands, tasks
 
-# Statuslistat
-listening_statuses = [
-    "Ongelmianne | /komennot",
-    "Komentojanne | /komennot",
-    "Tehtäviänne | /komennot",
-    "Ostoksianne | /komennot"
-]
+class StatusUpdater(commands.Cog):
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        self.update_status.start()         
 
-watching_statuses = [
-    "Wilma | /komennot",  
-    "Keskustelujanne | /komennot",
-    "Schauplatz | /komennot",
-    "Suorituksia | /komennot"
-]
+    def cog_unload(self):
+        self.update_status.cancel()
 
-playing_statuses = [
-    "Abitti 2 | /komennot",  
-    "Tiedoillasi | /komennot",
-    "Komennoilla | /komennot",
-    "Matikkaeditori | /komennot"
-]
+    listening = ["Ongelmianne | /komennot", "Komentojanne | /komennot",
+                 "Tehtäviänne | /komennot", "Ostoksianne | /komennot"]
+    watching  = ["Wilma | /komennot", "Keskustelujanne | /komennot",
+                 "Schauplatz | /komennot", "Suorituksia | /komennot"]
+    playing   = ["Abitti 2 | /komennot", "Tiedoillasi | /komennot",
+                 "Komennoilla | /komennot", "Matikkaeditori | /komennot"]
 
-last_status = None  
+    last_status = None
 
-@bot.event
-async def update_status():
-    global last_status
-    while True:
-        category = random.choice(["kuuntelee", "katsoo", "pelaa"])
+    @tasks.loop(hours=6)
+    async def update_status(self):
+        cat = random.choice(["kuuntelee", "katsoo", "pelaa"])
+        pool = {"kuuntelee": self.listening,
+                "katsoo":    self.watching,
+                "pelaa":     self.playing}[cat]
 
-        if category == "kuuntelee":
-            status = random.choice(listening_statuses)
-            activity = discord.Activity(type=discord.ActivityType.listening, name=status)
-        elif category == "katsoo":
-            status = random.choice(watching_statuses)
-            activity = discord.Activity(type=discord.ActivityType.watching, name=status)
-        else:
-            status = random.choice(playing_statuses)
-            activity = discord.Game(name=status)
+        status = random.choice(pool)
+        full   = f"{cat} {status}"
+        if full == self.last_status:       
+            return
 
-        full_status = f"{category} {status}"
-        if full_status == last_status:
-            continue  
+        activity = (discord.Activity(type=discord.ActivityType.listening, name=status)   if cat=="kuuntelee"
+                    else discord.Activity(type=discord.ActivityType.watching,  name=status) if cat=="katsoo"
+                    else discord.Game(name=status))
+        await self.bot.change_presence(activity=activity)
+        self.last_status = full
+        print("Status vaihdettu:", full)
 
-        await bot.change_presence(activity=activity)
-        last_status = full_status
-        print(f"Status vaihdettu: {full_status}")
+    @update_status.before_loop
+    async def wait_ready(self):
+        await self.bot.wait_until_ready()
 
-        await asyncio.sleep(21600)
+async def setup(bot):
+    await bot.add_cog(StatusUpdater(bot))

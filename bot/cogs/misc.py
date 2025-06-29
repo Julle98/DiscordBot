@@ -11,7 +11,8 @@ import re
 import math
 import asyncio
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
-from bot.utils.error_handler import handle_command_error
+from bot.utils.error_handler import CommandErrorHandler
+from bot.utils.antinuke import cooldown
 
 UTC_CITIES = {
     -12: "Baker Island",
@@ -207,6 +208,7 @@ class Misc(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @cooldown("aika")
     @app_commands.command(name="aika", description="Näytä nykyinen aika haluamassasi UTC-ajassa.")
     @app_commands.checks.has_role("24G")
     async def aika(self, interaction: discord.Interaction):
@@ -214,12 +216,14 @@ class Misc(commands.Cog):
         kirjaa_ga_event(interaction.user.id, "aika_komento")
         await interaction.response.send_modal(AikaModal())
 
+    @cooldown("moikka")
     @app_commands.command(name="moikka", description="Moikkaa takaisin.")
     async def moikka(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/moikka")
         kirjaa_ga_event(interaction.user.id, "moikka_komento")
         await interaction.response.send_message("Moikka!")
 
+    @cooldown("esittely")
     @app_commands.command(name="esittely", description="Sannamaijan esittely.")
     @app_commands.checks.has_role("24G")
     async def esittely(self, interaction: discord.Interaction):
@@ -227,6 +231,7 @@ class Misc(commands.Cog):
         kirjaa_ga_event(interaction.user.id, "esittely_komento")
         await interaction.response.send_message("Moi olen Sannamaija Pyrrö...")
 
+    @cooldown("nofal")
     @app_commands.command(name="nofal", description="Sannamaijan mielipide Nofalista.")
     @app_commands.checks.has_role("24G")
     @app_commands.describe(mielipide="Valitse mielipide")
@@ -245,6 +250,7 @@ class Misc(commands.Cog):
             teksti = "En ole ihan varma Nofalista..."
         await interaction.response.send_message(teksti)
 
+    @cooldown("kutsumalinkki")
     @app_commands.command(name="kutsumalinkki", description="Luo kutsulinkin tai anna valmis.")
     @app_commands.describe(käyttökerrat="Linkin käyttömäärä (valinnainen)")
     @app_commands.checks.has_role("24G")
@@ -260,6 +266,7 @@ class Misc(commands.Cog):
             except Exception as e:
                 await interaction.response.send_message(f"Virhe: {e}", ephemeral=True)
 
+    @cooldown("ruokailuvuorot")
     @app_commands.command(name="ruokailuvuorot", description="Näyttää uusimmat ruokailuvuorot.")
     @app_commands.checks.has_role("24G")
     async def ruokailuvuorot(self, interaction: discord.Interaction):
@@ -267,6 +274,7 @@ class Misc(commands.Cog):
         kirjaa_ga_event(interaction.user.id, "ruokailuvuorot_komento")
         await interaction.response.send_message("Tällä hetkellä ei ole ruokailuvuoro listoja.")
 
+    @cooldown("ruoka")
     @app_commands.command(name="ruoka", description="Näyttää päivän ruoan.")
     @app_commands.checks.has_role("24G")
     async def ruoka(self, interaction: discord.Interaction):
@@ -291,6 +299,7 @@ class Misc(commands.Cog):
         except Exception as e:
             await interaction.response.send_message(f"Virhe haettaessa ruokalistaa: {e}", ephemeral=True)
 
+    @cooldown("sano")
     @app_commands.command(name="sano", description="Sano Sannamaijalle sanottavaa.")
     @app_commands.checks.has_role("24G")
     async def sano(self, interaction: discord.Interaction, viesti: str):
@@ -308,6 +317,7 @@ class Misc(commands.Cog):
             except discord.HTTPException:
                 await interaction.response.send_message("Viestin lähetys epäonnistui.", ephemeral=True)
 
+    @cooldown("mielipide")
     @app_commands.command(name="mielipide", description="Kysy mielipide Sannamaijalta.")
     @app_commands.checks.has_role("24G")
     async def mielipide(self, interaction: discord.Interaction):
@@ -315,6 +325,7 @@ class Misc(commands.Cog):
         kirjaa_ga_event(interaction.user.id, "mielipide_komento")
         await interaction.response.send_modal(MielipideModal())
 
+    @cooldown("arvosanalaskuri")
     @app_commands.command(name="arvosanalaskuri", description="Laskee arvosanan pisteistä.")
     @app_commands.describe(pisteet="Saadut pisteet", maksimi="Maksimipisteet", lapipääsyprosentti="Läpipääsy %")
     async def arvosanalaskuri(self, interaction: discord.Interaction, pisteet: float, maksimi: float, lapipääsyprosentti: float):
@@ -331,6 +342,7 @@ class Misc(commands.Cog):
 
         await interaction.response.send_message(f"Pisteet: {pisteet}/{maksimi} → Arvosana: **{arvosana}**")
     
+    @cooldown("laskin")
     @app_commands.command(name="laskin", description="Laskee laskun ja näyttää välivaiheet.")
     @app_commands.describe(lasku="Anna lasku esim. 8*5(4+4)", selitys="Haluatko selityksen? kyllä/ei")
     async def laskin(self, interaction: discord.Interaction, lasku: str, selitys: str = "ei"):
@@ -354,6 +366,7 @@ class Misc(commands.Cog):
         except Exception as e:
             await interaction.response.send_message(f"Virhe laskussa: {str(e)}", ephemeral=True)
 
+    @cooldown("ajastin")
     @app_commands.command(name="ajastin", description="Aseta ajastin ja saat ilmoituksen Sannamaijalta.")
     @app_commands.describe(aika="Aika muodossa esim. 2m30s, 1m, 45s")
     @app_commands.checks.has_role("24G")
@@ -380,6 +393,7 @@ class Misc(commands.Cog):
         task = asyncio.create_task(ajastin_odotus(interaction, kokonais))
         self.ajastin_aktiiviset[interaction.user.id] = task
 
+    @cooldown("kulppi")
     @app_commands.command(name="kulppi", description="Laskee kuinka monta kulppia annetusta ajasta.")
     @app_commands.describe(aika="Aika muodossa esim. 1h2m30s, 2m, 45s")
     @app_commands.checks.has_role("24G")
@@ -407,6 +421,7 @@ class Misc(commands.Cog):
             f"Aika: **{total} sekuntia**\n1 kulppi = 90s\nVastaa noin **{kulppeja:.2f} kulppia**"
         )
 
+    @cooldown("seuraava_lomapaiva")
     @app_commands.command(name="seuraava_lomapaiva", description="Näyttää seuraavan lomapäivän.")
     async def seuraava_lomapaiva(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/seuraava_lomapaiva")
@@ -419,6 +434,7 @@ class Misc(commands.Cog):
                 return
         await interaction.response.send_message("Ei tulevia lomapäiviä.", ephemeral=True)
 
+    @cooldown("meme")
     @app_commands.command(name="meme", description="Lähetä satunnainen meemi.")
     async def meme(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/meme")
@@ -434,6 +450,7 @@ class Misc(commands.Cog):
         last_meme_url = valinta
         await interaction.response.send_message(valinta)
 
+    @cooldown("vitsi")
     @app_commands.command(name="vitsi", description="Kertoo satunnaisen vitsin.")
     @app_commands.checks.has_role("24G")
     async def vitsi(self, interaction: discord.Interaction):
@@ -444,7 +461,7 @@ class Misc(commands.Cog):
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
-        await handle_command_error(self.bot, interaction, error)
+        await CommandErrorHandler(self.bot, interaction, error)
 
 async def setup(bot: commands.Bot):
     cog = Misc(bot)

@@ -7,7 +7,8 @@ import os
 from collections import deque
 from dotenv import load_dotenv
 from bot.utils.tasks_utils import TaskListener, active_listeners
-from bot.utils.error_handler import handle_command_error
+from bot.utils.error_handler import CommandErrorHandler
+from bot.utils.antinuke import cooldown
 
 from bot.utils.tasks_utils import (
     load_tasks,
@@ -43,6 +44,7 @@ class Tasks(commands.Cog):
         if not rotate_monthly_tasks.is_running():
             rotate_monthly_tasks.start()
 
+    @cooldown("tehtavat")
     @app_commands.command(name="tehtavat", description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä.")
     @app_commands.checks.has_role("24G")
     async def tehtavat(self, interaction: discord.Interaction):
@@ -134,7 +136,7 @@ class Tasks(commands.Cog):
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
-        await handle_command_error(self.bot, interaction, error)
+        await CommandErrorHandler(self.bot, interaction, error)
 
 async def setup(bot: commands.Bot):
     cog = Tasks(bot)

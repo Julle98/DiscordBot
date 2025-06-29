@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from collections import Counter
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from bot.utils.error_handler import CommandErrorHandler
+from bot.utils.antinuke import cooldown
 
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 
@@ -38,6 +40,7 @@ class Stats(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @cooldown("stats")
     @app_commands.command(name="stats", description="Näytä komentojen käyttömäärät, aktiivisimmat käyttäjät tai omat komennot.")
     @app_commands.checks.has_role("24G")
     @app_commands.choices(
@@ -115,6 +118,10 @@ class Stats(commands.Cog):
 
             rivit = [f"{komento}: ``{määrä} kertaa``" for komento, määrä in laskuri.most_common()]
             await interaction.followup.send(f"**Omat komennot ({interaction.user.display_name}):**\n" + "\n".join(rivit))
+
+    @commands.Cog.listener()
+    async def on_app_command_error(self, interaction, error):
+        await CommandErrorHandler(self.bot, interaction, error)
 
 async def setup(bot: commands.Bot):
     cog = Stats(bot)

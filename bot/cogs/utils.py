@@ -9,7 +9,8 @@ from datetime import datetime
 from discord import Interaction
 from discord.ui import Modal, View
 import re
-from bot.utils.error_handler import handle_command_error
+from bot.utils.error_handler import CommandErrorHandler
+from bot.utils.antinuke import cooldown
 
 from dotenv import load_dotenv
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
@@ -321,6 +322,7 @@ class Utils(commands.Cog):
         asyncio.create_task(update_status())
         asyncio.create_task(tarkkaile_kanavan_aktiivisuutta())
 
+    @cooldown("help")
     @app_commands.command(name="help", description="Kysy apua tai ilmoita asiasta.")
     @app_commands.checks.has_role("24G")
     async def help(self, interaction: discord.Interaction):
@@ -340,6 +342,7 @@ class Utils(commands.Cog):
             ephemeral=True
         )
 
+    @cooldown("giveaway")
     @app_commands.command(name="giveaway", description="Luo arvonta palkinnosta.")
     @app_commands.describe(
         palkinto="Mitä arvotaan?",
@@ -365,6 +368,7 @@ class Utils(commands.Cog):
         await asyncio.sleep(kesto * 60)
         await view.lopeta_arvonta(interaction.channel)
 
+    @cooldown("tag")
     @app_commands.command(name="tag", description="Lisää tagin käyttäjän serverinimen perään.")
     @app_commands.describe(tag="Haluttu tagi, 3-6 kirjainta pitkä.")
     @app_commands.checks.has_role("24G")
@@ -393,6 +397,7 @@ class Utils(commands.Cog):
         except discord.HTTPException:
             await interaction.response.send_message("Virhe nimimerkkiä muokatessa. Yritä uudelleen.", ephemeral=True)
 
+    @cooldown("vaihda_tag")
     @app_commands.command(name="vaihda_tag", description="Vaihda käyttäjän serverinimen tag uuteen.")
     @app_commands.describe(tag="Uusi tagi (3-6 kirjainta).")
     @app_commands.checks.has_role("24G")
@@ -422,6 +427,7 @@ class Utils(commands.Cog):
         except discord.HTTPException:
             await interaction.response.send_message("Virhe nimimerkkiä muokatessa. Yritä uudelleen.", ephemeral=True)
 
+    @cooldown("remove_tag")
     @app_commands.command(name="remove_tag", description="Poistaa tagin käyttäjän serverinimestä.")
     @app_commands.checks.has_role("24G")
     async def remove_tag(self, interaction: discord.Interaction):
@@ -443,6 +449,7 @@ class Utils(commands.Cog):
         else:
             await interaction.response.send_message("Serverinimesi ei sisällä tagia, joten mitään ei tarvitse poistaa.", ephemeral=True)
 
+    @cooldown("komennot")
     @app_commands.command(name="komennot", description="Näyttää kaikki käytettävissä olevat komennot ja niiden selitykset.")
     @app_commands.checks.has_role("24G")
     async def komennot(self, interaction: discord.Interaction):
@@ -465,7 +472,7 @@ class Utils(commands.Cog):
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
-        await handle_command_error(self.bot, interaction, error)
+        await CommandErrorHandler(self.bot, interaction, error)
 
 async def setup(bot: commands.Bot):
     cog = Utils(bot)

@@ -4,11 +4,13 @@ from bot.utils.ai.llm import generate_reply
 from bot.utils.ai.web_search import simple_web_search
 from bot.utils.ai.image_gen import generate_image
 import discord
+from bot.utils.error_handler import CommandErrorHandler
+from bot.utils.antinuke import cooldown
 
 class AI(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
+    @cooldown("tekoäly")
     @app_commands.command(name="tekoäly", description="Käytä tekoälyä hakemiseen, vastaamiseen tai kuvan generointiin")
     @app_commands.describe(toiminto="Valitse toiminto", kysymys="Kysymys tai kuvaus")
     @app_commands.choices(toiminto=[
@@ -30,6 +32,10 @@ class AI(commands.Cog):
         elif toiminto.value == "generoi":
             generate_image(kysymys)
             await interaction.followup.send(content="🎨 **Kuva generoitu:**", file=discord.File("output.png"))
+
+    @commands.Cog.listener()
+    async def on_app_command_error(self, interaction, error):
+        await CommandErrorHandler(self.bot, interaction, error)
 
 async def setup(bot):
     cog = AI(bot)

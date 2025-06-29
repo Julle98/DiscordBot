@@ -13,7 +13,8 @@ from bot.utils.store_utils import (
 from functools import wraps
 from datetime import datetime, timedelta
 from collections import defaultdict
-from bot.utils.error_handler import handle_command_error
+from bot.utils.error_handler import CommandErrorHandler
+from bot.utils import store_utils as su
 
 komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
 
@@ -48,6 +49,7 @@ class Store(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @cooldown("kauppa")
     @app_commands.command(name="kauppa", description="Näytä kaupan tuotteet tai osta tuote")
     @app_commands.describe(tuote="Tuotteen nimi ostamista varten (valinnainen)")
     @app_commands.checks.has_role("24G")
@@ -73,7 +75,7 @@ class Store(commands.Cog):
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
-        await handle_command_error(self.bot, interaction, error)
+        await CommandErrorHandler(self.bot, interaction, error)
 
 async def setup(bot: commands.Bot):
     cog = Store(bot)

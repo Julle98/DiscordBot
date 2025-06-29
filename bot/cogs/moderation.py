@@ -10,7 +10,8 @@ import asyncio
 
 from dotenv import load_dotenv
 from bot.utils.logger import kirjaa_ga_event, kirjaa_komento_lokiin, autocomplete_bannatut_käyttäjät
-from bot.utils.error_handler import handle_command_error
+from bot.utils.error_handler import CommandErrorHandler
+from bot.utils.antinuke import cooldown
 
 load_dotenv()
 MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", 0))
@@ -155,6 +156,7 @@ class Moderation(commands.Cog):
             tarkista_paivat.start()
 
     # MUTE
+    @cooldown("mute")
     @app_commands.command(name="mute", description="Aseta jäähy jäsenelle.")
     @app_commands.describe(jäsen="Jäsen, jolle asetetaan jäähy", kesto="Jäähyn kesto", syy="Syy")
     @app_commands.checks.has_role("Mestari")
@@ -187,6 +189,7 @@ class Moderation(commands.Cog):
             await interaction.response.send_message(f"Virhe asetettaessa jäähyä: {e}", ephemeral=True)
 
     # UNMUTE
+    @cooldown("unmute")
     @app_commands.command(name="unmute", description="Poista jäähy jäseneltä.")
     @app_commands.describe(jäsen="Jäsen, jolta poistetaan jäähy", syy="Syy")
     @app_commands.checks.has_role("Mestari")
@@ -203,6 +206,7 @@ class Moderation(commands.Cog):
             await interaction.response.send_message(f"Virhe poistettaessa jäähyä: {e}", ephemeral=True)
 
     # WARN
+    @cooldown("warn")
     @app_commands.command(name="warn", description="Anna varoitus käyttäjälle.")
     @app_commands.describe(member="Käyttäjä", syy="Syy")
     @app_commands.checks.has_role("Mestari")
@@ -219,6 +223,7 @@ class Moderation(commands.Cog):
             await modlog.send(f"[VAROITUS] {member.mention} | ID: {member.id} | Syy: {syy} | Antaja: {interaction.user.mention}")
 
     # UNWARN
+    @cooldown("unwarn")
     @app_commands.command(name="unwarn", description="Poista käyttäjän varoitus.")
     @app_commands.describe(member="Käyttäjä", kaikki="Poista kaikki varoitukset.")
     @app_commands.checks.has_role("Mestari")
@@ -241,6 +246,7 @@ class Moderation(commands.Cog):
         )
 
     # VAROITUKSET
+    @cooldown("varoitukset")
     @app_commands.command(name="varoitukset", description="Näytä käyttäjän varoitukset.")
     @app_commands.describe(member="Käyttäjä")
     @app_commands.checks.has_role("Mestari")
@@ -262,6 +268,7 @@ class Moderation(commands.Cog):
         await interaction.response.send_message(f"{member.mention} on saanut {len(lista)} varoitusta:\n{vastaus}", ephemeral=True)
 
     # KICK
+    @cooldown("kick")
     @app_commands.command(name="kick", description="Poista käyttäjä palvelimelta.")
     @app_commands.describe(member="Käyttäjä", syy="Syy")
     @app_commands.checks.has_role("Mestari")
@@ -280,6 +287,7 @@ class Moderation(commands.Cog):
             await interaction.response.send_message(f"Potku epäonnistui: {e}", ephemeral=True)
 
     # BAN
+    @cooldown("ban")
     @app_commands.command(name="ban", description="Bannaa käyttäjä.")
     @app_commands.describe(member="Käyttäjä", syy="Syy")
     @app_commands.checks.has_role("Mestari")
@@ -302,6 +310,7 @@ class Moderation(commands.Cog):
             await interaction.response.send_message(f"Virhe bannatessa käyttäjää: {str(e)}", ephemeral=True)
 
     # UNBAN
+    @cooldown("unban")
     @app_commands.command(name="unban", description="Poista käyttäjän porttikielto.")
     @app_commands.describe(käyttäjänimi="Käyttäjänimi muodossa nimi#0001", syy="Syy unbannille.")
     @app_commands.checks.has_role("Mestari")
@@ -341,6 +350,7 @@ class Moderation(commands.Cog):
         await interaction.followup.send("Käyttäjää ei löytynyt bannatuista.", ephemeral=True)
 
     # HUOLTO
+    @cooldown("huolto")
     @app_commands.command(name="huolto", description="Aseta botti huoltotilaan.")
     @app_commands.checks.has_role("Mestari")
     async def huolto(self, interaction: discord.Interaction):
@@ -352,6 +362,7 @@ class Moderation(commands.Cog):
         )
 
     # SET ROLE
+    @cooldown("set_role")
     @app_commands.command(name="set_role", description="Lisää roolin käyttäjälle.")
     @app_commands.checks.has_role("Mestari")
     async def set_role(self, interaction: discord.Interaction, käyttäjä: discord.Member, rooli: discord.Role):
@@ -363,6 +374,7 @@ class Moderation(commands.Cog):
         )
 
     # REMOVE ROLE
+    @cooldown("remove_role")
     @app_commands.command(name="remove_role", description="Poistaa roolin käyttäjältä.")
     @app_commands.checks.has_role("Mestari")
     async def remove_role(self, interaction: discord.Interaction, käyttäjä: discord.Member, rooli: discord.Role):
@@ -374,6 +386,7 @@ class Moderation(commands.Cog):
         )
 
     # TOIMINTA
+    @cooldown("toiminta")
     @app_commands.command(name="toiminta", description="Näytä aktiivisin kanava per jäsen")
     @app_commands.describe(jäsen="Valitse jäsen")
     @app_commands.checks.has_role("Mestari")
@@ -404,6 +417,7 @@ class Moderation(commands.Cog):
         )
 
     # VIESTIT
+    @cooldown("viestit")
     @app_commands.command(name="viestit", description="Näytä palvelimen koko viestimäärät")
     @app_commands.checks.has_role("Mestari")
     async def viestit(self, interaction: discord.Interaction):
@@ -428,6 +442,7 @@ class Moderation(commands.Cog):
         await interaction.followup.send("**Top 5 aktiivisinta käyttäjää:**\n" + vastaus)
 
     # SAMMUTUS
+    @cooldown("sammutus")
     @app_commands.command(name="sammutus", description="Sammuta botti.")
     @app_commands.checks.has_role("Mestari")
     async def sammutus(self, interaction: discord.Interaction):
@@ -454,6 +469,7 @@ class Moderation(commands.Cog):
         await self.bot.close()
 
     # VAIHDA NIMIMERKKI
+    @cooldown("vaihda_nimimerkki")
     @app_commands.command(name="vaihda_nimimerkki", description="Vaihda jäsenen nimimerkki palvelimella.")
     @app_commands.checks.has_permissions(manage_nicknames=True)
     @app_commands.checks.has_role("Mestari")
@@ -469,6 +485,7 @@ class Moderation(commands.Cog):
             await interaction.response.send_message(f"Virhe: {e}", ephemeral=True)
 
     # UUDELLEENKÄYNNISTYS
+    @cooldown("uudelleenkaynnistys")
     @app_commands.command(name="uudelleenkaynnistys", description="Käynnistä botti uudelleen.")
     @app_commands.checks.has_role("Mestari")
     async def uudelleenkaynnistys(self, interaction: discord.Interaction):
@@ -484,6 +501,7 @@ class Moderation(commands.Cog):
         await self.bot.close()
 
     # ILMOITUS
+    @cooldown("ilmoitus")
     @app_commands.command(name="ilmoitus", description="Luo ilmoitus botin nimissä ja lähetä se valittuun kanavaan.")
     @app_commands.checks.has_role("Mestari")
     @app_commands.checks.has_permissions(manage_channels=True)
@@ -497,6 +515,7 @@ class Moderation(commands.Cog):
             print(f"Task creation failed: {e}")
 
     # CLEAR
+    @cooldown("clear")
     @app_commands.command(name="clear", description="Poista viestejä valitusta kanavasta.")
     @app_commands.checks.has_role("Mestari")
     async def clear(self, interaction: discord.Interaction):
@@ -511,6 +530,7 @@ class Moderation(commands.Cog):
         await interaction.response.send_message("Valitse kanava ja vahvista:", view=ClearView(kanavat), ephemeral=True)
 
     # LUKITSE
+    @cooldown("lukitse")
     @app_commands.command(name="lukitse", description="Lukitsee kanavan kaikilta.")
     @app_commands.checks.has_role("Mestari")
     async def lukitse(self, interaction: discord.Interaction, kanava: discord.TextChannel):
@@ -521,6 +541,7 @@ class Moderation(commands.Cog):
         await interaction.response.send_message(f"Kanava {kanava.mention} on lukittu onnistuneesti!", ephemeral=True)
 
     # PING
+    @cooldown("ping")
     @app_commands.command(name="ping", description="Näytä botin viive.")
     async def ping(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ping")
@@ -529,6 +550,7 @@ class Moderation(commands.Cog):
         await interaction.response.send_message(f"Botin viive on {latency} ms.")
 
     # AKTIIVISIMMAT
+    @cooldown("aktiivisimmat")
     @app_commands.command(name="aktiivisimmat", description="Näytä aktiivisimmat käyttäjät tai aloita viestiseuranta.")
     @app_commands.describe(
         paiva="Muoto YYYY-MM-DD. Tyhjä = nykyhetki",
@@ -590,6 +612,7 @@ class Moderation(commands.Cog):
         await interaction.followup.send("**Top 5 aktiivisinta käyttäjää (24h):**\n" + teksti)
 
     # REAGOI
+    @cooldown("reagoi")
     @app_commands.command(name="reagoi", description="Reagoi viestiin, joka sisältää tietyn tekstin.")
     @app_commands.describe(hakusana="Osa viestistä", emoji="Emoji, jolla reagoidaan")
     @app_commands.checks.has_role("Mestari")
@@ -615,7 +638,7 @@ class Moderation(commands.Cog):
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
-        await handle_command_error(self.bot, interaction, error)
+        await CommandErrorHandler(self.bot, interaction, error)
 
 async def setup(bot: commands.Bot):
     cog = Moderation(bot)
