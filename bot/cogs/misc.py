@@ -208,7 +208,6 @@ class Misc(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    
     @app_commands.command(name="aika", description="Näytä nykyinen aika haluamassasi UTC-ajassa.")
     @app_commands.checks.has_role("24G")
     @cooldown("aika")
@@ -217,7 +216,6 @@ class Misc(commands.Cog):
         kirjaa_ga_event(interaction.user.id, "aika_komento")
         await interaction.response.send_modal(AikaModal())
 
-    
     @app_commands.command(name="moikka", description="Moikkaa takaisin.")
     @cooldown("moikka")
     async def moikka(self, interaction: discord.Interaction):

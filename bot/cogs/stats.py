@@ -51,6 +51,8 @@ class Stats(commands.Cog):
         ]
     )
     async def stats(self, interaction: discord.Interaction, tyyppi: app_commands.Choice[str]):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/stats")
+        kirjaa_ga_event(interaction.user.id, "stats_komento")
         await interaction.response.defer(ephemeral=True)
 
         if tyyppi.value == "komennot":
