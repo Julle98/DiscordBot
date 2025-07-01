@@ -22,12 +22,13 @@ async def kirjaa_komento_lokiin(
         await AnalyticsLogging.kirjaa_komento_lokiin(interaction, command_name)
 
 async def autocomplete_bannatut_käyttäjät(
-    bot: commands.Bot,
     interaction: discord.Interaction,
-    current: str,
+    current: str
 ) -> List[app_commands.Choice[str]]:
+    bot = interaction.client  
+
     if (cog := _cog(bot)):
-        return await AnalyticsLogging.autocomplete_bannatut_käyttäjät(interaction, current)
+        return await cog.autocomplete_bannatut_käyttäjät(interaction, current)
     return []
 
 class AnalyticsLogging(commands.Cog):
