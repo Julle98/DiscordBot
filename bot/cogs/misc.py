@@ -212,23 +212,24 @@ class Misc(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("aika")
     async def aika(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/aika")
-        kirjaa_ga_event(interaction.user.id, "aika_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/aika")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "aika_komento")
+
         await interaction.response.send_modal(AikaModal())
 
     @app_commands.command(name="moikka", description="Moikkaa takaisin.")
     @cooldown("moikka")
     async def moikka(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/moikka")
-        kirjaa_ga_event(interaction.user.id, "moikka_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/moikka")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "moikka_komento")
         await interaction.response.send_message("Moikka!")
 
     @app_commands.command(name="esittely", description="Sannamaijan esittely.")
     @app_commands.checks.has_role("24G")
     @cooldown("esittely")
     async def esittely(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/esittely")
-        kirjaa_ga_event(interaction.user.id, "esittely_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/esittely")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "esittely_komento")
         await interaction.response.send_message("Moi olen Sannamaija Pyrrö...")
 
     @app_commands.command(name="nofal", description="Sannamaijan mielipide Nofalista.")
@@ -242,8 +243,8 @@ class Misc(commands.Cog):
         ]
     )
     async def nofal(self, interaction: discord.Interaction, mielipide: app_commands.Choice[str]):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/nofal")
-        kirjaa_ga_event(interaction.user.id, "nofal_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/nofal")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "nofal_komento")
         if mielipide.value == "positiivinen":
             teksti = "Minun lempioppilaani..."
         else:
@@ -255,8 +256,8 @@ class Misc(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("kutsumalinkki")
     async def kutsumalinkki(self, interaction: discord.Interaction, käyttökerrat: int = None):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/kutsumalinkki")
-        kirjaa_ga_event(interaction.user.id, "kutsumalinkki_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/kutsumalinkki")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "kutsumalinkki_komento")
         if käyttökerrat is None:
             await interaction.response.send_message("https://discord.com/invite/xpu7cdGESg", ephemeral=True)
         else:
@@ -270,8 +271,8 @@ class Misc(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("ruokailuvuorot")
     async def ruokailuvuorot(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/ruokailuvuorot")
-        kirjaa_ga_event(interaction.user.id, "ruokailuvuorot_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/ruokailuvuorot")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "ruokailuvuorot_komento")
         await interaction.response.send_message("Tällä hetkellä ei ole ruokailuvuoro listoja.")
 
 
@@ -279,8 +280,8 @@ class Misc(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("ruoka")
     async def ruoka(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/ruoka")
-        kirjaa_ga_event(interaction.user.id, "ruoka_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/ruoka")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "ruoka_komento")
         if datetime.now().weekday() >= 5:
             await interaction.response.send_message("Ei ruokana tänään mitään.")
             return
@@ -304,8 +305,8 @@ class Misc(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("sano")
     async def sano(self, interaction: discord.Interaction, viesti: str):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/sano")
-        kirjaa_ga_event(interaction.user.id, "sano_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/sano")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "sano_komento")
         kielletyt_sanat = ["nigger", "nigga", "nig", "ni", "nigg", "nigge", "nekru", "nekrut", "ammun", "tapan", "tappaa", "tapan sinut", "peppu", "perse", "pillu", "kikkeli", "penis"]
 
         if any(re.search(rf"\b{kielletty}\b", viesti, re.IGNORECASE) for kielletty in kielletyt_sanat):
@@ -322,8 +323,8 @@ class Misc(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("mielipide")
     async def mielipide(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/mielipide")
-        kirjaa_ga_event(interaction.user.id, "mielipide_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/mielipide")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "mielipide_komento")
         await interaction.response.send_modal(MielipideModal())
 
 
@@ -331,8 +332,8 @@ class Misc(commands.Cog):
     @app_commands.describe(pisteet="Saadut pisteet", maksimi="Maksimipisteet", lapipääsyprosentti="Läpipääsy %")
     @cooldown("arvosanalaskuri")
     async def arvosanalaskuri(self, interaction: discord.Interaction, pisteet: float, maksimi: float, lapipääsyprosentti: float):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/arvosanalaskuri")
-        kirjaa_ga_event(interaction.user.id, "arvosanalaskuri_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/arvosanalaskuri")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "arvosanalaskuri_komento")
 
         lapiraja = (lapipääsyprosentti / 100) * maksimi
         if pisteet < lapiraja:
@@ -348,8 +349,8 @@ class Misc(commands.Cog):
     @app_commands.describe(lasku="Anna lasku esim. 8*5(4+4)", selitys="Haluatko selityksen? kyllä/ei")
     @cooldown("laskin")
     async def laskin(self, interaction: discord.Interaction, lasku: str, selitys: str = "ei"):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/laskin")
-        kirjaa_ga_event(interaction.user.id, "laskin_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/laskin")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "laskin_komento")
 
         try:
             lasku_parsittu = lasku.replace("^", "**").replace("sqrt", "math.sqrt")
@@ -374,8 +375,8 @@ class Misc(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("ajastin")
     async def ajastin(self, interaction: discord.Interaction, aika: str):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/ajastin")
-        kirjaa_ga_event(interaction.user.id, "ajastin_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/ajastin")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "ajastin_komento")
         aika = aika.lower().replace(" ", "")
         pattern = r'(?:(\d+)m)?(?:(\d+)s)?'
         match = re.fullmatch(pattern, aika)
@@ -402,8 +403,8 @@ class Misc(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("kulppi")
     async def kulppi(self, interaction: discord.Interaction, aika: str):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/kulppi")
-        kirjaa_ga_event(interaction.user.id, "kulppi_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/kulppi")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "kulppi_komento")
         aika = aika.lower().replace(" ", "")
         match = re.fullmatch(r'(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?', aika)
 
@@ -426,12 +427,12 @@ class Misc(commands.Cog):
         )
 
 
-    @app_commands.command(name="seuraava_lomapaiva", description="Näyttää seuraavan lomapäivän.")
+    @app_commands.command(name="seuraava_lomapaivä", description="Näyttää seuraavan lomapäivän.")
     @app_commands.checks.has_role("24G")
     @cooldown("seuraava_lomapaiva")
     async def seuraava_lomapaiva(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/seuraava_lomapaiva")
-        kirjaa_ga_event(interaction.user.id, "seuraava_lomapaiva_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/seuraava_lomapaiva")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "seuraava_lomapaiva_komento")
         nyt = datetime.now()
         for paiva, nimi in sorted(lomapaivat.items()):
             if paiva > nyt:
@@ -445,8 +446,8 @@ class Misc(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("meme")
     async def meme(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/meme")
-        kirjaa_ga_event(interaction.user.id, "meme_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/meme")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "meme_komento")
         global last_meme_url
 
         if not meme_urls:
@@ -463,8 +464,8 @@ class Misc(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("vitsi")
     async def vitsi(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/vitsi")
-        kirjaa_ga_event(interaction.user.id, "vitsi_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/vitsi")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "vitsi_komento")
         joke = random.choice(general_jokes)
         await interaction.response.send_message(joke)
 

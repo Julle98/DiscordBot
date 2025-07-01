@@ -49,10 +49,10 @@ class Tasks(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("tehtavat")
     async def tehtavat(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/tehtävät")
-        kirjaa_ga_event(interaction.user.id, "tehtävät_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/tehtävät")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "tehtävät_komento")
 
-        data = load_tasks()
+        data = await asyncio.to_thread(load_tasks)
         daily = data.get("daily_tasks", [])
         weekly = data.get("weekly_tasks", [])
         monthly = data.get("monthly_tasks", [])

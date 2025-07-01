@@ -55,10 +55,10 @@ class Store(commands.Cog):
     @cooldown("kauppa")
     async def kauppa(self, interaction: discord.Interaction, tuote: str = None):
         try:
-            await kirjaa_komento_lokiin(self.bot, interaction, "/kauppa")
-            kirjaa_ga_event(interaction.user.id, "kauppa_komento")
+            await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/kauppa")
+            await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "kauppa_komento")
 
-            tarjoukset = hae_tai_paivita_tarjous()
+            tarjoukset = await asyncio.to_thread(hae_tai_paivita_tarjous)
 
             if tuote is None:
                 embed = nayta_kauppa_embed(interaction, tarjoukset)

@@ -51,12 +51,12 @@ class Stats(commands.Cog):
         ]
     )
     async def stats(self, interaction: discord.Interaction, tyyppi: app_commands.Choice[str]):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/stats")
-        kirjaa_ga_event(interaction.user.id, "stats_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/stats")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "stats_komento")
         await interaction.response.defer(ephemeral=True)
 
         if tyyppi.value == "komennot":
-            data = hae_komennot()
+            data = await asyncio.to_thread(hae_komennot)
             if not data:
                 await interaction.followup.send("Ei löytynyt tietoja analysoitavaksi.")
                 return

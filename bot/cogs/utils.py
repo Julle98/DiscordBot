@@ -317,19 +317,17 @@ class Utils(commands.Cog):
 
     async def start_services(self):
         from utils.status_updater import update_status
-        from utils.monitoring import tarkkaile_kanavan_aktiivisuutta
         import asyncio
         asyncio.create_task(update_status())
-        asyncio.create_task(tarkkaile_kanavan_aktiivisuutta())
 
 
     @app_commands.command(name="help", description="Kysy apua tai ilmoita asiasta.")
     @app_commands.checks.has_role("24G")
     @cooldown("help")
     async def help(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/help")
-        kirjaa_ga_event(interaction.user.id, "help_komento")
-        
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/help")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "help_komento")
+
         load_dotenv()
         HELP_CHANNEL_ID = int(os.getenv("HELP_CHANNEL_ID"))
         target_channel = interaction.guild.get_channel(HELP_CHANNEL_ID)
@@ -353,8 +351,8 @@ class Utils(commands.Cog):
     )
     @app_commands.checks.has_role("Mestari")
     async def giveaway(self, interaction: discord.Interaction, palkinto: str, kesto: int, rooli: discord.Role):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/giveaway")
-        kirjaa_ga_event(interaction.user.id, "giveaway_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/giveaway")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "giveaway_komento")
 
         view = GiveawayView(palkinto, rooli, kesto, None, interaction.user)
         await interaction.response.send_message(
@@ -376,8 +374,8 @@ class Utils(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("tag")
     async def tag(self, interaction: discord.Interaction, tag: str):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/tag")
-        kirjaa_ga_event(interaction.user.id, "tag_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/tag")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "tag_komento")
         tag = re.sub(r'[^a-zA-Z0-9]', '', tag.strip())
         kielletyt_sanat = ["niger", "nekru", "nigga", "nig", "homo", "gay", "homot", "pillu", "penis", "perse"]
 
@@ -406,8 +404,8 @@ class Utils(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("vaihda_tag")
     async def vaihda_tag(self, interaction: discord.Interaction, tag: str):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/vaihda_tag")
-        kirjaa_ga_event(interaction.user.id, "vaihda_tag_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/vaihda_tag")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "vaihda_tag_komento")
         tag = tag.strip()
         kielletyt_sanat = ["niger", "nekru", "nigga", "nig"]
 
@@ -436,8 +434,8 @@ class Utils(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("remove_tag")
     async def remove_tag(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/remove_tag")
-        kirjaa_ga_event(interaction.user.id, "remove_tag_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/remove_tag")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "remove_tag_komento")
 
         current = interaction.user.nick or interaction.user.name
 
@@ -459,8 +457,8 @@ class Utils(commands.Cog):
     @app_commands.checks.has_role("24G")
     @cooldown("komennot")
     async def komennot(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/komennot")
-        kirjaa_ga_event(interaction.user.id, "komennot_komento")
+        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/komennot")
+        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "komennot_komento")
 
         user_roles = [role.name for role in interaction.user.roles]
         viesti = "**Käytettävissä olevat komennot:**\n"
