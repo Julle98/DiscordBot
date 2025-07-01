@@ -33,6 +33,7 @@ COGS = [
     "bot.utils.logger",
     "bot.utils.monitoring",
     "bot.utils.status_updater",
+    "bot.cogs.quiz",
 ]
 
 async def load_cogs() -> None:
