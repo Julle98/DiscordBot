@@ -17,3 +17,7 @@ data/shop/ostot.json
 bot/cogs/__pycache__/
 bot/__init__.py
 bot/utils/status_updater.py
+data/questions.json
+web_app/src/.env
+web_app/package.json
+env
