@@ -10,7 +10,12 @@ class XPSystem(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        if message.author.bot:
+            return
+
         await käsittele_viesti_xp(self.bot, message)
+
+        await self.bot.process_commands(message)
 
     @tasks.loop(seconds=30)
     async def slowmode_watcher(self):

@@ -94,21 +94,6 @@ async def käsittele_dm_viesti(bot, message):
     except:
         pass
 
-async def tarkista_salaisuus(message, viesti):
-    salaisuudet = {
-        "hei": "Moi!",
-        "moi": "Heippa!",
-        "mitä kuuluu": "Hyvin, kiitos!",
-        "mikä on nimesi": "Olen Sannamaija, mukava tavata!",
-        "kiitos": "Eipä kestä!",
-        "hiljaa": "Oleppas ite hiljaa.",
-    }
-    for avain, vastaus in salaisuudet.items():
-        if avain in viesti:
-            await message.channel.send(vastaus)
-            return True
-    return False
-
 def load_streaks():
     if STREAKS_FILE.exists():
         with open(STREAKS_FILE, "r", encoding="utf-8") as f:
@@ -188,6 +173,41 @@ async def tarkkaile_kanavan_aktiivisuutta():
 
         await asyncio.sleep(30)
 
+async def anna_xp_komennosta(bot, interaction: discord.Interaction, xp_määrä: int = 10):
+    if XP_CHANNEL_ID == 0 or not interaction.guild:
+        return
+
+    xp_channel = interaction.guild.get_channel(XP_CHANNEL_ID)
+    if not xp_channel:
+        return
+
+    uid = interaction.user.id
+    msg = await get_user_xp_message(xp_channel, uid)
+    xp, level = parse_xp_content(msg.content if msg else f"{uid}:0:0")
+
+    if any(role.id in DOUBLE_XP_ROLES for role in interaction.user.roles):
+        xp_määrä *= 2
+
+    xp += xp_määrä
+    new_level = calculate_level(xp)
+
+    dummy_message = type("DummyMessage", (), {
+        "author": interaction.user,
+        "channel": interaction.channel,
+        "guild": interaction.guild
+    })()
+
+    if new_level > level:
+        await tarkista_tasonousu(bot, dummy_message, level, new_level)
+
+    content = make_xp_content(uid, xp, new_level)
+    if msg:
+        await msg.edit(content=content)
+    else:
+        await xp_channel.send(content)
+
+    await paivita_streak(uid)
+
 async def käsittele_viesti_xp(bot, message: discord.Message):
     if message.author.bot:
         return
@@ -257,19 +277,3 @@ async def käsittele_viesti_xp(bot, message: discord.Message):
         await xp_channel.send(content)
 
     await paivita_streak(uid)
-
-    vastattu = False
-    viesti = message.content.lower()
-
-    if message.reference:
-        try:
-            alkuperäinen = await message.channel.fetch_message(message.reference.message_id)
-            if alkuperäinen.author == bot.user:
-                vastattu = await tarkista_salaisuus(message, viesti)
-        except:
-            pass
-
-    if not vastattu:
-        await tarkista_salaisuus(message, viesti)
-
-    await bot.process_commands(message)

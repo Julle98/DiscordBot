@@ -6,10 +6,10 @@ import Question from './components/Question';
 import Results from './components/Results';
 
 const BACKEND_URL = process.env.NODE_ENV === 'production' 
-    ? 'https://your-hosted-backend-url.com' // VAIHDA TÄMÄ!
-    : 'http://localhost:3001'; // Kehityksessä
+    ? 'https://your-hosted-backend-url.com' 
+    : 'http://localhost:3001'; 
 
-const discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID); // HAE TÄMÄ .env-tiedostosta
+const discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID); 
 
 function App() {
   const [discordAuth, setDiscordAuth] = useState(null);
