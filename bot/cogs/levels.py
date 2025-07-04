@@ -77,8 +77,8 @@ class Levels(commands.Cog):
     async def taso(self, interaction: Interaction, vaihtoehto: app_commands.Choice[str]):
         await interaction.response.defer(thinking=True, ephemeral=True)
 
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/taso")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "taso_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/taso")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "taso_komento")
 
         xp_channel = interaction.guild.get_channel(XP_CHANNEL_ID)
         if not xp_channel:

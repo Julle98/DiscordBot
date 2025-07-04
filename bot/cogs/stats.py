@@ -49,8 +49,8 @@ class Stats(commands.Cog):
         ]
     )
     async def stats(self, interaction: discord.Interaction, tyyppi: app_commands.Choice[str]):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/stats")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "stats_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/stats")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "stats_komento")
         await interaction.response.defer(ephemeral=True)
 
         if tyyppi.value == "komennot":

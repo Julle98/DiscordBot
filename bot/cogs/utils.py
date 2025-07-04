@@ -324,8 +324,8 @@ class Utils(commands.Cog):
     @app_commands.command(name="help", description="Kysy apua tai ilmoita asiasta.")
     @app_commands.checks.has_role("24G")
     async def help(self, interaction: discord.Interaction):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/help")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "help_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/help")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "help_komento")
 
         load_dotenv()
         HELP_CHANNEL_ID = int(os.getenv("HELP_CHANNEL_ID"))
@@ -349,8 +349,8 @@ class Utils(commands.Cog):
     )
     @app_commands.checks.has_role("Mestari")
     async def giveaway(self, interaction: discord.Interaction, palkinto: str, kesto: int, rooli: discord.Role):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/giveaway")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "giveaway_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/giveaway")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "giveaway_komento")
 
         view = GiveawayView(palkinto, rooli, kesto, None, interaction.user)
         await interaction.response.send_message(
@@ -371,8 +371,8 @@ class Utils(commands.Cog):
     @app_commands.describe(tag="Haluttu tagi, 3-6 kirjainta pitkä.")
     @app_commands.checks.has_role("24G")
     async def tag(self, interaction: discord.Interaction, tag: str):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/tag")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "tag_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/tag")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "tag_komento")
         tag = re.sub(r'[^a-zA-Z0-9]', '', tag.strip())
         kielletyt_sanat = ["niger", "nekru", "nigga", "nig", "homo", "gay", "homot", "pillu", "penis", "perse"]
 
@@ -400,8 +400,8 @@ class Utils(commands.Cog):
     @app_commands.describe(tag="Uusi tagi (3-6 kirjainta).")
     @app_commands.checks.has_role("24G")
     async def vaihda_tag(self, interaction: discord.Interaction, tag: str):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/vaihda_tag")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "vaihda_tag_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/vaihda_tag")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "vaihda_tag_komento")
         tag = tag.strip()
         kielletyt_sanat = ["niger", "nekru", "nigga", "nig"]
 
@@ -429,8 +429,8 @@ class Utils(commands.Cog):
     @app_commands.command(name="remove_tag", description="Poistaa tagin käyttäjän serverinimestä.")
     @app_commands.checks.has_role("24G")
     async def remove_tag(self, interaction: discord.Interaction):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/remove_tag")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "remove_tag_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/remove_tag")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "remove_tag_komento")
 
         current = interaction.user.nick or interaction.user.name
 
@@ -451,8 +451,8 @@ class Utils(commands.Cog):
     @app_commands.command(name="komennot", description="Näyttää kaikki käytettävissä olevat komennot ja niiden selitykset.")
     @app_commands.checks.has_role("24G")
     async def komennot(self, interaction: discord.Interaction):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/komennot")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "komennot_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/komennot")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "komennot_komento")
 
         user_roles = [role.name for role in interaction.user.roles]
         viesti = "**Käytettävissä olevat komennot:**\n"

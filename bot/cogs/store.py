@@ -54,8 +54,8 @@ class Store(commands.Cog):
     @app_commands.checks.has_role("24G")
     async def kauppa(self, interaction: discord.Interaction, tuote: str = None):
         try:
-            await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/kauppa")
-            await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "kauppa_komento")
+            await kirjaa_komento_lokiin(self.bot, interaction, "/kauppa")
+            await kirjaa_ga_event(self.bot, interaction.user.id, "kauppa_komento")
 
             tarjoukset = await asyncio.to_thread(hae_tai_paivita_tarjous)
 

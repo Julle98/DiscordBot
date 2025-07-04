@@ -159,8 +159,8 @@ class Moderation(commands.Cog):
     @app_commands.describe(jäsen="Jäsen, jolle asetetaan jäähy", kesto="Jäähyn kesto", syy="Syy")
     @app_commands.checks.has_role("Mestari")
     async def mute(self, interaction: discord.Interaction, jäsen: discord.Member, kesto: str, syy: str = "Ei syytä annettu"):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/mute")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "mute_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/mute")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "mute_komento")
         if jäsen == interaction.user:
             await interaction.response.send_message("Et voi asettaa itseäsi jäähylle.", ephemeral=True)
             return
@@ -191,8 +191,8 @@ class Moderation(commands.Cog):
     @app_commands.describe(jäsen="Jäsen, jolta poistetaan jäähy", syy="Syy")
     @app_commands.checks.has_role("Mestari")
     async def unmute(self, interaction: discord.Interaction, jäsen: discord.Member, syy: str = "Ei syytä annettu"):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/unmute")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "unmute_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/unmute")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "unmute_komento")
         if jäsen.timed_out_until is None:
             await interaction.response.send_message(f"{jäsen.mention} ei ole jäähyllä.", ephemeral=True)
             return
@@ -207,8 +207,8 @@ class Moderation(commands.Cog):
     @app_commands.describe(member="Käyttäjä", syy="Syy")
     @app_commands.checks.has_role("Mestari")
     async def warn(self, interaction: discord.Interaction, member: discord.Member, syy: str = "Ei syytä annettu"):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/warn")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "warn_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/warn")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "warn_komento")
         try:
             await member.send(f"Olet saanut varoituksen: {syy}")
         except discord.Forbidden:
@@ -223,8 +223,8 @@ class Moderation(commands.Cog):
     @app_commands.describe(member="Käyttäjä", kaikki="Poista kaikki varoitukset.")
     @app_commands.checks.has_role("Mestari")
     async def unwarn(self, interaction: discord.Interaction, member: discord.Member, kaikki: bool = False):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/unwarn")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "unwarn_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/unwarn")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "unwarn_komento")
         modlog = self.bot.get_channel(MODLOG_CHANNEL_ID)
         if not modlog:
             await interaction.response.send_message("Moderaatiokanavaa ei löytynyt.", ephemeral=True)
@@ -245,8 +245,8 @@ class Moderation(commands.Cog):
     @app_commands.describe(member="Käyttäjä")
     @app_commands.checks.has_role("Mestari")
     async def varoitukset(self, interaction: discord.Interaction, member: discord.Member):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/varoitukset")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "varoitukset_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/varoitukset")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "varoitukset_komento")
         modlog = self.bot.get_channel(MODLOG_CHANNEL_ID)
         if not modlog:
             await interaction.response.send_message("Moderaatiokanavaa ei löytynyt.", ephemeral=True)
@@ -267,8 +267,8 @@ class Moderation(commands.Cog):
     @app_commands.checks.has_role("Mestari")
     @app_commands.checks.has_permissions(kick_members=True)
     async def kick(self, interaction: discord.Interaction, member: discord.Member, syy: str = "Ei syytä annettu"):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/kick")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "kick_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/kick")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "kick_komento")
         try:
             await member.send(f"Sinut on potkittu. Syy: {syy}")
         except discord.Forbidden:
@@ -285,8 +285,8 @@ class Moderation(commands.Cog):
     @app_commands.checks.has_role("Mestari")
     @app_commands.checks.has_permissions(ban_members=True)
     async def ban(self, interaction: discord.Interaction, member: discord.Member, syy: str = "Ei syytä annettu"):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/ban")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "ban_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/ban")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "ban_komento")
         try:
             await member.send(f"Bannattu. Syy: {syy}")
         except discord.Forbidden:
@@ -309,8 +309,8 @@ class Moderation(commands.Cog):
     @app_commands.autocomplete(käyttäjänimi=autocomplete_bannatut_käyttäjät)
     async def unban(self, interaction: discord.Interaction, käyttäjänimi: str, syy: str = "Ei syytä annettu"):
         await interaction.response.defer(thinking=True, ephemeral=True)
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/unban")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "unban_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/unban")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "unban_komento")
 
         try:
             banned_users = [entry async for entry in interaction.guild.bans()]
@@ -344,8 +344,8 @@ class Moderation(commands.Cog):
     @app_commands.command(name="huolto", description="Aseta botti huoltotilaan.")
     @app_commands.checks.has_role("Mestari")
     async def huolto(self, interaction: discord.Interaction):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/huolto")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "huolto_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/huolto")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "huolto_komento")
         await interaction.response.send_message(
             "Paina alla olevaa painiketta antaaksesi huollon tiedot:",
             view=HuoltoView(), ephemeral=True
@@ -355,8 +355,8 @@ class Moderation(commands.Cog):
     @app_commands.command(name="set_role", description="Lisää roolin käyttäjälle.")
     @app_commands.checks.has_role("Mestari")
     async def set_role(self, interaction: discord.Interaction, käyttäjä: discord.Member, rooli: discord.Role):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/set_role")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "set_role_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/set_role")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "set_role_komento")
         await käyttäjä.add_roles(rooli)
         await interaction.response.send_message(
             f"Rooli **{rooli.name}** lisätty käyttäjälle {käyttäjä.mention}.✅", ephemeral=True
@@ -366,8 +366,8 @@ class Moderation(commands.Cog):
     @app_commands.command(name="remove_role", description="Poistaa roolin käyttäjältä.")
     @app_commands.checks.has_role("Mestari")
     async def remove_role(self, interaction: discord.Interaction, käyttäjä: discord.Member, rooli: discord.Role):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/remove_role")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "remove_role_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/remove_role")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "remove_role_komento")
         await käyttäjä.remove_roles(rooli)
         await interaction.response.send_message(
             f"Rooli **{rooli.name}** poistettu käyttäjältä {käyttäjä.mention}. 🗑️", ephemeral=True
@@ -378,8 +378,8 @@ class Moderation(commands.Cog):
     @app_commands.describe(jäsen="Valitse jäsen")
     @app_commands.checks.has_role("Mestari")
     async def toiminta(self, interaction: discord.Interaction, jäsen: discord.Member):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/toiminta")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "toiminta_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/toiminta")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "toiminta_komento")
         await interaction.response.defer(ephemeral=True)
 
         viestimäärät = {}
@@ -407,8 +407,8 @@ class Moderation(commands.Cog):
     @app_commands.command(name="viestit", description="Näytä palvelimen koko viestimäärät")
     @app_commands.checks.has_role("Mestari")
     async def viestit(self, interaction: discord.Interaction):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/viestit")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "viestit_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/viestit")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "viestit_komento")
         await interaction.response.defer(ephemeral=True)
         viestimäärät = defaultdict(int)
         kanavat = [c for c in interaction.guild.text_channels if c.permissions_for(interaction.guild.me).read_messages]
@@ -433,8 +433,8 @@ class Moderation(commands.Cog):
     @app_commands.command(name="sammutus", description="Sammuta botti.")
     @app_commands.checks.has_role("Mestari")
     async def sammutus(self, interaction: discord.Interaction):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/sammutus")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "sammutus_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/sammutus")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "sammutus_komento")
 
         status_kanava = discord.utils.get(interaction.guild.text_channels, name="🛜bot-status")
         if not status_kanava:
@@ -460,8 +460,8 @@ class Moderation(commands.Cog):
     @app_commands.checks.has_permissions(manage_nicknames=True)
     @app_commands.checks.has_role("Mestari")
     async def vaihda_nimimerkki(self, interaction: discord.Interaction, jasen: discord.Member, uusi_nimimerkki: str):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/vaihda_nimimerkki")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "vaihda_nimimerkki_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/vaihda_nimimerkki")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "vaihda_nimimerkki_komento")
         try:
             await jasen.edit(nick=uusi_nimimerkki)
             await interaction.response.send_message(f"{jasen.mention} nimimerkki vaihdettu: {uusi_nimimerkki}")
@@ -474,8 +474,8 @@ class Moderation(commands.Cog):
     @app_commands.command(name="uudelleenkäynnistys", description="Käynnistä botti uudelleen.")
     @app_commands.checks.has_role("Mestari")
     async def uudelleenkaynnistys(self, interaction: discord.Interaction):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/uudelleenkaynnistys")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "uudelleenkaynnistys_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/uudelleenkäynnistys")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "uudelleenkäynnistys_komento")
 
         status_kanava = discord.utils.get(interaction.guild.text_channels, name="🛜bot-status") or await interaction.guild.create_text_channel(name="bot-status")
         async for msg in status_kanava.history(limit=100):
@@ -493,8 +493,8 @@ class Moderation(commands.Cog):
     async def ilmoitus(self, interaction: discord.Interaction, kanava: discord.TextChannel):
         await interaction.response.send_modal(IlmoitusModal(target_channel=kanava, user=interaction.user))
         try:
-            await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/ilmoitus")
-            await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "ilmoitus_komento")
+            await kirjaa_komento_lokiin(self.bot, interaction, "/ilmoitus")
+            await kirjaa_ga_event(self.bot, interaction.user.id, "ilmoitus_komento")
         except Exception as e:
             print(f"Task creation failed: {e}")
 
@@ -502,8 +502,8 @@ class Moderation(commands.Cog):
     @app_commands.command(name="clear", description="Poista viestejä valitusta kanavasta.")
     @app_commands.checks.has_role("Mestari")
     async def clear(self, interaction: discord.Interaction):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/clear")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "clear_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/clear")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "clear_komento")
 
         kanavat = [c for c in interaction.guild.text_channels if c.permissions_for(interaction.user).manage_messages]
         if not kanavat:
@@ -516,8 +516,8 @@ class Moderation(commands.Cog):
     @app_commands.command(name="lukitse", description="Lukitsee kanavan kaikilta.")
     @app_commands.checks.has_role("Mestari")
     async def lukitse(self, interaction: discord.Interaction, kanava: discord.TextChannel):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/lukitse")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "lukitse_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/lukitse")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "lukitse_komento")
         await kanava.set_permissions(interaction.guild.default_role, send_messages=False)
         await kanava.set_permissions(interaction.user, send_messages=True)
         await interaction.response.send_message(f"Kanava {kanava.mention} on lukittu onnistuneesti!", ephemeral=True)
@@ -525,8 +525,8 @@ class Moderation(commands.Cog):
     # PING
     @app_commands.command(name="ping", description="Näytä botin viive.")
     async def ping(self, interaction: discord.Interaction):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/ping")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "ping_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/ping")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "ping_komento")
         latency = round(self.bot.latency * 1000)
         await interaction.response.send_message(f"Botin viive on {latency} ms.")
 
@@ -538,8 +538,8 @@ class Moderation(commands.Cog):
         tarkista="Näytä onko seuranta käynnissä"
     )
     async def aktiivisimmat(self, interaction: discord.Interaction, paiva: str = None, tarkista: bool = False):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/aktiivisimmat")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "aktiivisimmat_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/aktiivisimmat")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "aktiivisimmat_komento")
         if paiva or tarkista:
             if "Mestari" not in [role.name for role in interaction.user.roles]:
                 await interaction.response.send_message("Tämä toiminto vaatii Mestari-roolin.", ephemeral=True)
@@ -599,8 +599,8 @@ class Moderation(commands.Cog):
     @app_commands.describe(hakusana="Osa viestistä", emoji="Emoji, jolla reagoidaan")
     @app_commands.checks.has_role("Mestari")
     async def reagoi(self, interaction: discord.Interaction, hakusana: str, emoji: str):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/reagoi")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "reagoi_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/reagoi")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "reagoi_komento")
         try:
             messages = [msg async for msg in interaction.channel.history(limit=100)]
             target = next((msg for msg in messages if hakusana.lower() in msg.content.lower()), None)

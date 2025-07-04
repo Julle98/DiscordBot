@@ -6,6 +6,7 @@ from bot.utils.ai.llm import generate_reply
 from bot.utils.ai.web_search import simple_web_search
 from bot.utils.ai.image_gen import generate_image
 from bot.utils.error_handler import CommandErrorHandler
+from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 
 class AI(commands.Cog):
     def __init__(self, bot):
@@ -25,6 +26,9 @@ class AI(commands.Cog):
         app_commands.Choice(name="Generoi", value="generoi")
     ])
     async def tekoaly(self, interaction: Interaction, toiminto: app_commands.Choice[str], kysymys: str):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/tekoäly")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "teköäly_komento")
+
         await interaction.response.defer(thinking=True)
 
         try:

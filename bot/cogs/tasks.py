@@ -44,11 +44,11 @@ class Tasks(commands.Cog):
             rotate_monthly_tasks.start()
 
 
-    @app_commands.command(name="tehtavat", description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä.")
+    @app_commands.command(name="tehtävät", description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä.")
     @app_commands.checks.has_role("24G")
     async def tehtavat(self, interaction: discord.Interaction):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/tehtävät")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "tehtävät_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/tehtävät")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "tehtävät_komento")
 
         data = await asyncio.to_thread(load_tasks)
         daily = data.get("daily_tasks", [])
