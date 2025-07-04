@@ -13,6 +13,7 @@ charset-normalizer
 click
 colorama
 discord.py
+duckduckgo-search
 fastapi
 frozenlist
 google-api-core
@@ -32,6 +33,7 @@ Jinja2
 MarkupSafe
 multidict
 oauthlib
+ollama
 propcache
 proto-plus
 protobuf

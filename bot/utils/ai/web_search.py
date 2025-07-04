@@ -1,10 +1,8 @@
-import requests
-from bs4 import BeautifulSoup
+from duckduckgo_search import DDGS
 
 def simple_web_search(query: str) -> str:
-    url = f"https://www.google.com/search?q={query}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    res = requests.get(url, headers=headers)
-    soup = BeautifulSoup(res.text, "html.parser")
-    snippets = soup.find_all("div", class_="BNeawe")
-    return "\n".join(t.text for t in snippets[:3])
+    results = []
+    with DDGS() as ddgs:
+        for r in ddgs.text(query, max_results=3):
+            results.append(f"{r['title']}\n{r['body']}\n{r['href']}")
+    return "\n\n".join(results)
