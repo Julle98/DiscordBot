@@ -9,10 +9,10 @@ The main language in the bot are Finnish and you can always change it to English
 The code contain lot of commands over 45 commands.
 
 # Instructions for deploying the bot
-1. Download Visual Studio Code
-2. Download all the files in the repository
-3. Download these pip extensions: discord.py, yt-dlp, dotenv and pytz 
-4. Change the .env file to your own Bot Token and Application ID
+1. Download Visual Studio Code.
+2. Download all the files in the repository. Zip file is good option.
+3. Download pip extensions at requirements.txt file. Big recommendation to some kind of virtual environment! 
+4. Change the .env file data to your own.
 5. Run the file and have fun!
 - Also you need make a bot in the Discord Developer Portal.
 
