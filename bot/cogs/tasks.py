@@ -8,7 +8,6 @@ from collections import deque
 from dotenv import load_dotenv
 from bot.utils.tasks_utils import TaskListener, active_listeners
 from bot.utils.error_handler import CommandErrorHandler
-from bot.utils.antinuke import cooldown
 
 from bot.utils.tasks_utils import (
     load_tasks,
@@ -47,7 +46,6 @@ class Tasks(commands.Cog):
 
     @app_commands.command(name="tehtavat", description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä.")
     @app_commands.checks.has_role("24G")
-    @cooldown("tehtavat")
     async def tehtavat(self, interaction: discord.Interaction):
         await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/tehtävät")
         await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "tehtävät_komento")

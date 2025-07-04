@@ -323,7 +323,6 @@ class Utils(commands.Cog):
 
     @app_commands.command(name="help", description="Kysy apua tai ilmoita asiasta.")
     @app_commands.checks.has_role("24G")
-    @cooldown("help")
     async def help(self, interaction: discord.Interaction):
         await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/help")
         await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "help_komento")
@@ -343,7 +342,6 @@ class Utils(commands.Cog):
 
 
     @app_commands.command(name="giveaway", description="Luo arvonta palkinnosta.")
-    @cooldown("giveaway")
     @app_commands.describe(
         palkinto="Mitä arvotaan?",
         kesto="Kesto minuutteina",
@@ -372,7 +370,6 @@ class Utils(commands.Cog):
     @app_commands.command(name="tag", description="Lisää tagin käyttäjän serverinimen perään.")
     @app_commands.describe(tag="Haluttu tagi, 3-6 kirjainta pitkä.")
     @app_commands.checks.has_role("24G")
-    @cooldown("tag")
     async def tag(self, interaction: discord.Interaction, tag: str):
         await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/tag")
         await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "tag_komento")
@@ -402,7 +399,6 @@ class Utils(commands.Cog):
     @app_commands.command(name="vaihda_tag", description="Vaihda käyttäjän serverinimen tag uuteen.")
     @app_commands.describe(tag="Uusi tagi (3-6 kirjainta).")
     @app_commands.checks.has_role("24G")
-    @cooldown("vaihda_tag")
     async def vaihda_tag(self, interaction: discord.Interaction, tag: str):
         await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/vaihda_tag")
         await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "vaihda_tag_komento")
@@ -432,7 +428,6 @@ class Utils(commands.Cog):
 
     @app_commands.command(name="remove_tag", description="Poistaa tagin käyttäjän serverinimestä.")
     @app_commands.checks.has_role("24G")
-    @cooldown("remove_tag")
     async def remove_tag(self, interaction: discord.Interaction):
         await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/remove_tag")
         await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "remove_tag_komento")
@@ -455,7 +450,6 @@ class Utils(commands.Cog):
 
     @app_commands.command(name="komennot", description="Näyttää kaikki käytettävissä olevat komennot ja niiden selitykset.")
     @app_commands.checks.has_role("24G")
-    @cooldown("komennot")
     async def komennot(self, interaction: discord.Interaction):
         await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/komennot")
         await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "komennot_komento")

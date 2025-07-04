@@ -17,7 +17,6 @@ from bot.utils.xp_utils import (
 )
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.error_handler import CommandErrorHandler
-from bot.utils.antinuke import cooldown
 
 load_dotenv()
 XP_CHANNEL_ID = int(os.getenv("XP_CHANNEL_ID", 0))
@@ -70,7 +69,6 @@ class Levels(commands.Cog):
 
     @app_commands.command(name="taso", description="Näytä oma tasosi tai Top-10 lista.")
     @app_commands.describe(vaihtoehto="Oma taso tai kaikkien tasot")
-    @cooldown("taso")
     @app_commands.choices(vaihtoehto=[
         app_commands.Choice(name="Oma taso", value="oma"),
         app_commands.Choice(name="Kaikkien tasot", value="kaikki")
@@ -131,7 +129,6 @@ class Levels(commands.Cog):
     @app_commands.command(name="lisää_xp", description="Lisää käyttäjälle XP:tä.")
     @app_commands.checks.has_role("Mestari")
     @app_commands.describe(jäsen="Jäsen", määrä="Lisättävä XP määrä")
-    @cooldown("lisää_xp")
     async def lisää_xp(self, interaction: Interaction, jäsen: discord.Member, määrä: int):
         await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/lisää_xp")
         await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "lisää_xp_komento")
@@ -153,7 +150,6 @@ class Levels(commands.Cog):
     @app_commands.command(name="vähennä_xp", description="Vähennä käyttäjältä XP:tä.")
     @app_commands.checks.has_role("Mestari")
     @app_commands.describe(jäsen="Jäsen", määrä="Vähennettävä XP määrä")
-    @cooldown("vähennä_xp")
     async def vähennä_xp(self, interaction: Interaction, jäsen: discord.Member, määrä: int):
         await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/vähennä_xp")
         await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "vähennä_xp_komento")

@@ -2,6 +2,7 @@
 import discord, asyncio
 from discord.ext import commands, tasks
 from bot.utils.xp_utils import käsittele_viesti_xp, tarkkaile_kanavan_aktiivisuutta
+from bot.utils.bot_setup import bot
 
 class XPSystem(commands.Cog):
     def __init__(self, bot):
@@ -15,7 +16,7 @@ class XPSystem(commands.Cog):
 
         await käsittele_viesti_xp(self.bot, message)
 
-        await self.bot.process_commands(message)
+        await bot.process_commands(message)
 
     @tasks.loop(seconds=30)
     async def slowmode_watcher(self):

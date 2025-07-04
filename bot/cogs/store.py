@@ -52,7 +52,6 @@ class Store(commands.Cog):
     @app_commands.command(name="kauppa", description="Näytä kaupan tuotteet tai osta tuote")
     @app_commands.describe(tuote="Tuotteen nimi ostamista varten (valinnainen)")
     @app_commands.checks.has_role("24G")
-    @cooldown("kauppa")
     async def kauppa(self, interaction: discord.Interaction, tuote: str = None):
         try:
             await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/kauppa")

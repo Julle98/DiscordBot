@@ -11,7 +11,7 @@ def _cog(bot: commands.Bot) -> Optional[commands.Cog]:
 
 async def kirjaa_ga_event(bot: commands.Bot, user_id: int, event_name: str) -> None:
     if (cog := _cog(bot)):
-        await AnalyticsLogging.kirjaa_ga_event(user_id, event_name)
+        await cog.kirjaa_ga_event(user_id, event_name)
 
 async def kirjaa_komento_lokiin(
     bot: commands.Bot,
@@ -19,14 +19,13 @@ async def kirjaa_komento_lokiin(
     command_name: str,
 ) -> None:
     if (cog := _cog(bot)):
-        await AnalyticsLogging.kirjaa_komento_lokiin(interaction, command_name)
+        await cog.kirjaa_komento_lokiin(interaction, command_name)
 
 async def autocomplete_bannatut_käyttäjät(
     interaction: discord.Interaction,
     current: str
 ) -> List[app_commands.Choice[str]]:
-    bot = interaction.client  
-
+    bot = interaction.client
     if (cog := _cog(bot)):
         return await cog.autocomplete_bannatut_käyttäjät(interaction, current)
     return []
@@ -35,11 +34,12 @@ class AnalyticsLogging(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.ga_measurement_id = os.getenv("GA_MEASUREMENT_ID")
-        self.ga_api_secret   = os.getenv("GA_API_SECRET")
-        self.log_channel_id  = int(os.getenv("LOG_CHANNEL_ID", "0"))
+        self.ga_api_secret = os.getenv("GA_API_SECRET")
+        self.log_channel_id = int(os.getenv("LOG_CHANNEL_ID", "0"))
 
     async def kirjaa_ga_event(self, user_id: int, event_name: str) -> None:
         if not (self.ga_measurement_id and self.ga_api_secret):
+            print("GA-tunnisteet puuttuvat, ei lähetetä tapahtumaa.")
             return
 
         endpoint = (
@@ -53,26 +53,30 @@ class AnalyticsLogging(commands.Cog):
 
         loop = asyncio.get_running_loop()
         try:
-            resp = await loop.run_in_executor(None, requests.post, endpoint, payload)
+            resp = await loop.run_in_executor(None, lambda: requests.post(endpoint, json=payload, timeout=3))
             if resp.status_code != 204:
-                print("GA‑event failed:", resp.text)
+                print(f"GA-tapahtuman lähetys epäonnistui ({resp.status_code}):", resp.text)
         except Exception as exc:
-            print("GA error:", exc)
+            print("GA-virhe:", exc)
 
     async def kirjaa_komento_lokiin(
         self, interaction: discord.Interaction, command_name: str
     ) -> None:
         if not self.log_channel_id:
+            print("LOG_CHANNEL_ID puuttuu tai on 0.")
             return
+
         channel = self.bot.get_channel(self.log_channel_id)
         if not isinstance(channel, (discord.TextChannel, discord.Thread)):
+            print("Logituskanavaa ei löytynyt tai se ei ole tekstikanava.")
             return
+
         try:
             await channel.send(
                 f"📝 Komento: `{command_name}`\n👤 Käyttäjä: {interaction.user} ({interaction.user.id})"
             )
         except Exception as exc:
-            print("Logging error:", exc)
+            print("Komennon logitusvirhe:", exc)
 
     async def autocomplete_bannatut_käyttäjät(
         self, interaction: discord.Interaction, current: str
@@ -88,7 +92,7 @@ class AnalyticsLogging(commands.Cog):
                 if len(choices) >= 25:
                     break
         except Exception as exc:
-            print("Autocomplete error:", exc)
+            print("Autocomplete-virhe:", exc)
         return choices
 
 async def setup(bot: commands.Bot):

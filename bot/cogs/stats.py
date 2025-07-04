@@ -9,7 +9,6 @@ from collections import Counter
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from bot.utils.error_handler import CommandErrorHandler
-from bot.utils.antinuke import cooldown
 
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 
@@ -42,7 +41,6 @@ class Stats(commands.Cog):
 
     @app_commands.command(name="stats", description="Näytä komentojen käyttömäärät, aktiivisimmat käyttäjät tai omat komennot.")
     @app_commands.checks.has_role("24G")
-    @cooldown("stats")
     @app_commands.choices(
         tyyppi=[
             app_commands.Choice(name="Komennot", value="komennot"),

@@ -66,8 +66,9 @@ def cooldown(komento_nimi: str):
             user_id = interaction.user.id
             viimeinen = komento_ajastukset[user_id].get(komento_nimi)
 
+            member = interaction.guild.get_member(user_id)
             nopea_roolit = ["Mestari", "Admin", "Moderaattori"]
-            nopea = any(r.name in nopea_roolit for r in interaction.user.roles)
+            nopea = any(r.name in nopea_roolit for r in member.roles) if member else False
             raja = timedelta(seconds=5 if nopea else 10)
 
             if viimeinen and nyt - viimeinen < raja:

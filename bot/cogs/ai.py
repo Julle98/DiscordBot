@@ -6,7 +6,6 @@ from bot.utils.ai.llm import generate_reply
 from bot.utils.ai.web_search import simple_web_search
 from bot.utils.ai.image_gen import generate_image
 from bot.utils.error_handler import CommandErrorHandler
-from bot.utils.antinuke import cooldown
 
 class AI(commands.Cog):
     def __init__(self, bot):
@@ -20,7 +19,6 @@ class AI(commands.Cog):
         toiminto="Valitse toiminto",
         kysymys="Kysymys tai kuvaus"
     )
-    @cooldown("tekoäly")
     @app_commands.choices(toiminto=[
         app_commands.Choice(name="Hae", value="hae"),
         app_commands.Choice(name="Kysy", value="kysy"),

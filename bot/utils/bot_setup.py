@@ -22,4 +22,5 @@ class MyBot(commands.Bot):
         print(f'Logged in as {self.user}')
         await self.tree.sync()
 
-bot = MyBot(command_prefix="/", intents=intents)
+bot = MyBot(command_prefix="!", intents=intents)
+
