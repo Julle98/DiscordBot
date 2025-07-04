@@ -1,3 +1,4 @@
+import duckduckgo_search
 from duckduckgo_search import DDGS
 
 def simple_web_search(query: str) -> str:
