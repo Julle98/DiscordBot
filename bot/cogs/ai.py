@@ -7,6 +7,8 @@ from bot.utils.ai.web_search import simple_web_search
 from bot.utils.ai.image_gen import generate_image
 from bot.utils.error_handler import CommandErrorHandler
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
+import logging
+from duckduckgo_search import DDGS
 
 class AI(commands.Cog):
     def __init__(self, bot):
