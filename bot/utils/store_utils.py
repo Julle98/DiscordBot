@@ -11,7 +11,6 @@ from bot.utils.bot_setup import bot
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from pathlib import Path
 
-
 def start_store_loops():
     asyncio.create_task(tarkista_ostojen_kuukausi())
 
@@ -60,7 +59,7 @@ async def tarkista_ostojen_kuukausi():
     except Exception as e:
         print(f"Ostojen tarkistus epäonnistui: {e}")
 
-JSON_DIR = Path(os.getenv("JSON_DIR"))
+JSON_DIR = Path(os.getenv("JSON_DIRS"))
 TARJOUS_TIEDOSTO = JSON_DIR / "tarjous.json"
 
 def hae_tai_paivita_tarjous():
@@ -179,7 +178,8 @@ def nayta_kauppa_embed(interaction, tarjoukset):
     return embed
 
 ostot = {}
-OSTO_TIEDOSTO = Path("data/shop/ostot.json")
+JSON_DIR = Path(os.getenv("JSON_DIRS"))
+OSTO_TIEDOSTO = JSON_DIR / "ostot.json"
 
 def lue_ostokset():
     try:

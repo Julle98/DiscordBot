@@ -50,6 +50,48 @@ aktiiviset_paivat = dict()
 
 ajastin_aktiiviset = {}
 
+class ClearModal(discord.ui.Modal, title="Vahvista poisto"):
+    def __init__(self, selected_channel: discord.TextChannel):
+        super().__init__()
+        self.selected_channel = selected_channel
+
+        self.amount = discord.ui.TextInput(
+            label="(Valinnainen) Viestien määrä poistettavaksi",
+            placeholder="Jätä tyhjäksi poistaaksesi kaiken",
+            required=False
+        )
+        self.confirmation = discord.ui.TextInput(
+            label="Kirjoita KYLLÄ vahvistaaksesi",
+            placeholder="KYLLÄ"
+        )
+
+        self.add_item(self.amount)
+        self.add_item(self.confirmation)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        if self.confirmation.value.strip().upper() != "KYLLÄ":
+            await interaction.followup.send("Vahvistus epäonnistui.", ephemeral=True)
+            return
+
+        try:
+            määrä = int(self.amount.value) if self.amount.value.strip() else None
+        except ValueError:
+            await interaction.followup.send("Viestimäärän pitää olla numero.", ephemeral=True)
+            return
+
+        try:
+            await self.selected_channel.purge(limit=määrä)
+            await interaction.followup.send(
+                f"{'Kaikki' if määrä is None else määrä} viestiä poistettu kanavasta {self.selected_channel.mention}.",
+                ephemeral=True
+            )
+        except discord.Forbidden:
+            await interaction.followup.send("Ei oikeuksia poistaa viestejä.", ephemeral=True)
+        except discord.HTTPException:
+            await interaction.followup.send("Poisto epäonnistui.", ephemeral=True)
+
 class ClearView(discord.ui.View):
     def __init__(self, kanavat):
         super().__init__(timeout=60)
@@ -63,50 +105,9 @@ class ClearView(discord.ui.View):
         self.kanava_select.callback = self.select_kanava
         self.add_item(self.kanava_select)
 
-        self.amount = discord.ui.TextInput(
-            label="(Valinnainen) Viestien määrä poistettavaksi",
-            placeholder="Jätä tyhjäksi poistaaksesi kaiken",
-            required=False
-        )
-        self.confirmation = discord.ui.TextInput(
-            label="Kirjoita KYLLÄ vahvistaaksesi",
-            placeholder="KYLLÄ"
-        )
-
-        self.selected_channel = None
-
     async def select_kanava(self, interaction: discord.Interaction):
-        self.selected_channel = interaction.guild.get_channel(int(self.kanava_select.values[0]))
-        modal = discord.ui.Modal(title="Vahvista poisto")
-        modal.add_item(self.amount)
-        modal.add_item(self.confirmation)
-
-        async def modal_submit(modal_interaction: discord.Interaction):
-            await modal_interaction.response.defer(ephemeral=True)
-            
-            if self.confirmation.value.strip().upper() != "KYLLÄ":
-                await modal_interaction.response.send_message("Vahvistus epäonnistui.", ephemeral=True)
-                return
-
-            try:
-                määrä = int(self.amount.value) if self.amount.value.strip() else None
-            except ValueError:
-                await modal_interaction.response.send_message("Viestimäärän pitää olla numero.", ephemeral=True)
-                return
-
-            try:
-                await self.selected_channel.purge(limit=määrä)
-                await modal_interaction.response.send_message(
-                    f"{'Kaikki' if määrä is None else määrä} viestiä poistettu kanavasta {self.selected_channel.mention}.",
-                    ephemeral=True
-                )
-            except discord.Forbidden:
-                await modal_interaction.response.send_message("Ei oikeuksia poistaa viestejä.", ephemeral=True)
-            except discord.HTTPException:
-                await modal_interaction.response.send_message("Poisto epäonnistui.", ephemeral=True)
-
-        modal.on_submit = modal_submit
-        await interaction.response.send_modal(modal)
+        selected_channel = interaction.guild.get_channel(int(self.kanava_select.values[0]))
+        await interaction.response.send_modal(ClearModal(selected_channel))
 
 class IlmoitusModal(discord.ui.Modal, title="Luo ilmoitus"):
     otsikko = discord.ui.TextInput(label="Otsikko", placeholder="Esim. Huoltotauko")
