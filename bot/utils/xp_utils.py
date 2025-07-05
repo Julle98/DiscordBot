@@ -110,7 +110,7 @@ async def paivita_streak(user_id: int):
     uid = str(user_id)
     nyt = datetime.now().date()
 
-    if uid not in streaks:
+    if uid not in streaks or "pvm" not in streaks[uid]:
         streaks[uid] = {"pvm": nyt.isoformat(), "streak": 1}
     else:
         viime = datetime.fromisoformat(streaks[uid]["pvm"]).date()

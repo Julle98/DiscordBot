@@ -305,7 +305,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
         
 from dotenv import load_dotenv
 
-async def osta_command(interaction, tuotteen_nimi, tarjoukset):
+async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset):
     global ostot
     user_id = str(interaction.user.id)
     tuotteet = kauppa_tuotteet + tarjoukset

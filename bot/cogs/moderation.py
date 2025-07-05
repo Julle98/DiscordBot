@@ -505,6 +505,7 @@ class Moderation(commands.Cog):
     async def clear(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/clear")
         await kirjaa_ga_event(self.bot, interaction.user.id, "clear_komento")
+        await interaction.response.defer(ephemeral=True)
 
         kanavat = [c for c in interaction.guild.text_channels if c.permissions_for(interaction.user).manage_messages]
         if not kanavat:

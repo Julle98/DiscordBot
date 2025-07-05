@@ -11,6 +11,7 @@ from bot.utils.status_updater import update_status
 from bot.cogs.levels import tarkista_puhekanavat
 from bot.utils.antinuke import check_deletions
 from utils.ai.image_gen import generate_image
+from bot.utils.xp_utils import anna_xp_komennosta
 
 load_env_and_validate()
 load_dotenv()
@@ -97,6 +98,13 @@ async def on_ready():
         print("Slash komennot synkronoitu. Synkronoidut komennot:", len(synced))
     except Exception as exc:
         print(f"Auto sync epäonnistui: {exc}")
+
+@bot.event
+async def on_app_command_completion(interaction: discord.Interaction, command: discord.app_commands.Command):
+    try:
+        await anna_xp_komennosta(bot, interaction)
+    except Exception as e:
+        print(f"XP:n antaminen epäonnistui: {e}")
 
 async def _main():
     await load_cogs()
