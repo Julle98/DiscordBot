@@ -10,7 +10,6 @@ from bot.utils.tasks_utils import start_tasks_loops
 from bot.utils.status_updater import update_status
 from bot.cogs.levels import tarkista_puhekanavat
 from bot.utils.antinuke import check_deletions
-from utils.ai.image_gen import generate_image
 from bot.utils.xp_utils import anna_xp_komennosta
 
 load_env_and_validate()
