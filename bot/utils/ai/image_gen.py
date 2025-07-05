@@ -1,3 +1,4 @@
+import base64
 import requests
 
 def generate_image(prompt: str):
@@ -6,5 +7,6 @@ def generate_image(prompt: str):
         "steps": 20
     })
     img_data = response.json()["images"][0]
+    image_bytes = base64.b64decode(img_data)
     with open("output.png", "wb") as f:
-        f.write(bytes.fromhex(img_data))
+        f.write(image_bytes)
