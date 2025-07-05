@@ -15,7 +15,6 @@ async def main():
     await load_cogs()
     await asyncio.gather(
         bot.start(os.getenv("DISCORD_BOT_TOKEN")),
-        uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=8000)).serve()
     )
 
 if __name__ == "__main__":
