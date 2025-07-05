@@ -54,6 +54,5 @@ class AI(commands.Cog):
     async def on_app_command_error(self, interaction, error):
         await CommandErrorHandler(self.bot, interaction, error)
 
-
 async def setup(bot):
     await bot.add_cog(AI(bot))
