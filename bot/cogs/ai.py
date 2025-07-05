@@ -7,10 +7,11 @@ from bot.utils.ai.tekoalykieli import tulkitse_tekoalykieli
 from bot.utils.ai.tekoaly_hae import suorita_haku
 from bot.utils.ai.tekoaly_kysy import suorita_kysymys
 from bot.utils.ai.tekoaly_generoi import suorita_kuvagenerointi
+from bot.utils.ai.tekoaly_tiivista import suorita_tiivistys
+from bot.utils.ai.tekoaly_kaanna import suorita_kaannos
 
 from bot.utils.error_handler import CommandErrorHandler
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
-
 
 class AI(commands.Cog):
     def __init__(self, bot):
@@ -18,7 +19,7 @@ class AI(commands.Cog):
 
     @app_commands.command(
         name="tekoäly",
-        description="Anna komento TeKo-kielellä (HAE, KYSY, GENEROI)"
+        description="Anna komento TeKo-kielellä (HAE, KYSY, GENEROI, TIIVISTÄ, KÄÄNNÄ)"
     )
     @app_commands.describe(
         kysymys="Kirjoita komento ja kysymys, esim. 'KYSY mikä on tekoäly?'"
@@ -34,7 +35,7 @@ class AI(commands.Cog):
 
             if komento == "HAE":
                 tulos = await suorita_haku(argumentti)
-                await interaction.followup.send(f"🔎 **Hakutulokset:**\n{tulos}")
+                await interaction.followup.send(tulos)
 
             elif komento == "KYSY":
                 vastaus = await suorita_kysymys(argumentti)
@@ -42,10 +43,18 @@ class AI(commands.Cog):
 
             elif komento == "GENEROI":
                 kuva = await suorita_kuvagenerointi(argumentti)
-                await interaction.followup.send(
-                    content="🎨 **Kuva generoitu:**",
-                    file=kuva
-                )
+                await interaction.followup.send(content="🎨 **Kuva generoitu:**", file=kuva)
+
+            elif komento == "TIIVISTÄ":
+                tiivistelma = await suorita_tiivistys(argumentti)
+                await interaction.followup.send(f"✂️ **Tiivistelmä:**\n{tiivistelma}")
+
+            elif komento == "KÄÄNNÄ":
+                kaannos = await suorita_kaannos(argumentti)
+                await interaction.followup.send(f"🌍 **Käännös:**\n{kaannos}")
+
+            else:
+                await interaction.followup.send("🤖 Komentoa ei tunnistettu.")
 
         except Exception as e:
             await interaction.followup.send(f"🚫 Tapahtui virhe: `{e}`")

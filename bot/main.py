@@ -111,11 +111,4 @@ async def _main():
     await bot.start(TOKEN)
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "image":
-        prompt = " ".join(sys.argv[2:]) or "a fantasy landscape with mountains and a river"
-        print(f"🎨 Generoidaan kuva kehotteella: {prompt}")
-        generate_image(prompt)
-        print("✅ Kuva tallennettu tiedostoon output.png")
-    else:
         asyncio.run(_main())
