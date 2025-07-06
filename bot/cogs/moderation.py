@@ -50,14 +50,16 @@ aktiiviset_paivat = dict()
 
 ajastin_aktiiviset = {}
 
+import os
+
 class ClearModal(discord.ui.Modal, title="Vahvista poisto"):
     def __init__(self, selected_channel: discord.TextChannel):
         super().__init__()
         self.selected_channel = selected_channel
 
         self.amount = discord.ui.TextInput(
-            label="(Valinnainen) Viestien määrä poistettavaksi",
-            placeholder="Jätä tyhjäksi poistaaksesi kaiken",
+            label="(Valinnainen) Viestien määrä poistettavaksi (1–100)",
+            placeholder="Jätä tyhjäksi poistaaksesi kaiken (max 100)",
             required=False
         )
         self.confirmation = discord.ui.TextInput(
@@ -71,32 +73,53 @@ class ClearModal(discord.ui.Modal, title="Vahvista poisto"):
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        if self.confirmation.value.strip().upper() != "KYLLÄ":
-            await interaction.followup.send("Vahvistus epäonnistui.", ephemeral=True)
+        if self.confirmation.value.strip().casefold() != "kyllä":
+            await interaction.followup.send("Vahvistus epäonnistui. Kirjoita KYLLÄ isolla tai pienellä.", ephemeral=True)
             return
 
         try:
-            määrä = int(self.amount.value) if self.amount.value.strip() else None
+            määrä = int(self.amount.value.strip()) if self.amount.value.strip() else None
         except ValueError:
             await interaction.followup.send("Viestimäärän pitää olla numero.", ephemeral=True)
             return
 
+        if määrä is not None and (määrä < 1 or määrä > 100):
+            await interaction.followup.send("Viestimäärän pitää olla välillä 1–100.", ephemeral=True)
+            return
+
         try:
-            await self.selected_channel.purge(limit=määrä)
+            poistettu = await self.selected_channel.purge(limit=määrä)
+            määrä_poistettu = len(poistettu)
+
             await interaction.followup.send(
-                f"{'Kaikki' if määrä is None else määrä} viestiä poistettu kanavasta {self.selected_channel.mention}.",
+                f"{määrä_poistettu} viestiä poistettu kanavasta {self.selected_channel.mention}.",
                 ephemeral=True
             )
+
+            load_dotenv()
+            mod_log_id = os.getenv("MOD_LOG_CHANNEL_ID")
+            if mod_log_id:
+                log_channel = interaction.guild.get_channel(int(mod_log_id))
+                if log_channel:
+                    await log_channel.send(
+                        f"🧹 **{interaction.user}** poisti {määrä_poistettu} viestiä kanavasta {self.selected_channel.mention}."
+                    )
+
         except discord.Forbidden:
-            await interaction.followup.send("Ei oikeuksia poistaa viestejä.", ephemeral=True)
+            await interaction.followup.send("Ei oikeuksia poistaa viestejä tältä kanavalta.", ephemeral=True)
         except discord.HTTPException:
-            await interaction.followup.send("Poisto epäonnistui.", ephemeral=True)
+            await interaction.followup.send("Poisto epäonnistui. Yritä myöhemmin uudelleen.", ephemeral=True)
 
 class KanavaSelect(discord.ui.Select):
-    def __init__(self, kanavat):
+    def __init__(self, kanavat, sivu):
+        self.sivu = sivu
+        alku = sivu * 25
+        loppu = alku + 25
+        kanavat_sivulla = kanavat[alku:loppu]
+
         options = [
             discord.SelectOption(label=kanava.name, value=str(kanava.id))
-            for kanava in kanavat
+            for kanava in kanavat_sivulla
         ]
         super().__init__(placeholder="Valitse kanava", options=options)
 
@@ -131,7 +154,11 @@ class ClearView(discord.ui.View):
             view: ClearView = self.view
             if view.sivu > 0:
                 uusi_sivu = view.sivu - 1
-                await interaction.response.edit_message(view=ClearView(view.kanavat, uusi_sivu))
+                uusi_view = ClearView(view.kanavat, uusi_sivu)
+                await interaction.response.edit_message(
+                    content=f"Sivu {uusi_sivu + 1} / {view.max_sivu + 1}",
+                    view=uusi_view
+                )
             else:
                 await interaction.response.defer()
 
@@ -142,8 +169,12 @@ class ClearView(discord.ui.View):
         async def callback(self, interaction: discord.Interaction):
             view: ClearView = self.view
             if view.sivu < view.max_sivu:
-                uusi_sivu = view.sivu + 1
-                await interaction.response.edit_message(view=ClearView(view.kanavat, uusi_sivu))
+                uusi_sivu = view.sivu + 1  # Tämä oli väärin aiemmin
+                uusi_view = ClearView(view.kanavat, uusi_sivu)
+                await interaction.response.edit_message(
+                    content=f"Sivu {uusi_sivu + 1} / {view.max_sivu + 1}",
+                    view=uusi_view
+                )
             else:
                 await interaction.response.defer()
 
@@ -563,9 +594,12 @@ class Moderation(commands.Cog):
             )
             return
 
+        max_sivu = (len(kanavat) - 1) // 25
+        nykyinen_sivu = 0
+
         await interaction.response.send_message(
-            content="Valitse kanava ja vahvista:",
-            view=ClearView(kanavat),
+            content=f"Sivu {nykyinen_sivu + 1} / {max_sivu + 1}\nValitse kanava ja vahvista:",
+            view=ClearView(kanavat, nykyinen_sivu),
             ephemeral=True
         )
 

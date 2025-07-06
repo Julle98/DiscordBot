@@ -331,7 +331,7 @@ class Utils(commands.Cog):
         HELP_CHANNEL_ID = int(os.getenv("HELP_CHANNEL_ID"))
         target_channel = interaction.guild.get_channel(HELP_CHANNEL_ID)
         if not target_channel:
-            await interaction.response.send_message("Kanavaa 'botti-ilmoitukset' ei löytynyt.", ephemeral=True)
+            await interaction.response.send_message("Kanavaa 'modi-lokit' ei löytynyt.", ephemeral=True)
             return
 
         await interaction.response.send_message(
@@ -339,7 +339,6 @@ class Utils(commands.Cog):
             view=HelpDropdown(channel=target_channel),
             ephemeral=True
         )
-
 
     @app_commands.command(name="giveaway", description="Luo arvonta palkinnosta.")
     @app_commands.describe(
@@ -365,7 +364,6 @@ class Utils(commands.Cog):
         view.viesti = await interaction.original_response()
         await asyncio.sleep(kesto * 60)
         await view.lopeta_arvonta(interaction.channel)
-
 
     @app_commands.command(name="tag", description="Lisää tagin käyttäjän serverinimen perään.")
     @app_commands.describe(tag="Haluttu tagi, 3-6 kirjainta pitkä.")
@@ -394,7 +392,6 @@ class Utils(commands.Cog):
             await interaction.response.send_message("Ei oikeuksia muokata serverinimeäsi.", ephemeral=True)
         except discord.HTTPException:
             await interaction.response.send_message("Virhe nimimerkkiä muokatessa. Yritä uudelleen.", ephemeral=True)
-
 
     @app_commands.command(name="vaihda_tag", description="Vaihda käyttäjän serverinimen tag uuteen.")
     @app_commands.describe(tag="Uusi tagi (3-6 kirjainta).")
@@ -425,7 +422,6 @@ class Utils(commands.Cog):
         except discord.HTTPException:
             await interaction.response.send_message("Virhe nimimerkkiä muokatessa. Yritä uudelleen.", ephemeral=True)
 
-
     @app_commands.command(name="remove_tag", description="Poistaa tagin käyttäjän serverinimestä.")
     @app_commands.checks.has_role("24G")
     async def remove_tag(self, interaction: discord.Interaction):
@@ -446,7 +442,6 @@ class Utils(commands.Cog):
                 await interaction.response.send_message("Virhe nimimerkkiä muokatessa. Yritä uudelleen.", ephemeral=True)
         else:
             await interaction.response.send_message("Serverinimesi ei sisällä tagia, joten mitään ei tarvitse poistaa.", ephemeral=True)
-
 
     @app_commands.command(name="komennot", description="Näyttää kaikki käytettävissä olevat komennot ja niiden selitykset.")
     @app_commands.checks.has_role("24G")
