@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands
 
 intents = discord.Intents.all() 
+intents.message_content = True
 
 load_dotenv()
 

@@ -84,6 +84,9 @@ def cooldown(komento_nimi: str):
         return wrapper
     return decorator
 
+from discord.ext import commands
+from datetime import datetime, timezone, timedelta
+
 class DeletionWatcher(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -95,6 +98,6 @@ class DeletionWatcher(commands.Cog):
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel):
         await check_deletion(channel.guild, 'channels')
-
+    
 async def setup(bot):
     await bot.add_cog(DeletionWatcher(bot))

@@ -22,37 +22,48 @@ load_dotenv()
 XP_CHANNEL_ID = int(os.getenv("XP_CHANNEL_ID", 0))
 IGNORED_VOICE_CHANNEL_ID = int(os.getenv("IGNORED_VOICE_CHANNEL_ID", 0))
 
+from discord.ext import tasks
+import discord
+
 @tasks.loop(seconds=60)
 async def tarkista_puhekanavat():
     for guild in bot.guilds:
         for vc in guild.voice_channels:
             if vc.id == IGNORED_VOICE_CHANNEL_ID:
                 continue
+
             for member in vc.members:
                 if member.bot:
                     continue
+
                 user_id = str(member.id)
                 xp_channel = guild.get_channel(XP_CHANNEL_ID)
                 if not xp_channel:
                     continue
+
                 msg = await get_user_xp_message(xp_channel, user_id)
                 xp, level = parse_xp_content(msg.content if msg else f"{user_id}:0:0")
+
                 xp_gain = 10
                 if any(role.id in DOUBLE_XP_ROLES for role in member.roles):
                     xp_gain *= 2
+
                 xp += xp_gain
                 new_level = calculate_level(xp)
+
                 content = make_xp_content(user_id, xp, new_level)
                 if msg:
                     await msg.edit(content=content)
                 else:
                     await xp_channel.send(content)
+
                 if new_level > level:
-                    kanava = vc.guild.system_channel or vc
+                    kanava = vc.guild.system_channel or vc  
                     if new_level in LEVEL_MESSAGES:
                         await kanava.send(LEVEL_MESSAGES[new_level].format(user=member.mention))
                     else:
                         await kanava.send(f"{member.mention} nousi tasolle {new_level}! 🎉")
+
                     if new_level in LEVEL_ROLES:
                         uusi_rooli = guild.get_role(LEVEL_ROLES[new_level])
                         if uusi_rooli:
@@ -61,7 +72,11 @@ async def tarkista_puhekanavat():
                                     vanha = guild.get_role(role_id)
                                     if vanha:
                                         await member.remove_roles(vanha)
-                            await member.add_roles(uusi_rooli)
+                            await member.add_roles(uusi_rooli)    
+
+from discord import app_commands, Interaction
+from discord.ext import commands
+import discord
 
 class Levels(commands.Cog):
     def __init__(self, bot):
@@ -96,19 +111,7 @@ class Levels(commands.Cog):
                 await interaction.followup.send("Vain Mestari-roolilla voi tarkastella kaikkien tasoja.", ephemeral=True)
                 return
 
-            def hae_tasot():
-                tulokset = []
-                for msg in asyncio.run(xp_channel.history(limit=1000).flatten()):
-                    if msg.author != self.bot.user:
-                        continue
-                    try:
-                        user_id, xp, level = msg.content.split(":")
-                        tulokset.append((user_id, int(xp), int(level)))
-                    except:
-                        continue
-                return tulokset
-
-            users = await asyncio.to_thread(hae_tasot)
+            users = await self.hae_tasot(xp_channel)
 
             entries = []
             for user_id, xp, level in users:
@@ -125,6 +128,18 @@ class Levels(commands.Cog):
             entries.sort(key=lambda x: x[1], reverse=True)
             lines = [f"**{name}** – Taso {lvl} ({xp} XP)" for name, xp, lvl in entries[:10]]
             await interaction.followup.send("Top 10 jäsenet:\n" + "\n".join(lines), ephemeral=True)
+
+    async def hae_tasot(self, xp_channel):
+        tulokset = []
+        async for msg in xp_channel.history(limit=1000):
+            if msg.author != self.bot.user:
+                continue
+            try:
+                user_id, xp, level = msg.content.split(":")
+                tulokset.append((user_id, int(xp), int(level)))
+            except:
+                continue
+        return tulokset
 
     @app_commands.command(name="lisää_xp", description="Lisää käyttäjälle XP:tä.")
     @app_commands.checks.has_role("Mestari")

@@ -58,7 +58,7 @@ class ClearModal(discord.ui.Modal, title="Vahvista poisto"):
         self.selected_channel = selected_channel
 
         self.amount = discord.ui.TextInput(
-            label="(Valinnainen) Viestien määrä poistettavaksi (1–100)",
+            label="Viestien määrä (1–100, valinnainen)",
             placeholder="Jätä tyhjäksi poistaaksesi kaiken (max 100)",
             required=False
         )
