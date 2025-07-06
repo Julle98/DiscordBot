@@ -108,9 +108,51 @@ class KanavaSelect(discord.ui.Select):
         await interaction.response.send_modal(ClearModal(selected_channel))
 
 class ClearView(discord.ui.View):
-    def __init__(self, kanavat):
+    def __init__(self, kanavat, sivu=0):
         super().__init__(timeout=60)
-        self.add_item(KanavaSelect(kanavat))
+        self.kanavat = kanavat
+        self.sivu = sivu
+        self.max_sivu = (len(kanavat) - 1) // 25
+
+        self.select = KanavaSelect(kanavat, sivu)
+        self.add_item(self.select)
+
+        if self.max_sivu > 0:
+            self.add_item(self.EdellinenButton())
+            self.add_item(self.SeuraavaButton())
+
+        self.add_item(self.PeruutaButton())  
+
+    class EdellinenButton(discord.ui.Button):
+        def __init__(self):
+            super().__init__(label="⬅️ Edellinen", style=discord.ButtonStyle.secondary)
+
+        async def callback(self, interaction: discord.Interaction):
+            view: ClearView = self.view
+            if view.sivu > 0:
+                uusi_sivu = view.sivu - 1
+                await interaction.response.edit_message(view=ClearView(view.kanavat, uusi_sivu))
+            else:
+                await interaction.response.defer()
+
+    class SeuraavaButton(discord.ui.Button):
+        def __init__(self):
+            super().__init__(label="Seuraava ➡️", style=discord.ButtonStyle.secondary)
+
+        async def callback(self, interaction: discord.Interaction):
+            view: ClearView = self.view
+            if view.sivu < view.max_sivu:
+                uusi_sivu = view.sivu + 1
+                await interaction.response.edit_message(view=ClearView(view.kanavat, uusi_sivu))
+            else:
+                await interaction.response.defer()
+
+    class PeruutaButton(discord.ui.Button):
+        def __init__(self):
+            super().__init__(label="❌ Peruuta", style=discord.ButtonStyle.danger)
+
+        async def callback(self, interaction: discord.Interaction):
+            await interaction.response.edit_message(content="Toiminto peruutettu.", view=None)
 
 class IlmoitusModal(discord.ui.Modal, title="Luo ilmoitus"):
     otsikko = discord.ui.TextInput(label="Otsikko", placeholder="Esim. Huoltotauko")
@@ -509,12 +551,23 @@ class Moderation(commands.Cog):
         await kirjaa_komento_lokiin(self.bot, interaction, "/clear")
         await kirjaa_ga_event(self.bot, interaction.user.id, "clear_komento")
 
-        kanavat = [c for c in interaction.guild.text_channels if c.permissions_for(interaction.user).manage_messages]
+        kanavat = [
+            c for c in interaction.guild.text_channels
+            if c.permissions_for(interaction.user).manage_messages
+        ]
+
         if not kanavat:
-            await interaction.response.send_message("Ei oikeuksia viestien poistoon missään kanavassa.", ephemeral=True)
+            await interaction.response.send_message(
+                "Ei oikeuksia viestien poistoon missään kanavassa.",
+                ephemeral=True
+            )
             return
 
-        await interaction.response.send_message("Valitse kanava ja vahvista:", view=ClearView(kanavat), ephemeral=True)
+        await interaction.response.send_message(
+            content="Valitse kanava ja vahvista:",
+            view=ClearView(kanavat),
+            ephemeral=True
+        )
 
     # LUKITSE
     @app_commands.command(name="lukitse", description="Lukitsee kanavan kaikilta.")
