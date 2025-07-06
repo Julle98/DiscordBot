@@ -117,6 +117,7 @@ def nayta_kauppa_embed(interaction, tarjoukset):
     user_id = str(interaction.user.id)
     ostot = lue_ostokset()
     omistetut = ostot.get(user_id, [])
+    omistetut_nimet = [puhdista_tuotteen_nimi(o["nimi"]) for o in omistetut if isinstance(o, dict) and "nimi" in o]
 
     periodi = nykyinen_periodi()
     tarjousnimet = [t["nimi"].replace(" (Tarjous!)", "") for t in tarjoukset]
@@ -134,7 +135,7 @@ def nayta_kauppa_embed(interaction, tarjoukset):
         embed.add_field(name="🔁 Kertakäyttöiset tuotteet", value="\u200b", inline=False)
         for t in kertakayttoiset:
             emoji = t.get("emoji", "🛍️")
-            omistaa = "✅ Omistat" if t["nimi"] in omistetut else ""
+            omistaa = "✅ Omistat" if puhdista_tuotteen_nimi(t["nimi"]) in omistetut_nimet else ""
             embed.add_field(
                 name=f"{emoji} {t['nimi']} ({t['hinta']} XP)",
                 value=f"{t['kuvaus']}\n{omistaa}",
@@ -148,7 +149,7 @@ def nayta_kauppa_embed(interaction, tarjoukset):
         embed.add_field(name="♻️ Monikäyttöiset tuotteet", value="\u200b", inline=False)
         for t in monikayttoiset:
             emoji = t.get("emoji", "🎁")
-            omistaa = "✅ Omistat" if t["nimi"] in omistetut else ""
+            omistaa = "✅ Omistat" if puhdista_tuotteen_nimi(t["nimi"]) in omistetut_nimet else ""
             embed.add_field(
                 name=f"{emoji} {t['nimi']} ({t['hinta']} XP)",
                 value=f"{t['kuvaus']}\n{omistaa}",
@@ -162,7 +163,7 @@ def nayta_kauppa_embed(interaction, tarjoukset):
         for t in tarjoukset:
             emoji = t.get("emoji", "🔥")
             tyyppi = "Kertakäyttöinen" if t["kertakäyttöinen"] else "Monikäyttöinen"
-            omistaa = "✅ Omistat" if t["nimi"] in omistetut else ""
+            omistaa = "✅ Omistat" if puhdista_tuotteen_nimi(t["nimi"]) in omistetut_nimet else ""
             embed.add_field(
                 name=f"{emoji} {t['nimi']} ({t['hinta']} XP)",
                 value=f"{t['kuvaus']}\n*Tyyppi: {tyyppi}* {omistaa}",

@@ -12,6 +12,8 @@ import math
 import asyncio
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.error_handler import CommandErrorHandler
+from discord.ui import View, Button
+from discord import ButtonStyle, Embed
 
 UTC_CITIES = {
     -12: "Baker Island",
@@ -226,7 +228,25 @@ class Misc(commands.Cog):
     async def esittely(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/esittely")
         await kirjaa_ga_event(self.bot, interaction.user.id, "esittely_komento")
-        await interaction.response.send_message("Moi olen Sannamaija Pyrrö...")
+
+        embed = Embed(
+            title="✨ Hei, olen Sannamaija Pyrrö!",
+            description=(
+                "Olen tämän palvelimen oma botti, joka auttaa sinua XP-järjestelmässä, moderoinnissa, tapahtumissa ja paljon muussa!\n\n"
+                "Alta löydät hyödyllisiä linkkejä:"
+            ),
+            color=discord.Color.purple()
+        )
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1339916663344074782/1391362772729725028/unnamed.png?ex=686b9f0f&is=686a4d8f&hm=3c31051a0ed55f2ee253f8eed83064bd367b1ebcebadd0d217051beb1877aaaa&")  
+        embed.set_footer(text="Sannamaija • Tehty 24G ryhmäläisille ❤️")
+
+        view = View()
+        view.add_item(Button(label="🌐 Viralliset sivut", url="https://sites.google.com/view/sannamaijadiscordbot/", style=ButtonStyle.link))
+        view.add_item(Button(label="📜 Käyttöehdot", url="https://sites.google.com/view/sannamaijadiscordbot/t%C3%A4rke%C3%A4%C3%A4/k%C3%A4ytt%C3%B6ehdot?authuser=0", style=ButtonStyle.link))
+        view.add_item(Button(label="🔒 Tietosuojakäytäntö", url="https://sites.google.com/view/sannamaijadiscordbot/t%C3%A4rke%C3%A4%C3%A4/tietosuojak%C3%A4yt%C3%A4nt%C3%B6?authuser=0", style=ButtonStyle.link))
+        view.add_item(Button(label="📘 Säännöt", url="https://sites.google.com/view/sannamaijadiscordbot/t%C3%A4rke%C3%A4%C3%A4/s%C3%A4%C3%A4nn%C3%B6t?authuser=0", style=ButtonStyle.link))
+
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @app_commands.command(name="nofal", description="Sannamaijan mielipide Nofalista.")
     @app_commands.checks.has_role("24G")
