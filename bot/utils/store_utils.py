@@ -12,7 +12,8 @@ from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from pathlib import Path
 
 def start_store_loops():
-    asyncio.create_task(tarkista_ostojen_kuukausi())
+    if not tarkista_ostojen_kuukausi.is_running():
+        tarkista_ostojen_kuukausi.start()
 
 load_dotenv()
 OSTOSLOKI_KANAVA_ID = int(os.getenv("OSTOSLOKI_KANAVA_ID"))

@@ -7,7 +7,6 @@ from bot.utils.env_loader import load_env_and_validate
 from bot.utils.moderation_tasks import start_moderation_loops
 from bot.utils.store_utils import start_store_loops
 from bot.utils.tasks_utils import start_tasks_loops
-from bot.utils.status_updater import update_status
 from bot.cogs.levels import tarkista_puhekanavat
 from bot.utils.antinuke import check_deletions
 from bot.utils.xp_utils import anna_xp_komennosta

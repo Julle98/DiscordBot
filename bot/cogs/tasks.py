@@ -30,20 +30,6 @@ class Tasks(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def start_rotations(self):
-        from utils.tasks_utils import (
-            rotate_daily_tasks,
-            rotate_weekly_tasks,
-            rotate_monthly_tasks
-        )
-        if not rotate_daily_tasks.is_running():
-            rotate_daily_tasks.start()
-        if not rotate_weekly_tasks.is_running():
-            rotate_weekly_tasks.start()
-        if not rotate_monthly_tasks.is_running():
-            rotate_monthly_tasks.start()
-
-
     @app_commands.command(name="tehtävät", description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä.")
     @app_commands.checks.has_role("24G")
     async def tehtavat(self, interaction: discord.Interaction):

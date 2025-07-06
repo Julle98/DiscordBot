@@ -10,9 +10,12 @@ from pathlib import Path
 import json
 
 def start_tasks_loops():
-    asyncio.create_task(rotate_daily_tasks())
-    asyncio.create_task(rotate_weekly_tasks())
-    asyncio.create_task(rotate_monthly_tasks())
+    if not rotate_daily_tasks.is_running():
+        rotate_daily_tasks.start()
+    if not rotate_weekly_tasks.is_running():
+        rotate_weekly_tasks.start()
+    if not rotate_monthly_tasks.is_running():
+        rotate_monthly_tasks.start()
 
 load_dotenv()
 

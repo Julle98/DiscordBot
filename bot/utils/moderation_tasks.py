@@ -12,8 +12,10 @@ from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from pathlib import Path
 
 def start_moderation_loops():
-    asyncio.create_task(tarkista_ostojen_kuukausi())
-    asyncio.create_task(tarkista_paivat())
+    if not tarkista_ostojen_kuukausi.is_running():
+        tarkista_ostojen_kuukausi.start()
+    if not tarkista_paivat.is_running():
+        tarkista_paivat.start()
 
 aktiiviset_paivat = dict()
 
