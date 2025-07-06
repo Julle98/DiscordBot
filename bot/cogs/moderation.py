@@ -92,22 +92,25 @@ class ClearModal(discord.ui.Modal, title="Vahvista poisto"):
         except discord.HTTPException:
             await interaction.followup.send("Poisto epäonnistui.", ephemeral=True)
 
+class KanavaSelect(discord.ui.Select):
+    def __init__(self, kanavat):
+        options = [
+            discord.SelectOption(label=kanava.name, value=str(kanava.id))
+            for kanava in kanavat
+        ]
+        super().__init__(placeholder="Valitse kanava", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        selected_channel = interaction.guild.get_channel(int(self.values[0]))
+        if not selected_channel:
+            await interaction.response.send_message("Kanavaa ei löytynyt.", ephemeral=True)
+            return
+        await interaction.response.send_modal(ClearModal(selected_channel))
+
 class ClearView(discord.ui.View):
     def __init__(self, kanavat):
         super().__init__(timeout=60)
-        self.kanava_select = discord.ui.Select(
-            placeholder="Valitse kanava",
-            options=[
-                discord.SelectOption(label=kanava.name, value=str(kanava.id))
-                for kanava in kanavat
-            ]
-        )
-        self.kanava_select.callback = self.select_kanava
-        self.add_item(self.kanava_select)
-
-    async def select_kanava(self, interaction: discord.Interaction):
-        selected_channel = interaction.guild.get_channel(int(self.kanava_select.values[0]))
-        await interaction.response.send_modal(ClearModal(selected_channel))
+        self.add_item(KanavaSelect(kanavat))
 
 class IlmoitusModal(discord.ui.Modal, title="Luo ilmoitus"):
     otsikko = discord.ui.TextInput(label="Otsikko", placeholder="Esim. Huoltotauko")

@@ -232,7 +232,7 @@ class Misc(commands.Cog):
         embed = Embed(
             title="✨ Hei, olen Sannamaija Pyrrö!",
             description=(
-                "Olen tämän palvelimen oma botti, joka auttaa sinua XP-järjestelmässä, moderoinnissa, tapahtumissa ja paljon muussa!\n\n"
+                "Olen tämän palvelimen oma botti, joka auttaa sinua XP-järjestelmässä, moderoinnissa, tapahtumissa ja paljon muussakin! Jos et ole varma komennoista, kokeile ``/komennot``. Sieltä saat hyvin tietoa.\n\n"
                 "Alta löydät hyödyllisiä linkkejä:"
             ),
             color=discord.Color.purple()
