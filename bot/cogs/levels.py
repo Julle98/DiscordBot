@@ -25,10 +25,21 @@ IGNORED_VOICE_CHANNEL_ID = int(os.getenv("IGNORED_VOICE_CHANNEL_ID", 0))
 from discord.ext import tasks
 import discord
 
+import os
+
 @tasks.loop(seconds=60)
 async def tarkista_puhekanavat():
     for guild in bot.guilds:
-        for vc in guild.voice_channels:
+        xp_channel_id = int(os.getenv("XP_CHANNEL_ID"))
+        xp_channel = guild.get_channel(xp_channel_id)
+        if not xp_channel:
+            continue
+
+        channels = await guild.fetch_channels()
+        for vc in channels:
+            if not isinstance(vc, discord.VoiceChannel):
+                continue
+            
             if vc.id == IGNORED_VOICE_CHANNEL_ID:
                 continue
 
@@ -37,12 +48,15 @@ async def tarkista_puhekanavat():
                     continue
 
                 user_id = str(member.id)
-                xp_channel = guild.get_channel(XP_CHANNEL_ID)
-                if not xp_channel:
-                    continue
 
-                msg = await get_user_xp_message(xp_channel, user_id)
-                xp, level = parse_xp_content(msg.content if msg else f"{user_id}:0:0")
+                msg = None
+                async for m in xp_channel.history(limit=100):
+                    if m.author == bot.user and m.content.startswith(f"{user_id}:"):
+                        msg = m
+                        break
+
+                xp_str = msg.content if msg else f"{user_id}:0:0"
+                xp, level = parse_xp_content(xp_str)
 
                 xp_gain = 10
                 if any(role.id in DOUBLE_XP_ROLES for role in member.roles):
@@ -50,8 +64,8 @@ async def tarkista_puhekanavat():
 
                 xp += xp_gain
                 new_level = calculate_level(xp)
-
                 content = make_xp_content(user_id, xp, new_level)
+
                 if msg:
                     await msg.edit(content=content)
                 else:
@@ -72,7 +86,7 @@ async def tarkista_puhekanavat():
                                     if vanha:
                                         await member.remove_roles(vanha)
                             await member.add_roles(uusi_rooli)
- 
+
 from discord import app_commands, Interaction
 from discord.ext import commands
 import discord

@@ -43,7 +43,7 @@ DOUBLE_XP_ROLES = {
 }
 
 XP_JSON_PATH = Path(os.getenv("XP_JSON_PATH"))
-STREAKS_FILE = XP_JSON_PATH / "users_xp.json"
+XP_FILE = XP_JSON_PATH / "users_xp.json"
 
 viestihistoria = defaultdict(list)
 dm_viestit = defaultdict(list)
@@ -57,14 +57,14 @@ def parse_xp_content(content):
         return 0, 0
 
 def load_xp_data():
-    if STREAKS_FILE.exists():
-        with open(STREAKS_FILE, "r", encoding="utf-8") as f:
+    if XP_FILE.exists():
+        with open(XP_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
 def save_xp_data(data):
-    STREAKS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(STREAKS_FILE, "w", encoding="utf-8") as f:
+    XP_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(XP_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 def make_xp_content(user_id, xp, level):
@@ -108,6 +108,9 @@ async def käsittele_dm_viesti(bot, message):
         await message.channel.send("Botti toimii vain palvelimilla – kokeile siellä! 🙂")
     except:
         pass
+
+XP_JSON_PATH = Path(os.getenv("XP_JSON_PATH"))
+STREAKS_FILE = XP_JSON_PATH / "users_streak.json"
 
 def load_streaks():
     if STREAKS_FILE.exists():
