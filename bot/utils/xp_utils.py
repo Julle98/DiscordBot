@@ -42,8 +42,8 @@ DOUBLE_XP_ROLES = {
     1383739974767349790,
 }
 
-JSON_DIR = Path(os.getenv("JSON_DIR"))
-STREAKS_FILE = JSON_DIR / "streaks.json"
+XP_JSON_PATH = Path(os.getenv("XP_JSON_PATH"))
+STREAKS_FILE = XP_JSON_PATH / "users_xp.json"
 
 viestihistoria = defaultdict(list)
 dm_viestit = defaultdict(list)
@@ -56,7 +56,21 @@ def parse_xp_content(content):
     except:
         return 0, 0
 
+def load_xp_data():
+    if STREAKS_FILE.exists():
+        with open(STREAKS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+def save_xp_data(data):
+    STREAKS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(STREAKS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
 def make_xp_content(user_id, xp, level):
+    data = load_xp_data()
+    data[str(user_id)] = {"xp": xp, "level": level}
+    save_xp_data(data)
     return f"{user_id}:{xp}:{level}"
 
 def calculate_level(xp):
@@ -65,11 +79,12 @@ def calculate_level(xp):
         level += 1
     return level
 
-async def get_user_xp_message(channel: discord.TextChannel, user_id: int):
-    async for message in channel.history(limit=1000):
-        if message.author.bot and message.content.startswith(f"{user_id}:"):
-            return message
-    return None
+async def get_user_xp_message(channel, user_id: int):
+    xp_data = load_xp_data()
+    user_info = xp_data.get(str(user_id), {"xp": 0, "level": 0})
+    return type("DummyXPMessage", (), {
+        "content": f"{user_id}:{user_info['xp']}:{user_info['level']}"
+    })()
 
 async def käsittele_dm_viesti(bot, message):
     uid = message.author.id
@@ -174,16 +189,9 @@ async def tarkkaile_kanavan_aktiivisuutta():
         await asyncio.sleep(30)
 
 async def anna_xp_komennosta(bot, interaction: discord.Interaction, xp_määrä: int = 10):
-    if XP_CHANNEL_ID == 0 or not interaction.guild:
-        return
-
-    xp_channel = interaction.guild.get_channel(XP_CHANNEL_ID)
-    if not xp_channel:
-        return
-
     uid = interaction.user.id
-    msg = await get_user_xp_message(xp_channel, uid)
-    xp, level = parse_xp_content(msg.content if msg else f"{uid}:0:0")
+    msg = await get_user_xp_message(None, uid)  
+    xp, level = parse_xp_content(msg.content)
 
     if any(role.id in DOUBLE_XP_ROLES for role in interaction.user.roles):
         xp_määrä *= 2
@@ -200,12 +208,7 @@ async def anna_xp_komennosta(bot, interaction: discord.Interaction, xp_määrä:
     if new_level > level:
         await tarkista_tasonousu(bot, dummy_message, level, new_level)
 
-    content = make_xp_content(uid, xp, new_level)
-    if msg:
-        await msg.edit(content=content)
-    else:
-        await xp_channel.send(content)
-
+    make_xp_content(uid, xp, new_level)
     await paivita_streak(uid)
 
 async def käsittele_viesti_xp(bot, message: discord.Message):
@@ -218,7 +221,6 @@ async def käsittele_viesti_xp(bot, message: discord.Message):
 
     nyt = datetime.now(timezone.utc)
     uid = message.author.id
-    viesti = message.content.lower()
 
     viestihistoria[uid].append(nyt)
     viestihistoria[uid] = [t for t in viestihistoria[uid] if nyt - t < timedelta(seconds=3)]
@@ -250,15 +252,8 @@ async def käsittele_viesti_xp(bot, message: discord.Message):
         viestihistoria[uid].clear()
         return
 
-    if XP_CHANNEL_ID == 0:
-        return
-
-    xp_channel = message.guild.get_channel(XP_CHANNEL_ID)
-    if not xp_channel:
-        return
-
-    msg = await get_user_xp_message(xp_channel, uid)
-    xp, level = parse_xp_content(msg.content if msg else f"{uid}:0:0")
+    msg = await get_user_xp_message(None, uid)
+    xp, level = parse_xp_content(msg.content)
 
     xp_gain = 10
     if any(role.id in DOUBLE_XP_ROLES for role in message.author.roles):
@@ -270,10 +265,5 @@ async def käsittele_viesti_xp(bot, message: discord.Message):
     if new_level > level:
         await tarkista_tasonousu(bot, message, level, new_level)
 
-    content = make_xp_content(uid, xp, new_level)
-    if msg:
-        await msg.edit(content=content)
-    else:
-        await xp_channel.send(content)
-
+    make_xp_content(uid, xp, new_level)
     await paivita_streak(uid)

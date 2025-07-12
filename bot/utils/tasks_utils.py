@@ -140,10 +140,21 @@ def select_random_task(tasks, last_task):
 JSON_DIR = Path(os.getenv("JSON_DIR"))
 STREAKS_PATH = JSON_DIR / "streaks.json"
 
+def normalize_streaks(streaks):
+    for uid, user_data in streaks.items():
+        for key in ["daily", "weekly", "monthly"]:
+            user_data.setdefault(key, {
+                "last_completed": None,
+                "streak": 0,
+                "rewards": []
+            })
+    return streaks
+
 def load_streaks():
     if STREAKS_PATH.exists():
         with open(STREAKS_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            streaks = json.load(f)
+            return normalize_streaks(streaks)
     return {}
 
 def save_streaks(data):
@@ -172,16 +183,32 @@ async def update_streak(user: discord.Member, task_type: str):
     now = datetime.now().date()
     uid = str(user.id)
     streaks = load_streaks()
-    user_data = streaks.setdefault(uid, {})
-    data = user_data.setdefault(task_type, {
-        "last_completed": None,
-        "streak": 0,
-        "rewards": []
+
+    
+    user_data = streaks.setdefault(uid, {
+        "daily": {
+            "last_completed": None,
+            "streak": 0,
+            "rewards": []
+        },
+        "weekly": {
+            "last_completed": None,
+            "streak": 0,
+            "rewards": []
+        },
+        "monthly": {
+            "last_completed": None,
+            "streak": 0,
+            "rewards": []
+        }
     })
+
+    data = user_data[task_type]  
 
     last_date = datetime.strptime(data["last_completed"], "%Y-%m-%d").date() if data["last_completed"] else None
     streak = data["streak"]
 
+    
     if task_type == "daily":
         if last_date == now - timedelta(days=1):
             streak += 1
@@ -203,6 +230,7 @@ async def update_streak(user: discord.Member, task_type: str):
         elif last_date != now:
             streak = 1
 
+    
     data["last_completed"] = now.strftime("%Y-%m-%d")
     data["streak"] = streak
 

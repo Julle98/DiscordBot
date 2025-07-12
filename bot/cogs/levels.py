@@ -58,11 +58,10 @@ async def tarkista_puhekanavat():
                     await xp_channel.send(content)
 
                 if new_level > level:
-                    kanava = vc.guild.system_channel or vc  
                     if new_level in LEVEL_MESSAGES:
-                        await kanava.send(LEVEL_MESSAGES[new_level].format(user=member.mention))
+                        await xp_channel.send(LEVEL_MESSAGES[new_level].format(user=member.mention))
                     else:
-                        await kanava.send(f"{member.mention} nousi tasolle {new_level}! 🎉")
+                        await xp_channel.send(f"{member.mention} nousi tasolle {new_level}! 🎉")
 
                     if new_level in LEVEL_ROLES:
                         uusi_rooli = guild.get_role(LEVEL_ROLES[new_level])
@@ -72,8 +71,8 @@ async def tarkista_puhekanavat():
                                     vanha = guild.get_role(role_id)
                                     if vanha:
                                         await member.remove_roles(vanha)
-                            await member.add_roles(uusi_rooli)    
-
+                            await member.add_roles(uusi_rooli)
+ 
 from discord import app_commands, Interaction
 from discord.ext import commands
 import discord
