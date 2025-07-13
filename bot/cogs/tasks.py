@@ -1,13 +1,10 @@
-import discord
 from discord.ext import commands
 from discord import app_commands
 from datetime import datetime, timedelta
 import asyncio
 import os
-from collections import deque
 from dotenv import load_dotenv
-from bot.utils.tasks_utils import TaskListener, active_listeners
-from bot.utils.error_handler import CommandErrorHandler
+import discord
 
 from bot.utils.tasks_utils import (
     load_tasks,
@@ -17,14 +14,17 @@ from bot.utils.tasks_utils import (
     WEEKLY_TASKS,
     MONTHLY_TASKS,
     TASK_INSTRUCTIONS,
-    StartTaskView
+    StartTaskView,
+    load_streaks
 )
 
-from bot.utils.bot_setup import bot
-from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 load_dotenv()
 
-TASK_LOG_CHANNEL_ID = int(os.getenv("TASK_LOG_CHANNEL_ID", 0))
+REWARD_THRESHOLDS = {
+    "daily": [7, 30],
+    "weekly": [4, 12],
+    "monthly": [3, 6]
+}
 
 class Tasks(commands.Cog):
     def __init__(self, bot):
@@ -33,9 +33,6 @@ class Tasks(commands.Cog):
     @app_commands.command(name="tehtävät", description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä.")
     @app_commands.checks.has_role("24G")
     async def tehtavat(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/tehtävät")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "tehtävät_komento")
-
         data = await asyncio.to_thread(load_tasks)
         daily = data.get("daily_tasks", [])
         weekly = data.get("weekly_tasks", [])
@@ -48,7 +45,6 @@ class Tasks(commands.Cog):
             def __init__(self, task_name, user_done):
                 is_done = onko_tehtava_suoritettu_ajankohtaisesti(task_name, user_done)
                 style = discord.ButtonStyle.secondary if is_done else discord.ButtonStyle.primary
-
                 if task_name in DAILY_TASKS:
                     task_type = "📅 Päivittäinen"
                 elif task_name in WEEKLY_TASKS:
@@ -57,12 +53,8 @@ class Tasks(commands.Cog):
                     task_type = "🗓️ Kuukausittainen"
                 else:
                     task_type = "Tehtävä"
-
                 label = f"{task_type}" + (" ✅" if is_done else "")
-                custom_id = f"{task_type[:3]}_{task_name.replace(' ', '_')}"
-
-                super().__init__(label=label, style=style, disabled=is_done, custom_id=custom_id)
-
+                super().__init__(label=label, style=style, disabled=is_done)
                 self.task_name = task_name
                 self.task_type = task_type
                 self.user_done = user_done
@@ -71,17 +63,14 @@ class Tasks(commands.Cog):
                 if interaction.user != self.view.user:
                     await interaction.response.send_message("Et voi painaa toisen käyttäjän nappia!", ephemeral=True)
                     return
-
                 if onko_tehtava_suoritettu_ajankohtaisesti(self.task_name, self.user_done):
                     await interaction.response.send_message(
                         f"Olet jo suorittanut tehtävän **{self.task_name}**. Odota seuraavaa tehtävää!",
                         ephemeral=True
                     )
                     return
-
                 instruction = TASK_INSTRUCTIONS.get(self.task_name, "Seuraa ohjeita ja suorita tehtävä.")
                 view = StartTaskView(interaction.user, self.task_name, self.task_type)
-
                 await interaction.response.send_message(
                     f"**{self.task_type} tehtävä:** {self.task_name}\n📘 **Ohjeet:** {instruction}",
                     view=view,
@@ -98,6 +87,73 @@ class Tasks(commands.Cog):
                     self.add_item(TaskButton(task, user_done))
                 for task in monthly:
                     self.add_item(TaskButton(task, user_done))
+
+        def seuraava_palkinto(streak, rewards, tyyppi):
+            for raja in REWARD_THRESHOLDS.get(tyyppi, []):
+                reward_id = f"{raja}_{'day' if tyyppi == 'daily' else 'week' if tyyppi == 'weekly' else 'month'}"
+                if reward_id not in rewards:
+                    return max(0, raja - streak)
+            return 0
+
+        class TaskMenuDropdown(discord.ui.Select):
+            def __init__(self, user, user_done):
+                self.user = user
+                self.user_done = user_done
+                options = [
+                    discord.SelectOption(label="Tehtävävalikko", description="Avaa tehtävien napit", value="menu"),
+                    discord.SelectOption(label="Stats", description="Näytä omat tilastot", value="stats"),
+                ]
+                super().__init__(placeholder="Valitse toiminto...", options=options)
+
+            async def callback(self, interaction: discord.Interaction):
+                if interaction.user != self.user:
+                    await interaction.response.send_message("Et voi käyttää toisen valikkoa!", ephemeral=True)
+                    return
+                if self.values[0] == "menu":
+                    await interaction.response.edit_message(content=interaction.message.content, view=self.view.task_buttons)
+                elif self.values[0] == "stats":
+                    uid = str(self.user.id)
+                    streaks = load_streaks()
+                    total_tasks = len(self.user_done)
+                    total_xp = total_tasks * 50
+
+                    daily = streaks.get(uid, {}).get("daily", {})
+                    weekly = streaks.get(uid, {}).get("weekly", {})
+                    monthly = streaks.get(uid, {}).get("monthly", {})
+
+                    embed = discord.Embed(
+                        title=f"📊 Tehtävätilastot – {self.user.display_name}",
+                        color=discord.Color.green()
+                    )
+                    embed.add_field(name="Suoritettuja tehtäviä", value=f"**{total_tasks}**", inline=True)
+                    embed.add_field(name="XP yhteensä", value=f"**{total_xp} XP**", inline=True)
+                    embed.add_field(name="—", value="—", inline=True)
+                    embed.add_field(
+                        name="📅 Päivittäinen streak",
+                        value=f"{daily.get('streak', 0)}\n🎯 Seuraava palkinto: {seuraava_palkinto(daily.get('streak', 0), daily.get('rewards', []), 'daily')} päivän päästä",
+                        inline=False
+                    )
+                    embed.add_field(
+                        name="📆 Viikoittainen streak",
+                        value=f"{weekly.get('streak', 0)}\n🎯 Seuraava palkinto: {seuraava_palkinto(weekly.get('streak', 0), weekly.get('rewards', []), 'weekly')} viikon päästä",
+                        inline=False
+                    )
+                    embed.add_field(
+                        name="🗓️ Kuukausittainen streak",
+                        value=f"{monthly.get('streak', 0)}\n🎯 Seuraava palkinto: {seuraava_palkinto(monthly.get('streak', 0), monthly.get('rewards', []), 'monthly')} kuukauden päästä",
+                        inline=False
+                    )
+                    embed.set_footer(text="Pidä streak hengissä – tehtäväpäivitys päivittäin klo 00:00 UTC.")
+
+                    await interaction.response.edit_message(content=None, embed=embed, view=self.view)
+
+        class TaskSelectorView(discord.ui.View):
+            def __init__(self, user, daily, weekly, monthly, user_done):
+                super().__init__(timeout=300)
+                self.user = user
+                self.user_done = user_done
+                self.task_buttons = TaskButtons(user, daily, weekly, monthly, user_done)
+                self.add_item(TaskMenuDropdown(user, user_done))
 
         now = datetime.now()
         end_of_day = now.replace(hour=23, minute=59).strftime("%d.%m.%Y klo %H:%M")
@@ -116,13 +172,8 @@ class Tasks(commands.Cog):
             "\n```"
         )
 
-        view = TaskButtons(interaction.user, daily, weekly, monthly, user_done)
-        await interaction.response.send_message(task_list, view=view, ephemeral=True)
-
-    @commands.Cog.listener()
-    async def on_app_command_error(self, interaction, error):
-        await CommandErrorHandler(self.bot, interaction, error)
+        view = TaskSelectorView(interaction.user, daily, weekly, monthly, user_done)
+        await interaction.response.send_message(content=task_list, view=view, ephemeral=True)
 
 async def setup(bot: commands.Bot):
-    cog = Tasks(bot)
-    await bot.add_cog(cog)
+    await bot.add_cog(Tasks(bot))

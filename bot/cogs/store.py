@@ -61,7 +61,7 @@ class Store(commands.Cog):
 
             if tuote is None:
                 embed = nayta_kauppa_embed(interaction, tarjoukset)
-                await interaction.response.send_message(embed=embed)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
             else:
                 await osta_command(self.bot, interaction, tuote, tarjoukset)
 

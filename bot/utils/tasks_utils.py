@@ -481,7 +481,13 @@ async def send_timeout_alert(bot, user, task_name, duration="30min"):
     channel = bot.get_channel(ALERT_CHANNEL_ID)
     if channel:
         await channel.send(f"{user.mention}, tehtävän **{task_name}** aikaraja ({duration}) ylittyi. ⏱️")
-                        
+
+task_labels = {
+    "daily": "päivittäisen",
+    "weekly": "viikoittaisen",
+    "monthly": "kuukausittaisen"
+}
+
 async def complete_task(user: discord.Member, task_name: str, guild: discord.Guild):
     uid = str(user.id)
 
@@ -506,7 +512,6 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
 
     await save_user_task(uid, task_name)
 
-    task_type = None
     if task_name in DAILY_TASKS:
         task_type = "daily"
         xp_amount = 50
@@ -517,14 +522,29 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
         task_type = "monthly"
         xp_amount = 150
     else:
+        task_type = None
         xp_amount = 0
+
+    task_labels = {
+        "daily": "päivittäisen",
+        "weekly": "viikoittaisen",
+        "monthly": "kuukausittaisen"
+    }
+    task_label = task_labels.get(task_type, "tuntemattoman")
+
+    streaks = load_streaks()
+    user_streak_data = streaks.get(uid, {}).get(task_type, {})
+    current_streak = user_streak_data.get("streak", 0)
 
     channel = bot.get_channel(TASK_CHANNEL_ID)
     if not channel:
         print(f"[ERROR] TASK_CHANNEL_ID {TASK_CHANNEL_ID} ei palauttanut kanavaa.")
     else:
         try:
-            await channel.send(f"{user.mention} suoritti tehtävän **{task_name}** ja sai (+{xp_amount} XP! ✅)")
+            await channel.send(
+                f"{user.mention} suoritti {task_label} tehtävän **{task_name}** ja sai +{xp_amount} XP! ✅\n"
+                f"Streak nousi {task_label} tehtävissä lukemaan **{current_streak}**! 🔥"
+            )
         except Exception as e:
             print(f"[ERROR] Viestin lähetys epäonnistui: {e}")
 
@@ -533,7 +553,10 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
         print(f"[ERROR] TASK_LOG_CHANNEL_ID {TASK_LOG_CHANNEL_ID} ei palauttanut kanavaa.")
     else:
         try:
-            await log_channel.send(f"{user.mention} suoritti tehtävän **{task_name}** ja sai (+{xp_amount} XP! ✅)")
+            await log_channel.send(
+                f"{user.mention} suoritti {task_label} tehtävän **{task_name}** ja sai +{xp_amount} XP ✅\n"
+                f"(Streak: {current_streak})"
+            )
             print(f"[DEBUG] Lokiviesti lähetetty kanavalle {log_channel.id}")
         except Exception as e:
             print(f"[ERROR] Lokiviestin lähetys epäonnistui: {e}")
@@ -549,7 +572,7 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
             await update_streak(user, task_type)
         except Exception as e:
             print(f"[ERROR] Streakin päivitys epäonnistui: {e}")
-                         
+                        
 TASK_INSTRUCTIONS = {
     "Lähetä viesti tiettyyn aikaan": "Lähetä viesti <#1339846062281588777> kanavalle klo 12–14 UTC välisenä aikana. Aikaa suoritukseen 30 min.",
     "Käy yleinen kanavalla lähettämässä viesti": "Lähetä viesti <#1339846062281588777> kanavassa. Aikaa suoritukseen 30 min.",

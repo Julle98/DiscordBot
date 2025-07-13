@@ -9,6 +9,7 @@ from discord import app_commands
 from discord.ext import tasks, commands
 from bot.utils.bot_setup import bot
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
+from bot.utils.xp_utils import load_xp_data
 from pathlib import Path
 
 def start_store_loops():
@@ -116,6 +117,10 @@ from datetime import datetime, timedelta, timezone
 
 def nayta_kauppa_embed(interaction, tarjoukset):
     user_id = str(interaction.user.id)
+
+    xp_data = load_xp_data()
+    user_xp = xp_data.get(user_id, {}).get("xp", 0)
+
     ostot = lue_ostokset()
     omistetut = ostot.get(user_id, [])
     omistetut_nimet = [puhdista_tuotteen_nimi(o["nimi"]) for o in omistetut if isinstance(o, dict) and "nimi" in o]
@@ -126,7 +131,7 @@ def nayta_kauppa_embed(interaction, tarjoukset):
 
     embed = discord.Embed(
         title="🛒 Sannamaija Shop!",
-        description="Tässä ovat tämänhetkiset tuotteet:",
+        description=f"Tässä ovat tämänhetkiset tuotteet:\n**Sinulla on {user_xp} XP:tä käytettävissä** ✨",
         color=discord.Color.gold()
     )
 

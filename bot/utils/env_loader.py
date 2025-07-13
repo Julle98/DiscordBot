@@ -27,7 +27,16 @@ REQUIRED_KEYS = [
     "CLIENT_ID",
     "CLIENT_SECRET",
     "REDIRECT_URI",
-    "SESSION_SECRET"
+    "SESSION_SECRET",
+    "JSON_DIR",
+    "JSON_DIRS",
+    "LANGSEARCH_API_KEY",
+    "HUGGINGFACE_API_TOKEN",
+    "MOD_LOG_CHANNEL_ID",
+    "XP_JSON_PATH",
+    "EVENT_DATA_FILE",
+    "EVENT_CHANNEL_ID",
+    "PRESENTATION_CHANNEL_ID"
 ]
 
 def load_env_and_validate():

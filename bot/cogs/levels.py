@@ -116,7 +116,16 @@ class Levels(commands.Cog):
         if vaihtoehto.value == "oma":
             msg = await get_user_xp_message(xp_channel, str(interaction.user.id))
             xp, level = parse_xp_content(msg.content if msg else f"{interaction.user.id}:0:0")
-            await interaction.followup.send(f"Sinulla on {xp} XP:tä ja olet tasolla {level}.", ephemeral=True)
+            next_level = level + 1
+            next_level_xp = (next_level ** 2) * 100
+            remaining_xp = max(0, next_level_xp - xp)
+
+            await interaction.followup.send(
+            f"Sinulla on {xp} XP:tä ja olet tasolla {level}.\n"
+            f"Seuraava taso ({next_level}) vaatii **{next_level_xp} XP** – "
+            f"{remaining_xp} XP jäljellä. 🎯",
+            ephemeral=True
+        )
 
         elif vaihtoehto.value == "kaikki":
             mestari = discord.utils.get(interaction.guild.roles, name="Mestari")
