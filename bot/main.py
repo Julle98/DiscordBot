@@ -24,7 +24,6 @@ COGS = [
     "bot.cogs.store",
     "bot.cogs.moderation",
     "bot.cogs.misc",
-    "bot.cogs.ai",
     "bot.cogs.xp_system",
     "bot.utils.welcomecog",
     "bot.utils.xptracker",
@@ -35,6 +34,8 @@ COGS = [
     "bot.utils.status_updater",
     "bot.cogs.quiz",
     "bot.cogs.deletion",
+    "bot.cogs.events",
+    "bot.config",
 ]
 
 async def load_cogs() -> None:

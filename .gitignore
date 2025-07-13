@@ -21,6 +21,4 @@ data/questions.json
 web_app/src/.env
 web_app/package.json
 env
-..config
 data/data/event_data.json   
-bot/config.py

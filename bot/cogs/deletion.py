@@ -7,10 +7,8 @@ load_dotenv()
 MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID", 0))
 
 async def handle_message_edit(bot, before, after):
-    print("✏️ Muokkaustapahtuma havaittu")
-
-    if after.author.bot:
-        print("⏭️ Ohitetaan botin viesti")
+    
+    if after.author.bot:   
         return
 
     now = datetime.now(timezone.utc)
@@ -21,14 +19,13 @@ async def handle_message_edit(bot, before, after):
     if message_age > timedelta(hours=24):
         try:
             await after.delete()
-            print("🗑️ Viesti poistettu")
-
+            
             try:
                 await after.author.send(
                     f"⚠️ Et voi muokata yli 24 tuntia vanhaa viestiä turvallisuussyistä. "
                     f"Viestisi poistettiin kanavalta #{after.channel.name}."
                 )
-                print("📩 Ilmoitus lähetetty käyttäjälle")
+                
             except Exception as dm_error:
                 print(f"⚠️ Ei voitu lähettää yksityisviestiä: {dm_error}")
 
@@ -38,7 +35,7 @@ async def handle_message_edit(bot, before, after):
                     f"🛡️ {after.author.mention} yritti muokata yli 24h vanhaa viestiä kanavassa {after.channel.mention}. Viesti poistettiin.\n"
                     f"**Alkuperäinen viesti:** {before.content}"
                 )
-                print("📜 Lokitus lähetetty")
+                
             else:
                 print("⚠️ Lokituskanavaa ei löytynyt")
 
@@ -53,7 +50,6 @@ class DeletionEdit(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, after):
-        print(f"✏️ Muokkaus: {before.content} → {after.content}")
         await handle_message_edit(self.bot, before, after)
 
 async def setup(bot):
