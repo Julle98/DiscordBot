@@ -21,4 +21,6 @@ data/questions.json
 web_app/src/.env
 web_app/package.json
 env
-data/data/event_data.json   
+data/data/event_data.json  
+data/data/users_xp.json
+data/data/users_streak.json 
