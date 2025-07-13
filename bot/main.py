@@ -35,7 +35,6 @@ COGS = [
     "bot.cogs.quiz",
     "bot.cogs.deletion",
     "bot.cogs.events",
-    "bot.config",
 ]
 
 async def load_cogs() -> None:

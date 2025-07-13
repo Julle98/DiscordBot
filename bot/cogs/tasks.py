@@ -37,7 +37,6 @@ class Tasks(commands.Cog):
         daily = data.get("daily_tasks", [])
         weekly = data.get("weekly_tasks", [])
         monthly = data.get("monthly_tasks", [])
-
         done = await load_user_tasks()
         user_done = done.get(str(interaction.user.id), [])
 
@@ -96,9 +95,10 @@ class Tasks(commands.Cog):
             return 0
 
         class TaskMenuDropdown(discord.ui.Select):
-            def __init__(self, user, user_done):
+            def __init__(self, user, user_done, task_buttons):
                 self.user = user
                 self.user_done = user_done
+                self.task_buttons = task_buttons  
                 options = [
                     discord.SelectOption(label="Tehtävävalikko", description="Avaa tehtävien napit", value="menu"),
                     discord.SelectOption(label="Stats", description="Näytä omat tilastot", value="stats"),
@@ -110,7 +110,7 @@ class Tasks(commands.Cog):
                     await interaction.response.send_message("Et voi käyttää toisen valikkoa!", ephemeral=True)
                     return
                 if self.values[0] == "menu":
-                    await interaction.response.edit_message(content=interaction.message.content, view=self.view.task_buttons)
+                    await interaction.response.edit_message(content=None, view=self.task_buttons)
                 elif self.values[0] == "stats":
                     uid = str(self.user.id)
                     streaks = load_streaks()
@@ -144,7 +144,6 @@ class Tasks(commands.Cog):
                         inline=False
                     )
                     embed.set_footer(text="Pidä streak hengissä – tehtäväpäivitys päivittäin klo 00:00 UTC.")
-
                     await interaction.response.edit_message(content=None, embed=embed, view=self.view)
 
         class TaskSelectorView(discord.ui.View):
@@ -153,7 +152,7 @@ class Tasks(commands.Cog):
                 self.user = user
                 self.user_done = user_done
                 self.task_buttons = TaskButtons(user, daily, weekly, monthly, user_done)
-                self.add_item(TaskMenuDropdown(user, user_done))
+                self.add_item(TaskMenuDropdown(user, user_done, self.task_buttons))
 
         now = datetime.now()
         end_of_day = now.replace(hour=23, minute=59).strftime("%d.%m.%Y klo %H:%M")
