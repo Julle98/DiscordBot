@@ -41,7 +41,7 @@ class Tasks(commands.Cog):
         user_done = done.get(str(interaction.user.id), [])
 
         class TaskButton(discord.ui.Button):
-            def __init__(self, task_name, user_done):
+            def __init__(self, task_name, user_done, user):
                 is_done = onko_tehtava_suoritettu_ajankohtaisesti(task_name, user_done)
                 style = discord.ButtonStyle.secondary if is_done else discord.ButtonStyle.primary
                 if task_name in DAILY_TASKS:
@@ -57,9 +57,10 @@ class Tasks(commands.Cog):
                 self.task_name = task_name
                 self.task_type = task_type
                 self.user_done = user_done
+                self.user = user  
 
             async def callback(self, interaction: discord.Interaction):
-                if interaction.user != self.view.user:
+                if interaction.user != self.user:
                     await interaction.response.send_message("Et voi painaa toisen käyttäjän nappia!", ephemeral=True)
                     return
                 if onko_tehtava_suoritettu_ajankohtaisesti(self.task_name, self.user_done):
@@ -81,11 +82,11 @@ class Tasks(commands.Cog):
                 super().__init__(timeout=300)
                 self.user = user
                 for task in daily:
-                    self.add_item(TaskButton(task, user_done))
+                    self.add_item(TaskButton(task, user_done, user))
                 for task in weekly:
-                    self.add_item(TaskButton(task, user_done))
+                    self.add_item(TaskButton(task, user_done, user))
                 for task in monthly:
-                    self.add_item(TaskButton(task, user_done))
+                    self.add_item(TaskButton(task, user_done, user))
 
         def seuraava_palkinto(streak, rewards, tyyppi):
             for raja in REWARD_THRESHOLDS.get(tyyppi, []):

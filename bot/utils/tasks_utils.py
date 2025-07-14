@@ -543,7 +543,7 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
         try:
             await channel.send(
                 f"{user.mention} suoritti {task_label} tehtävän **{task_name}** ja sai +{xp_amount} XP! ✅\n"
-                f"Streak nousi {task_label} tehtävissä lukemaan **{current_streak}**! 🔥"
+                f"Streak nousi {task_label} tehtävissä lukemaan **{current_streak + 1}**! 🔥"
             )
         except Exception as e:
             print(f"[ERROR] Viestin lähetys epäonnistui: {e}")
@@ -555,7 +555,7 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
         try:
             await log_channel.send(
                 f"{user.mention} suoritti {task_label} tehtävän **{task_name}** ja sai +{xp_amount} XP ✅\n"
-                f"(Streak: {current_streak})"
+                f"(Streak: {current_streak + 1} {task_label} tehtävissä) 🔥"
             )
             print(f"[DEBUG] Lokiviesti lähetetty kanavalle {log_channel.id}")
         except Exception as e:
