@@ -1,7 +1,8 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from bot.utils.tiedot_utils import muodosta_embed_käyttäjälle, DataValintaView
+from bot.utils.tiedot_utils import muodosta_kategoria_embed, KategoriaView
+from bot.utils.tiedot_utils import DataValintaView
 
 class TiedotCog(commands.Cog):
     def __init__(self, bot):
@@ -17,10 +18,12 @@ class TiedotCog(commands.Cog):
             return
 
         target = käyttäjä or interaction.user
-        embed = await muodosta_embed_käyttäjälle(target)
-        view = DataValintaView(target)
 
-        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        await interaction.followup.send(
+            content="📁 Valitse kategoria, jonka tiedot haluat nähdä:",
+            view=KategoriaView(None, target),
+            ephemeral=True
+        )
 
 async def setup(bot):
     await bot.add_cog(TiedotCog(bot))

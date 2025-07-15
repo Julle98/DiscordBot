@@ -8,6 +8,8 @@ from discord import ui
 from dotenv import load_dotenv
 from collections import Counter
 from bot.utils.bot_setup import bot
+from datetime import datetime
+import re
 
 load_dotenv()
 
@@ -15,6 +17,9 @@ JSON_DIR = Path(os.getenv("JSON_DIR"))
 JSON_DIRS = Path(os.getenv("JSON_DIRS"))
 XP_JSON_PATH = Path(os.getenv("XP_JSON_PATH"))
 MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID", 0))
+MODLOG_CHANNEL_ID = (int(os.getenv("MODLOG_CHANNEL_ID", 0)))
+SLOWMODE_CHANNEL_ID = (int(os.getenv("SLOWMODE_CHANNEL_ID", 0)))
+LOG_CHANNEL_ID = (int(os.getenv("LOG_CHANNEL_ID", 0)))
 BACKUP_JSON_PATH = Path(os.getenv("BACKUP_JSON_PATH", "backup"))
 
 TIEDOSTOT = {
@@ -32,7 +37,7 @@ def varmuuskopioi_json_tiedostot():
     BACKUP_JSON_PATH.mkdir(parents=True, exist_ok=True)
     for nimi, polku in TIEDOSTOT.items():
         if polku.exists():
-            backup_polku = BACKUP_JSON_PATH / f"{nimi}_{int(discord.utils.utcnow().timestamp())}.json"
+            backup_polku = BACKUP_JSON_PATH / f"{nimi}_backup.json"
             try:
                 with open(polku, "r", encoding="utf-8") as src, open(backup_polku, "w", encoding="utf-8") as dst:
                     dst.write(src.read())
@@ -53,6 +58,26 @@ async def hae_tehtävien_määrä(user_id: str):
             continue
     return count
 
+async def hae_tehtäväviestit(user_id: str):
+    kanava = bot.get_channel(int(os.getenv("TASK_DATA_CHANNEL_ID")))
+    tehtävät = []
+    async for msg in kanava.history(limit=500):
+        try:
+            data = json.loads(msg.content)
+            if data.get("type") == "user_task" and str(data.get("user_id")) == user_id:
+                tehtävät.append(data)
+        except:
+            continue
+    return tehtävät
+
+async def hae_tarjousviestit(user_id: str):
+    kanava = bot.get_channel(int(os.getenv("OSTOSLOKI_KANAVA_ID")))
+    viestit = []
+    async for msg in kanava.history(limit=500):
+        if f"<@{user_id}>" in msg.content and "Tarjous!" in msg.content:
+            viestit.append(msg)
+    return viestit
+
 async def hae_ostosmäärä(user_id: str):
     channel = bot.get_channel(int(os.getenv("OSTOSLOKI_KANAVA_ID")))
     if not channel:
@@ -64,44 +89,215 @@ async def hae_ostosmäärä(user_id: str):
     return count
 
 async def laske_käyttäjän_komennot(user_id: int):
+    kanava = bot.get_channel(LOG_CHANNEL_ID)
+    count = 0
+    async for msg in kanava.history(limit=1000):
+        if "📝 Komento:" in msg.content and f"({user_id})" in msg.content:
+            count += 1
+    return count
+
+async def hae_käyttäjän_komennot_lista(user_id: int):
+    log_channel = bot.get_channel(int(os.getenv("LOG_CHANNEL_ID")))
     laskuri = Counter()
-    logi_kanava = bot.get_channel(MOD_LOG_CHANNEL_ID)
-    async for msg in logi_kanava.history(limit=1000):
+
+    if not log_channel:
+        return {}
+
+    async for msg in log_channel.history(limit=1000):
         if f"({user_id})" in msg.content:
-            laskuri[user_id] += 1
-    return laskuri[user_id]
+            if (match := re.search(r"Komento: `(.+?)`", msg.content)):
+                komento = match.group(1)
+                laskuri[komento] += 1
+    return laskuri
 
-async def muodosta_embed_käyttäjälle(user: discord.User):
-    varmuuskopioi_json_tiedostot()
+async def hae_viimeisin_aktiivisuusviesti(user_id: str):
+    kanavat = [
+        bot.get_channel(int(os.getenv("TASK_DATA_CHANNEL_ID"))),
+        bot.get_channel(int(os.getenv("OSTOSLOKI_KANAVA_ID"))),
+        bot.get_channel(SLOWMODE_CHANNEL_ID)
+    ]
+    viimeisin = None
+
+    for kanava in kanavat:
+        if not kanava:
+            continue
+        async for msg in kanava.history(limit=500):
+            if f"{user_id}" in msg.content or f"<@{user_id}>" in msg.content:
+                if not viimeisin or msg.created_at > viimeisin:
+                    viimeisin = msg.created_at
+
+    return viimeisin
+
+async def muodosta_kategoria_embed(kategoria: str, user: discord.User):
     uid = str(user.id)
-    embed = discord.Embed(title=f"📦 Bottidata: {user.display_name}", color=discord.Color.teal())
-    try:
-        with open(TIEDOSTOT["XP-data"], encoding="utf-8") as f:
-            data = json.load(f).get(uid, {})
-            xp = data.get("xp", 0)
-            level = data.get("level", 0)
-        embed.add_field(name="✨ XP", value=f"{xp} XP (Taso {level})", inline=False)
-    except:
-        embed.add_field(name="✨ XP", value="Ei saatavilla", inline=False)
+    embed = discord.Embed(
+        title=f"📦 Kategoria: {kategoria}",
+        description=f"Tiedot käyttäjältä: {user.display_name}",
+        color=discord.Color.blurple()
+    )
 
-    try:
-        with open(TIEDOSTOT["XP-streakit"], encoding="utf-8") as f:
-            streak_data = json.load(f).get(uid, {})
-            streak = streak_data.get("streak", 0)
-        embed.add_field(name="🔥 Streak", value=f"{streak} päivää", inline=False)
-    except:
-        embed.add_field(name="🔥 Streak", value="Ei saatavilla", inline=False)
+    user_data = None
+    historia = []
 
-    tehtävät = await hae_tehtävien_määrä(uid)
-    embed.add_field(name="📘 Suoritetut tehtävät", value=f"{tehtävät} kpl", inline=False)
-    ostot = await hae_ostosmäärä(uid)
-    embed.add_field(name="🛒 Ostokset", value=f"{ostot} kpl", inline=False)
-    komennot = await laske_käyttäjän_komennot(user.id)
-    embed.add_field(name="💬 Käytetyt komennot", value=f"{komennot} kpl", inline=False)
+    if kategoria in TIEDOSTOT:
+        path = TIEDOSTOT[kategoria]
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+                user_data = data.get(uid)
+        except Exception as e:
+            embed.add_field(name="⚠️ Virhe", value=f"Tietojen lataus epäonnistui: {e}", inline=False)
 
-    aktiivisuus = xp + tehtävät * 10 + ostot * 5 + komennot * 3
-    embed.add_field(name="📊 Aktiivisuuspisteet", value=f"{aktiivisuus} pistettä", inline=False)
-    embed.set_footer(text="Tiedot lasketaan reaaliaikaisesti kanavien historiasta.")
+        if not user_data:
+            embed.add_field(name="ℹ️ Ei tietoja", value="Käyttäjällä ei ole dataa tässä kategoriassa.", inline=False)
+        else:
+            if kategoria == "Tehtävät":
+                tehtäväviestit = await hae_tehtäväviestit(uid)
+                määrä = len(tehtäväviestit)
+
+                if määrä > 0:
+                    embed.add_field(
+                        name="📊 Tehtävien määrä",
+                        value=f"{määrä} kpl",
+                        inline=False
+                    )
+                    for i, tehtävä in enumerate(tehtäväviestit[:5]):
+                        kuvaus = tehtävä.get("task", "Tuntematon tehtävä")
+                        aikaleima = tehtävä.get("timestamp")
+                        try:
+                            aika = datetime.fromisoformat(aikaleima).strftime("%d.%m.%Y %H:%M") if aikaleima else "?"
+                        except:
+                            aika = "?"
+                        embed.add_field(
+                            name=f"📘 Tehtävä {i+1}",
+                            value=f"{kuvaus}\n🕒 {aika}",
+                            inline=False
+                        )
+                else:
+                    embed.add_field(
+                        name="📘 Tehtävät",
+                        value="Ei löydettyjä tehtäväviestejä.",
+                        inline=False
+                    )
+
+            elif kategoria == "Ostokset":
+                ostoslista = user_data.get("ostot", [])
+                if isinstance(ostoslista, list) and ostoslista:
+                    for ostos in ostoslista[:5]:
+                        nimi = ostos.get("nimi", "Tuntematon tuote")
+                        aika = ostos.get("aika")
+                        pvm = datetime.fromtimestamp(aika).strftime("%d.%m.%Y %H:%M") if aika else "?"
+                        embed.add_field(name=f"🛒 {nimi}", value=f"🗓️ {pvm}", inline=False)
+                else:
+                    embed.add_field(name="🛒 Ostokset", value="Ei ostoksia kirjattuna.", inline=False)
+
+            elif kategoria == "Streakit":
+                streak = user_data.get("streak", 0)
+                embed.add_field(name="🔥 Streak", value=f"{streak} päivää", inline=False)
+
+            elif kategoria == "Tarjous":
+                tarjousviestit = await hae_tarjousviestit(uid)
+                if tarjousviestit:
+                    for viesti in tarjousviestit[:5]:
+                        aika = viesti.created_at.strftime("%d.%m.%Y %H:%M")
+                        teksti = viesti.content.split(" (")[0]  
+                        embed.add_field(
+                            name="🎁 Tarjous",
+                            value=f"{teksti}\n🗓️ {aika}",
+                            inline=False
+                        )
+                else:
+                    embed.add_field(
+                        name="🎁 Tarjous",
+                        value="Ei löydettyjä tarjousviestejä.",
+                        inline=False
+                    )
+
+            elif kategoria == "XP-data":
+                xp = user_data.get("xp", 0)
+                level = user_data.get("level", 0)
+                embed.add_field(name="✨ XP", value=f"{xp} XP\n📈 Taso {level}", inline=False)
+
+            elif kategoria == "XP-streakit":
+                streak = user_data.get("streak", 0)
+                alku_aika = user_data.get("alku")
+                historia = user_data.get("historia", [])
+
+                pvm = datetime.fromtimestamp(alku_aika).strftime("%d.%m.%Y %H:%M") if alku_aika else "Tuntematon"
+                embed.add_field(
+                    name="⚡ XP-Streak",
+                    value=f"🔥 {streak} päivää\n📅 Alkoi: {pvm}",
+                    inline=False
+                )
+
+            if historia:
+                viimeisin = historia[-1]
+                viimeisin_pvm = datetime.fromtimestamp(viimeisin["timestamp"]).strftime("%d.%m.%Y %H:%M")
+                embed.add_field(name="📊 Viimeisin päivitys", value=viimeisin_pvm, inline=False)
+                embed.add_field(name="📈 Muutoksia yhteensä", value=f"{len(historia)} kpl", inline=False)
+            else:
+                embed.add_field(name="📊 Historia", value="Ei muutoksia tallennettu.", inline=False)
+
+    elif kategoria == "Moderointi":
+        varoituskanava = bot.get_channel(MODLOG_CHANNEL_ID)
+        mutekanava = bot.get_channel(MODLOG_CHANNEL_ID)
+        varoitukset = []
+        mute_count = 0
+
+        async for msg in varoituskanava.history(limit=1000):
+            if f"ID: {user.id}" in msg.content:
+                varoitukset.append(msg)
+
+        if mutekanava:
+            async for msg in mutekanava.history(limit=1000):
+                if f"{user.mention}" in msg.content and "🔇 **Jäähy asetettu**" in msg.content:
+                    mute_count += 1
+
+        if varoitukset:
+            for i, viesti in enumerate(varoitukset[:5]):
+                syy = viesti.content.split(" | Syy: ")[-1].split(" |")[0]
+                aika = viesti.created_at.strftime("%d.%m.%Y %H:%M")
+                embed.add_field(name=f"⚠️ Varoitus {i+1}", value=f"📝 {syy}\n🕒 {aika}", inline=False)
+        else:
+            embed.add_field(name="✅ Ei varoituksia", value="Käyttäjällä ei ole merkintöjä.", inline=False)
+
+        embed.add_field(name="🔇 Jäähyt (mute)", value=f"{mute_count} kertaa", inline=False)
+
+    elif kategoria == "Toiminta":
+        tehtävät = await hae_tehtävien_määrä(uid)
+        ostot = await hae_ostosmäärä(uid)
+        komentolista = await hae_käyttäjän_komennot_lista(user.id)
+        komennot = sum(komentolista.values())
+
+        embed.add_field(name="📘 Tehtävät", value=f"{tehtävät} kpl", inline=True)
+        embed.add_field(name="🛒 Ostokset", value=f"{ostot} kpl", inline=True)
+        embed.add_field(name="💬 Komennot", value=f"{komennot} kpl", inline=True)
+
+        if komentolista:
+            rivit = [f"- {nimi} ({määrä}×)" for nimi, määrä in komentolista.most_common(5)]
+            embed.add_field(
+                name="📚 Käytetyt komennot",
+                value="\n".join(rivit),
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="📚 Käytetyt komennot",
+                value="Ei komentoja havaittu.",
+                inline=False
+            )
+
+        viimeisin = await hae_viimeisin_aktiivisuusviesti(uid)
+        if viimeisin:
+            pvm = viimeisin.strftime("%d.%m.%Y %H:%M")
+            embed.add_field(name="⏳ Viimeisin aktiivisuus", value=f"{pvm}", inline=False)
+        else:
+            embed.add_field(name="⏳ Viimeisin aktiivisuus", value="Ei havaittua toimintaa.", inline=False)
+
+    else:
+        embed.add_field(name="❓ Tuntematon kategoria", value="Ei sisältöä saatavilla.", inline=False)
+
+    embed.set_footer(text="📁 Kategorianäkymä • Tiedot päivittyvät reaaliaikaisesti")
     return embed
 
 class DataValintaView(ui.View):
@@ -111,72 +307,76 @@ class DataValintaView(ui.View):
         for nimi in KATEGORIAT:
             self.add_item(ui.Button(label=nimi, style=discord.ButtonStyle.primary, custom_id=nimi))
 
-    async def interaction_check(self, interaction):
+    async def interaction_check(self, interaction: discord.Interaction):
         valinta = interaction.data["custom_id"]
-        await interaction.response.edit_message(content=f"🔍 Valitsit kategorian: {valinta}", view=KategoriaView(valinta, self.user))
+
+        if valinta == "palaa":
+            await interaction.response.edit_message(
+                content="📁 Valitse kategoria, jonka tiedot haluat nähdä:",
+                embed=None,
+                view=KategoriaView(None, self.user)
+            )
+            return False
+
+        uusi_embed = await muodosta_kategoria_embed(valinta, self.user)
+        await interaction.response.edit_message(
+            content=f"📁 Näytetään tiedot kategoriasta: **{valinta}**",
+            embed=uusi_embed,
+            view=KategoriaView(valinta, self.user)
+        )
         return False
 
-class KategoriaView(ui.View):
+class KategoriaNappi(ui.Button):
     def __init__(self, nimi, user):
-        super().__init__(timeout=300)
+        super().__init__(label=nimi, style=discord.ButtonStyle.primary, custom_id=nimi)
         self.nimi = nimi
         self.user = user
-        self.add_item(KatsoNappi(nimi, user))
-        if nimi in TIEDOSTOT:
-            self.add_item(LataaNappi(nimi, user))
-            self.add_item(PoistaNappi(nimi, user))
-        elif nimi == "Moderointi":
-            self.add_item(IlmoitaVirheNappi(user))
-        self.add_item(ui.Button(label="← Takaisin", style=discord.ButtonStyle.secondary, custom_id="takaisin"))
 
-    async def interaction_check(self, interaction):
-        if interaction.data["custom_id"] == "takaisin":
-            await interaction.response.edit_message(content="📁 Valitse kategoria:", view=DataValintaView(self.user))
-            return False
-        return True
+    async def callback(self, interaction: discord.Interaction):
+        embed = await muodosta_kategoria_embed(self.nimi, self.user)
+        await interaction.response.edit_message(
+            content=f"📁 Näytetään tiedot kategoriasta: **{self.nimi}**",
+            embed=embed,
+            view=KategoriaView(self.nimi, self.user)
+        )
+
+class KategoriaView(ui.View):
+    def __init__(self, valittu_kategoria, user):
+        super().__init__(timeout=300)
+        self.user = user
+        self.valittu = valittu_kategoria
+
+        if not valittu_kategoria:
+            for nimi in KATEGORIAT:
+                self.add_item(KategoriaNappi(nimi, self.user))
+        else:
+            self.add_item(LataaNappi(valittu_kategoria, self.user))
+            self.add_item(PoistaNappi(valittu_kategoria, self.user))
+            self.add_item(PalaaNappi(user))
 
 class KatsoNappi(ui.Button):
-    def __init__(self, nimi, user):
+    def __init__(self, user):
         super().__init__(label="Katso tiedot", style=discord.ButtonStyle.secondary)
-        self.nimi = nimi
         self.user = user
 
     async def callback(self, interaction):
-        if self.nimi == "Moderointi":
-            modlog = bot.get_channel(MOD_LOG_CHANNEL_ID)
-            lista = []
-            async for msg in modlog.history(limit=1000):
-                if f"ID: {self.user.id}" in msg.content:
-                    lista.append(msg.content)
-            if not lista:
-                await interaction.response.send_message("Ei varoituksia.", ephemeral=True)
-                return
-            vastaus = "\n".join([f"{i+1}. {v.split(' | Syy: ')[-1].split(' |')[0]}" for i, v in enumerate(lista)])
-            await interaction.response.send_message(f"{self.user.mention} on saanut {len(lista)} varoitusta:\n{vastaus}", ephemeral=True)
+        await interaction.response.edit_message(
+            content="📁 Valitse kategoria, jonka tiedot haluat nähdä:",
+            embed=None,
+            view=KategoriaView(None, self.user)
+        )
 
-        elif self.nimi == "Toiminta":
-            viestimäärät = {}
-            kanavat = [c for c in interaction.guild.text_channels if c.permissions_for(self.user).read_messages]
-            for kanava in kanavat:
-                try:
-                    count = sum(1 async for msg in kanava.history(limit=1000) if msg.author == self.user)
-                    if count > 0:
-                        viestimäärät[kanava] = count
-                except discord.Forbidden:
-                    continue
-            if not viestimäärät:
-                await interaction.response.send_message("Ei viestejä löytynyt.", ephemeral=True)
-                return
-            aktiivisin = max(viestimäärät, key=viestimäärät.get)
-            määrä = viestimäärät[aktiivisin]
-            await interaction.response.send_message(
-                f"**{self.user.display_name}** on lähettänyt eniten viestejä kanavalle {aktiivisin.mention} ({määrä} viestiä).",
-                ephemeral=True
-            )
+class PalaaNappi(ui.Button):
+    def __init__(self, user):
+        super().__init__(label="🔙 Palaa alkuun", style=discord.ButtonStyle.secondary)
+        self.user = user
 
-        else:
-            embed = await muodosta_embed_käyttäjälle(self.user)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+    async def callback(self, interaction):
+        await interaction.response.edit_message(
+            content="📁 Valitse kategoria, jonka tiedot haluat nähdä:",
+            embed=None,
+            view=KategoriaView(None, self.user)
+        )
 
 class LataaNappi(ui.Button):
     def __init__(self, nimi, user):
