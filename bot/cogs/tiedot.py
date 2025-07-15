@@ -17,7 +17,7 @@ class TiedotCog(commands.Cog):
             return
 
         target = käyttäjä or interaction.user
-        embed = muodosta_embed_käyttäjälle(target)
+        embed = await muodosta_embed_käyttäjälle(target)
         view = DataValintaView(target)
 
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
