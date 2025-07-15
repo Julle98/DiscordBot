@@ -5,6 +5,8 @@ import asyncio
 import os
 from dotenv import load_dotenv
 import discord
+from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
+from bot.utils.error_handler import CommandErrorHandler
 
 from bot.utils.tasks_utils import (
     load_tasks,
@@ -33,6 +35,8 @@ class Tasks(commands.Cog):
     @app_commands.command(name="tehtävät", description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä.")
     @app_commands.checks.has_role("24G")
     async def tehtavat(self, interaction: discord.Interaction):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/tehtävät")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "tehtävät_komento")
         data = await asyncio.to_thread(load_tasks)
         daily = data.get("daily_tasks", [])
         weekly = data.get("weekly_tasks", [])

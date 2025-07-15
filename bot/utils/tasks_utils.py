@@ -422,7 +422,7 @@ class TaskListener(discord.ui.View):
         if self.completed or member.id != self.user.id:
             return
 
-        voice_channel_id = int(os.getenv("VOICE_CHANNEL_ID", 0))
+        voice_channel_id = VOICE_EVENT_CHANNEL_ID
 
         if self.task_name == "Osallistu puhekanavaan" and after.channel and after.channel.id == voice_channel_id:
             await self.finish_task()
@@ -458,7 +458,7 @@ class TaskListener(discord.ui.View):
     async def complete_task(self):
         await complete_task(self.user, self.task_name, self.user.guild)
 
-    async def cancel(self):
+    async def cancel(self, show_timeout_message=True):
         self.completed = True
         try:
             self.bot.remove_listener(self.on_message, "on_message")
@@ -468,10 +468,11 @@ class TaskListener(discord.ui.View):
         except Exception as e:
             print(f"[ERROR] Listenerien poisto epäonnistui (cancel): {e}")
 
-        await self.channel.send(f"{self.user.mention}, tehtävän **{self.task_name}** aikaraja (30min) ylittyi. ⏱️")
+        if show_timeout_message:
+            await self.channel.send(f"{self.user.mention}, tehtävän **{self.task_name}** aikaraja (30min) ylittyi. ⏱️")
 
         uid = str(self.user.id)
-        if active_listeners.get(uid) == self.task_name:
+        if active_listeners.get(uid) == self:
             active_listeners.pop(uid, None)
             
 load_dotenv()
@@ -482,15 +483,8 @@ async def send_timeout_alert(bot, user, task_name, duration="30min"):
     if channel:
         await channel.send(f"{user.mention}, tehtävän **{task_name}** aikaraja ({duration}) ylittyi. ⏱️")
 
-task_labels = {
-    "daily": "päivittäisen",
-    "weekly": "viikoittaisen",
-    "monthly": "kuukausittaisen"
-}
-
 async def complete_task(user: discord.Member, task_name: str, guild: discord.Guild):
     uid = str(user.id)
-
     user_tasks = await load_user_tasks()
 
     if uid not in user_tasks:
@@ -525,6 +519,16 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
         task_type = None
         xp_amount = 0
 
+    if task_type:
+        try:
+            await update_streak(user, task_type)
+        except Exception as e:
+            print(f"[ERROR] Streakin päivitys epäonnistui: {e}")
+
+    streaks = load_streaks()
+    user_streak_data = streaks.get(uid, {}).get(task_type, {})
+    current_streak = user_streak_data.get("streak", 0)
+
     task_labels = {
         "daily": "päivittäisen",
         "weekly": "viikoittaisen",
@@ -532,32 +536,23 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
     }
     task_label = task_labels.get(task_type, "tuntemattoman")
 
-    streaks = load_streaks()
-    user_streak_data = streaks.get(uid, {}).get(task_type, {})
-    current_streak = user_streak_data.get("streak", 0)
-
     channel = bot.get_channel(TASK_CHANNEL_ID)
-    if not channel:
-        print(f"[ERROR] TASK_CHANNEL_ID {TASK_CHANNEL_ID} ei palauttanut kanavaa.")
-    else:
+    if channel:
         try:
             await channel.send(
                 f"{user.mention} suoritti {task_label} tehtävän **{task_name}** ja sai +{xp_amount} XP! ✅\n"
-                f"Streak nousi {task_label} tehtävissä lukemaan **{current_streak + 1}**! 🔥"
+                f"Streak nousi {task_label} tehtävissä lukemaan **{current_streak}**! 🔥"
             )
         except Exception as e:
             print(f"[ERROR] Viestin lähetys epäonnistui: {e}")
 
     log_channel = bot.get_channel(TASK_LOG_CHANNEL_ID)
-    if not log_channel:
-        print(f"[ERROR] TASK_LOG_CHANNEL_ID {TASK_LOG_CHANNEL_ID} ei palauttanut kanavaa.")
-    else:
+    if log_channel:
         try:
             await log_channel.send(
                 f"{user.mention} suoritti {task_label} tehtävän **{task_name}** ja sai +{xp_amount} XP ✅\n"
-                f"(Streak: {current_streak + 1} {task_label} tehtävissä) 🔥"
+                f"(Streak: {current_streak} {task_label} tehtävissä) 🔥"
             )
-            print(f"[DEBUG] Lokiviesti lähetetty kanavalle {log_channel.id}")
         except Exception as e:
             print(f"[ERROR] Lokiviestin lähetys epäonnistui: {e}")
 
@@ -566,13 +561,7 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
             await add_xp(user, xp_amount)
         except Exception as e:
             print(f"[ERROR] XP:n lisäys epäonnistui: {e}")
-
-    if task_type:
-        try:
-            await update_streak(user, task_type)
-        except Exception as e:
-            print(f"[ERROR] Streakin päivitys epäonnistui: {e}")
-                        
+                 
 TASK_INSTRUCTIONS = {
     "Lähetä viesti tiettyyn aikaan": "Lähetä viesti <#1339846062281588777> kanavalle klo 12–14 UTC välisenä aikana. Aikaa suoritukseen 30 min.",
     "Käy yleinen kanavalla lähettämässä viesti": "Lähetä viesti <#1339846062281588777> kanavassa. Aikaa suoritukseen 30 min.",
@@ -606,8 +595,12 @@ class TaskControlView(discord.ui.View):
             return
 
         uid = str(self.user.id)
-        if active_listeners.get(uid) == self.task_name:
+        listener = active_listeners.get(uid)
+
+        if listener:
+            await listener.cancel(show_timeout_message=False)  
             active_listeners.pop(uid, None)
+
         await interaction.response.send_message(f"Tehtävä **{self.task_name}** on peruttu onnistuneesti. ✅", ephemeral=True)
 
     @discord.ui.button(label="⛔ Ilmoita virheellinen tehtävä", style=discord.ButtonStyle.secondary)
@@ -633,7 +626,7 @@ class StartTaskView(discord.ui.View):
         listener = TaskListener(self.user, interaction.channel, self.task_name)
 
         async def wrapped_start():
-            active_listeners[str(self.user.id)] = self.task_name
+            active_listeners[str(self.user.id)] = listener 
             await asyncio.sleep(1)
             await listener.start()
 
