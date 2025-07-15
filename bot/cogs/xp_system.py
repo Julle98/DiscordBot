@@ -1,13 +1,23 @@
-# cogs/xp_system.py
 import discord, asyncio
 from discord.ext import commands, tasks
-from bot.utils.xp_utils import käsittele_viesti_xp, tarkkaile_kanavan_aktiivisuutta
-from bot.utils.bot_setup import bot
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
-from datetime import datetime, timedelta
+
+from bot.utils.bot_setup import bot
+from bot.utils.xp_utils import (
+    käsittele_viesti_xp,
+    tarkkaile_kanavan_aktiivisuutta,
+    load_xp_data,
+    save_xp_data,
+    calculate_level,
+    make_xp_content,
+    load_streaks,
+    save_streaks,
+)
 
 komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
 viestit_ja_ajat = {}  # {message_id: (user_id, timestamp)}
+viime_viestit = {}    # {user_id: datetime}
 
 class XPSystem(commands.Cog):
     def __init__(self, bot):
@@ -16,12 +26,12 @@ class XPSystem(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot:
+        if message.author.bot or isinstance(message.channel, discord.DMChannel):
             return
 
         user_id = message.author.id
         komento_nimi = "xp_viesti"
-        nyt = datetime.now()
+        nyt = datetime.now(timezone.utc)
 
         member = message.guild.get_member(user_id)
         nopea_roolit = ["Mestari", "Admin", "Moderaattori"]
@@ -30,11 +40,35 @@ class XPSystem(commands.Cog):
 
         viimeinen = komento_ajastukset[user_id].get(komento_nimi)
         if viimeinen and nyt - viimeinen < raja:
-            return  
+            return
 
+        streaks = load_streaks()
+        uid_str = str(user_id)
+        viime_streak_pvm = datetime.fromisoformat(streaks.get(uid_str, {}).get("pvm", "1970-01-01")).date()
+        viesti_pvm = nyt.date()
+        ero = (viesti_pvm - viime_streak_pvm).days
+
+        if ero >= 5:
+            bonus = 20
+            xp_data = load_xp_data()
+            tiedot = xp_data.get(uid_str, {"xp": 0, "level": 0})
+            tiedot["xp"] += bonus
+            tiedot["level"] = calculate_level(tiedot["xp"])
+            xp_data[uid_str] = tiedot
+            save_xp_data(xp_data)
+
+            try:
+                await message.channel.send(
+                    f"{message.author.mention} palasi viestimään **{ero} päivän** tauon jälkeen! "
+                    f"Sait **{bonus} XP** bonuksen ja streakisi on nyt käynnissä! 🔥"
+                )
+            except:
+                pass
+
+        viime_viestit[user_id] = nyt
+        komento_ajastukset[user_id][komento_nimi] = nyt
         viestit_ja_ajat[message.id] = (user_id, nyt)
 
-        komento_ajastukset[user_id][komento_nimi] = nyt
         await käsittele_viesti_xp(self.bot, message)
         await self.bot.process_commands(message)
 
@@ -43,7 +77,7 @@ class XPSystem(commands.Cog):
         tiedot = viestit_ja_ajat.pop(message.id, None)
         if tiedot:
             user_id, aika = tiedot
-            nyt = datetime.now()
+            nyt = datetime.now(timezone.utc)
             if nyt - aika < timedelta(seconds=10):
                 komento_ajastukset[user_id].pop("xp_viesti", None)
 
@@ -57,4 +91,3 @@ class XPSystem(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(XPSystem(bot))
-

@@ -16,6 +16,7 @@ from bot.utils.xp_utils import (
     LEVEL_MESSAGES
 )
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
+from bot.utils.xp_utils import load_xp_data, save_xp_data
 from bot.utils.error_handler import CommandErrorHandler
 
 load_dotenv()
@@ -108,24 +109,23 @@ class Levels(commands.Cog):
         await kirjaa_komento_lokiin(self.bot, interaction, "/taso")
         await kirjaa_ga_event(self.bot, interaction.user.id, "taso_komento")
 
-        xp_channel = interaction.guild.get_channel(XP_CHANNEL_ID)
-        if not xp_channel:
-            await interaction.followup.send("XP-kanavaa ei löytynyt.", ephemeral=True)
-            return
+        xp_data = load_xp_data()
 
         if vaihtoehto.value == "oma":
-            msg = await get_user_xp_message(xp_channel, str(interaction.user.id))
-            xp, level = parse_xp_content(msg.content if msg else f"{interaction.user.id}:0:0")
+            uid = str(interaction.user.id)
+            tiedot = xp_data.get(uid, {"xp": 0, "level": 0})
+            xp = tiedot["xp"]
+            level = tiedot["level"]
             next_level = level + 1
             next_level_xp = (next_level ** 2) * 100
             remaining_xp = max(0, next_level_xp - xp)
 
             await interaction.followup.send(
-            f"Sinulla on {xp} XP:tä ja olet tasolla {level}.\n"
-            f"Seuraava taso ({next_level}) vaatii **{next_level_xp} XP** – "
-            f"{remaining_xp} XP jäljellä. 🎯",
-            ephemeral=True
-        )
+                f"Sinulla on {xp} XP:tä ja olet tasolla {level}.\n"
+                f"Seuraava taso ({next_level}) vaatii **{next_level_xp} XP** – "
+                f"{remaining_xp} XP jäljellä. 🎯",
+                ephemeral=True
+            )
 
         elif vaihtoehto.value == "kaikki":
             mestari = discord.utils.get(interaction.guild.roles, name="Mestari")
@@ -133,13 +133,11 @@ class Levels(commands.Cog):
                 await interaction.followup.send("Vain Mestari-roolilla voi tarkastella kaikkien tasoja.", ephemeral=True)
                 return
 
-            users = await self.hae_tasot(xp_channel)
-
             entries = []
-            for user_id, xp, level in users:
+            for user_id, tiedot in xp_data.items():
                 try:
                     member = await interaction.guild.fetch_member(int(user_id))
-                    entries.append((member.display_name, xp, level))
+                    entries.append((member.display_name, tiedot["xp"], tiedot["level"]))
                 except:
                     continue
 
@@ -149,6 +147,7 @@ class Levels(commands.Cog):
 
             entries.sort(key=lambda x: x[1], reverse=True)
             lines = [f"**{name}** – Taso {lvl} ({xp} XP)" for name, xp, lvl in entries[:10]]
+
             await interaction.followup.send("Top 10 jäsenet:\n" + "\n".join(lines), ephemeral=True)
 
     async def hae_tasot(self, xp_channel):
@@ -167,43 +166,39 @@ class Levels(commands.Cog):
     @app_commands.checks.has_role("Mestari")
     @app_commands.describe(jäsen="Jäsen", määrä="Lisättävä XP määrä")
     async def lisää_xp(self, interaction: Interaction, jäsen: discord.Member, määrä: int):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/lisää_xp")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "lisää_xp_komento")
-
-        xp_channel = interaction.guild.get_channel(XP_CHANNEL_ID)
         user_id = str(jäsen.id)
-        msg = await get_user_xp_message(xp_channel, user_id)
-        xp, level = parse_xp_content(msg.content if msg else f"{user_id}:0:0")
-        xp += määrä
-        new_level = calculate_level(xp)
-        content = make_xp_content(user_id, xp, new_level)
+        xp_data = load_xp_data()
+        tiedot = xp_data.get(user_id, {"xp": 0, "level": 0})
 
-        if msg:
-            await msg.edit(content=content)
-        else:
-            await xp_channel.send(content)
-        await interaction.response.send_message(f"Lisättiin {määrä} XP:tä käyttäjälle {jäsen.display_name}.", ephemeral=True)
+        tiedot["xp"] += määrä
+        tiedot["level"] = calculate_level(tiedot["xp"])
+
+        xp_data[user_id] = tiedot
+        save_xp_data(xp_data)
+
+        await interaction.response.send_message(
+            f"Lisättiin {määrä} XP:tä käyttäjälle {jäsen.display_name}. Nykyinen XP: {tiedot['xp']}, Taso: {tiedot['level']}",
+            ephemeral=True
+        )
 
     @app_commands.command(name="vähennä_xp", description="Vähennä käyttäjältä XP:tä.")
     @app_commands.checks.has_role("Mestari")
     @app_commands.describe(jäsen="Jäsen", määrä="Vähennettävä XP määrä")
     async def vähennä_xp(self, interaction: Interaction, jäsen: discord.Member, määrä: int):
-        await asyncio.to_thread(kirjaa_komento_lokiin, self.bot, interaction, "/vähennä_xp")
-        await asyncio.to_thread(kirjaa_ga_event, interaction.user.id, "vähennä_xp_komento")
-
-        xp_channel = interaction.guild.get_channel(XP_CHANNEL_ID)
         user_id = str(jäsen.id)
-        msg = await get_user_xp_message(xp_channel, user_id)
-        xp, level = parse_xp_content(msg.content if msg else f"{user_id}:0:0")
-        xp = max(0, xp - määrä)
-        new_level = calculate_level(xp)
-        content = make_xp_content(user_id, xp, new_level)
+        xp_data = load_xp_data()
+        tiedot = xp_data.get(user_id, {"xp": 0, "level": 0})
 
-        if msg:
-            await msg.edit(content=content)
-        else:
-            await xp_channel.send(content)
-        await interaction.response.send_message(f"Vähennettiin {määrä} XP:tä käyttäjältä {jäsen.display_name}.", ephemeral=True)
+        tiedot["xp"] = max(0, tiedot["xp"] - määrä)
+        tiedot["level"] = calculate_level(tiedot["xp"])
+
+        xp_data[user_id] = tiedot
+        save_xp_data(xp_data)
+
+        await interaction.response.send_message(
+            f"Vähennettiin {määrä} XP:tä käyttäjältä {jäsen.display_name}. Nykyinen XP: {tiedot['xp']}, Taso: {tiedot['level']}",
+            ephemeral=True
+        )
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction: Interaction, error):
