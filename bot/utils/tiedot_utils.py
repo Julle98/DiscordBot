@@ -22,28 +22,76 @@ TIEDOSTOT = {
     "XP-streakit": XP_JSON_PATH / "users_streak.json",
 }
 
-def muodosta_embed_käyttäjälle(user: discord.User):
-    tiedot = {}
-    for nimi, polku in TIEDOSTOT.items():
+async def hae_tehtävien_määrä(user_id: str):
+    channel = bot.get_channel(int(os.getenv("TASK_DATA_CHANNEL_ID")))
+    if not channel:
+        return 0
+    count = 0
+    async for msg in channel.history(limit=1000):
         try:
-            with open(polku, encoding="utf-8") as f:
-                data = json.load(f)
-                user_data = data.get(str(user.id), "Ei dataa")
-                if isinstance(user_data, (dict, list)):
-                    tiedot[nimi] = f"{len(json.dumps(user_data))} merkkiä"
-                else:
-                    tiedot[nimi] = str(user_data)
+            data = json.loads(msg.content)
+            if data.get("type") == "user_task" and str(data.get("user_id")) == user_id:
+                count += 1
         except:
-            tiedot[nimi] = "❌ Ei luettavissa"
+            continue
+    return count
 
+async def hae_ostosmäärä(user_id: str):
+    channel = bot.get_channel(int(os.getenv("OSTOSLOKI_KANAVA_ID")))
+    if not channel:
+        return 0
+    count = 0
+    async for msg in channel.history(limit=500):
+        if f"<@{user_id}>" in msg.content:
+            count += 1
+    return count
+
+async def muodosta_embed_käyttäjälle(user: discord.User):
+    uid = str(user.id)
     embed = discord.Embed(
         title=f"📦 Bottidata: {user.display_name}",
-        description="Yhteenveto käyttäjän tiedoista",
         color=discord.Color.teal()
     )
-    for nimi, arvo in tiedot.items():
-        embed.add_field(name=nimi, value=arvo, inline=False)
-    embed.set_footer(text="Voit ladata tai poistaa tiedot alapuolelta.")
+
+    xp = 0
+    level = 0
+    try:
+        with open(TIEDOSTOT["XP-data"], encoding="utf-8") as f:
+            data = json.load(f).get(uid, {})
+            xp = data.get("xp", 0)
+            level = data.get("level", 0)
+        embed.add_field(name="✨ XP", value=f"{xp} XP (Taso {level})", inline=False)
+    except:
+        embed.add_field(name="✨ XP", value="Ei saatavilla", inline=False)
+
+    try:
+        with open(TIEDOSTOT["XP-streakit"], encoding="utf-8") as f:
+            streak_data = json.load(f).get(uid, {})
+            streak = streak_data.get("streak", 0)
+            embed.add_field(name="🔥 Streak", value=f"{streak} päivää", inline=False)
+    except:
+        embed.add_field(name="🔥 Streak", value="Ei saatavilla", inline=False)
+
+    tehtävät = await hae_tehtävien_määrä(uid)
+    embed.add_field(name="📘 Suoritetut tehtävät", value=f"{tehtävät} kpl", inline=False)
+
+    ostot = await hae_ostosmäärä(uid)
+    embed.add_field(name="🛒 Ostokset", value=f"{ostot} kpl", inline=False)
+
+    komennot = 0
+    try:
+        logi_kanava = bot.get_channel(MOD_LOG_CHANNEL_ID)
+        async for msg in logi_kanava.history(limit=500):
+            if f"{user.name}" in msg.content and "Komento:" in msg.content:
+                komennot += 1
+        embed.add_field(name="💬 Käytetyt komennot", value=f"{komennot} kpl", inline=False)
+    except:
+        embed.add_field(name="💬 Käytetyt komennot", value="Ei saatavilla", inline=False)
+
+    aktiivisuus = xp + tehtävät * 10 + ostot * 5 + komennot * 3
+    embed.add_field(name="📊 Aktiivisuuspisteet", value=f"{aktiivisuus} pistettä", inline=False)
+
+    embed.set_footer(text="Tiedot lasketaan reaaliaikaisesti kanavien historiasta.")
     return embed
 
 class DataValintaView(ui.View):
@@ -83,11 +131,28 @@ class DataValintaDropdown(ui.Select):
             await interaction.response.send_modal(PoistovarmistusModal(nimi, [TIEDOSTOT[nimi]], self.user))
 
     async def lataa_tiedosto(self, interaction, nimi):
-        tiedosto = TIEDOSTOT.get(nimi)
-        if tiedosto and tiedosto.exists():
-            await interaction.followup.send(file=discord.File(tiedosto), ephemeral=True)
-        else:
+        polku = TIEDOSTOT.get(nimi)
+        if not polku or not polku.exists():
             await interaction.followup.send("❌ Tiedostoa ei löytynyt.", ephemeral=True)
+            return
+
+        try:
+            with open(polku, encoding="utf-8") as f:
+                data = json.load(f)
+            user_data = data.get(str(self.user.id))
+            if not user_data:
+                await interaction.followup.send("ℹ️ Sinulla ei ole dataa tässä tiedostossa.", ephemeral=True)
+                return
+
+            from io import BytesIO
+            buffer = BytesIO()
+            json.dump({str(self.user.id): user_data}, buffer, ensure_ascii=False, indent=2)
+            buffer.seek(0)
+            await interaction.followup.send(file=discord.File(buffer, filename=f"{nimi}_{self.user.id}.txt"), ephemeral=True)
+
+        except Exception as e:
+            await interaction.followup.send("❌ Lataus epäonnistui.", ephemeral=True)
+            print("Latausvirhe:", e)
 
     async def lähetä_zip(self, interaction):
         import zipfile, io
@@ -95,9 +160,10 @@ class DataValintaDropdown(ui.Select):
         with zipfile.ZipFile(zip_buffer, "w") as zf:
             for nimi, polku in TIEDOSTOT.items():
                 if polku.exists():
-                    zf.write(polku, arcname=polku.name)
+                    arcname_txt = polku.with_suffix('.txt').name
+                    zf.write(polku, arcname=arcname_txt)
         zip_buffer.seek(0)
-        await interaction.followup.send(file=discord.File(fp=zip_buffer, filename="bottidata.zip"), ephemeral=True)
+        await interaction.followup.send(file=discord.File(fp=zip_buffer, filename="sannamaijadata.zip"), ephemeral=True)
 
 class PoistovarmistusModal(ui.Modal, title="Vahvista tietojen poisto"):
     vahvistus = ui.TextInput(label="Kirjoita VAHVISTA poistaaksesi", placeholder="vahvista", required=True)
