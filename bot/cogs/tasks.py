@@ -157,7 +157,7 @@ class Tasks(commands.Cog):
                         value=f"{monthly.get('streak', 0)}\n🎯 Seuraava palkinto: {seuraava_palkinto(monthly.get('streak', 0), monthly.get('rewards', []), 'monthly')} kuukauden päästä",
                         inline=False
                     )
-                    embed.set_footer(text="Pidä streak hengissä – tehtäväpäivitys päivittäin klo 00:00 UTC.")
+                    embed.set_footer(text="Pidä streak hengissä – tehtäväpäivitys päivittyy realiajassa.")
                     await interaction.response.edit_message(content=None, embed=embed, view=self.view)
 
         class TaskSelectorView(discord.ui.View):
