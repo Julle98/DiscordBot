@@ -67,7 +67,8 @@ def save_xp_data(data):
     with open(XP_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-def make_xp_content(user_id, xp, level):
+def make_xp_content(user_id, xp, _level=None):
+    level = calculate_level(xp) if _level is None else _level
     data = load_xp_data()
     data[str(user_id)] = {"xp": xp, "level": level}
     save_xp_data(data)
@@ -141,7 +142,14 @@ async def paivita_streak(user_id: int):
 
     save_streaks(streaks)
 
+viestitetyt_tasonousut = {}
+
 async def tarkista_tasonousu(bot, message, old_level, new_level):
+    uid = message.author.id
+
+    if viestitetyt_tasonousut.get(uid) == new_level:
+        return  
+
     if new_level > old_level:
         if new_level in LEVEL_MESSAGES:
             await message.channel.send(LEVEL_MESSAGES[new_level].format(user=message.author.mention))
@@ -158,6 +166,8 @@ async def tarkista_tasonousu(bot, message, old_level, new_level):
             uusi_rooli = guild.get_role(LEVEL_ROLES[new_level])
             if uusi_rooli:
                 await message.author.add_roles(uusi_rooli)
+
+        viestitetyt_tasonousut[uid] = new_level
 
 async def tarkkaile_kanavan_aktiivisuutta():
     await asyncio.sleep(5)
@@ -211,7 +221,7 @@ async def anna_xp_komennosta(bot, interaction: discord.Interaction, xp_määrä:
     if new_level > level:
         await tarkista_tasonousu(bot, dummy_message, level, new_level)
 
-    make_xp_content(uid, xp, new_level)
+    make_xp_content(uid, xp)
     await paivita_streak(uid)
 
 async def käsittele_viesti_xp(bot, message: discord.Message):
@@ -268,5 +278,5 @@ async def käsittele_viesti_xp(bot, message: discord.Message):
     if new_level > level:
         await tarkista_tasonousu(bot, message, level, new_level)
 
-    make_xp_content(uid, xp, new_level)
+    make_xp_content(uid, xp)
     await paivita_streak(uid)

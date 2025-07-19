@@ -38,7 +38,6 @@ async def tarkista_ostojen_kuukausi():
     try:
         ostot = lue_ostokset()
 
-        # Tarkista ensimmäinen päiväys
         kaikki_paivamaarat = []
         for ostot_lista in ostot.values():
             for ostos in ostot_lista:
@@ -50,7 +49,7 @@ async def tarkista_ostojen_kuukausi():
                         continue
 
         if not kaikki_paivamaarat:
-            return  # Ei mitään tehtävää
+            return  
 
         nyt = datetime.now()
         viimeisin = max(kaikki_paivamaarat)
@@ -278,15 +277,19 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
     elif "rooli" in nimi:
         if "vip-rooli" in nimi:
             roolinimi = "VIP"
+            rooli = discord.utils.get(interaction.guild.roles, name=roolinimi)
+            if not rooli:
+                await interaction.followup.send(f"⚠️ VIP-roolia ei löytynyt palvelimelta. Varmista että rooli nimeltä **{roolinimi}** on olemassa.")
+                return ""
         else:
             roolinimi = await kysy_kayttajalta(interaction, "Mikä on roolisi nimi?")
             if not roolinimi:
                 return ""
+            rooli = await interaction.guild.create_role(name=roolinimi)
 
         lisatieto = f" (nimi: {roolinimi})"
-        rooli = await interaction.guild.create_role(name=roolinimi)
         await interaction.user.add_roles(rooli)
-        await interaction.followup.send(f"🎉 Rooli **{roolinimi}** luotu ja lisätty sinulle!")
+        await interaction.followup.send(f"🎉 Rooli **{roolinimi}** lisätty sinulle!")
 
         if "7 päivää" in nimi:
             async def poista_rooli_viiveella():

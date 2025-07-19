@@ -144,19 +144,34 @@ class Tasks(commands.Cog):
                     embed.add_field(name="—", value="—", inline=True)
                     embed.add_field(
                         name="📅 Päivittäinen streak",
-                        value=f"{daily.get('streak', 0)}\n🎯 Seuraava palkinto: {seuraava_palkinto(daily.get('streak', 0), daily.get('rewards', []), 'daily')} päivän päästä",
+                        value=(
+                            f"Nykyinen: **{daily.get('streak', 0)}**\n"
+                            f"Pisin: **{daily.get('max_streak', 0)}**\n"
+                            f"🎯 Seuraava palkinto: {seuraava_palkinto(daily.get('streak', 0), daily.get('rewards', []), 'daily')} päivän päästä"
+                        ),
                         inline=False
                     )
+
                     embed.add_field(
                         name="📆 Viikoittainen streak",
-                        value=f"{weekly.get('streak', 0)}\n🎯 Seuraava palkinto: {seuraava_palkinto(weekly.get('streak', 0), weekly.get('rewards', []), 'weekly')} viikon päästä",
+                        value=(
+                            f"Nykyinen: **{weekly.get('streak', 0)}**\n"
+                            f"Pisin: **{weekly.get('max_streak', 0)}**\n"
+                            f"🎯 Seuraava palkinto: {seuraava_palkinto(weekly.get('streak', 0), weekly.get('rewards', []), 'weekly')} viikon päästä"
+                        ),
                         inline=False
                     )
+
                     embed.add_field(
                         name="🗓️ Kuukausittainen streak",
-                        value=f"{monthly.get('streak', 0)}\n🎯 Seuraava palkinto: {seuraava_palkinto(monthly.get('streak', 0), monthly.get('rewards', []), 'monthly')} kuukauden päästä",
+                        value=(
+                            f"Nykyinen: **{monthly.get('streak', 0)}**\n"
+                            f"Pisin: **{monthly.get('max_streak', 0)}**\n"
+                            f"🎯 Seuraava palkinto: {seuraava_palkinto(monthly.get('streak', 0), monthly.get('rewards', []), 'monthly')} kuukauden päästä"
+                        ),
                         inline=False
                     )
+                   
                     embed.set_footer(text="Pidä streak hengissä – tehtäväpäivitys päivittyy realiajassa.")
                     await interaction.response.edit_message(content=None, embed=embed, view=self.view)
 

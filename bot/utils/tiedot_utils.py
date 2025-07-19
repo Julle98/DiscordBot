@@ -33,7 +33,7 @@ TIEDOSTOT = {
     "Puhe-streak": XP_JSON_PATH / "users_streak.json",
 }
 
-KATEGORIAT = list(TIEDOSTOT.keys()) + ["Moderointi", "Toiminta", "Komennot",]
+KATEGORIAT = list(TIEDOSTOT.keys()) + ["Moderointi", "Toiminta", "Komennot"]
 
 def varmuuskopioi_json_tiedostot():
     BACKUP_JSON_PATH.mkdir(parents=True, exist_ok=True)

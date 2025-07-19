@@ -108,10 +108,11 @@ async def save_user_task(user_id, task):
             "timestamp": datetime.now().isoformat()
         }, indent=2))
             
-async def add_xp(user: discord.Member, amount: int):
+async def add_xp(bot, user: discord.Member, amount: int):
     xp_channel = bot.get_channel(XP_CHANNEL_ID)
     if not xp_channel:
         return
+
     user_id = str(user.id)
 
     async for message in xp_channel.history(limit=1000):
@@ -119,13 +120,17 @@ async def add_xp(user: discord.Member, amount: int):
             xp, level = parse_xp_content(message.content)
             xp += amount
             new_level = calculate_level(xp)
-            new_content = make_xp_content(user_id, xp, new_level)
+            new_content = make_xp_content(user_id, xp)  
+
             if new_level > level:
-                await xp_channel.send(f"{user.mention} saavutti tason {new_level}! 🎉 ")
+                await xp_channel.send(f"{user.mention} saavutti tason {new_level}! 🎉")
+
             await message.edit(content=new_content)
             return
 
-    new_content = make_xp_content(user_id, amount, calculate_level(amount))
+    xp = amount
+    new_level = calculate_level(xp)
+    new_content = make_xp_content(user_id, xp)  
     await xp_channel.send(new_content)
 
 def give_role(user: discord.Member, role_id: int):
@@ -184,58 +189,65 @@ async def update_streak(user: discord.Member, task_type: str):
     uid = str(user.id)
     streaks = load_streaks()
 
-    
     user_data = streaks.setdefault(uid, {
-        "daily": {
-            "last_completed": None,
-            "streak": 0,
-            "rewards": []
-        },
-        "weekly": {
-            "last_completed": None,
-            "streak": 0,
-            "rewards": []
-        },
-        "monthly": {
-            "last_completed": None,
-            "streak": 0,
-            "rewards": []
-        }
+        "daily": {},
+        "weekly": {},
+        "monthly": {}
     })
 
-    data = user_data[task_type]  
+    data = user_data.setdefault(task_type, {
+        "last_completed": None,
+        "streak": 0,
+        "max_streak": 0,
+        "rewards": []
+    })
 
     last_date = datetime.strptime(data["last_completed"], "%Y-%m-%d").date() if data["last_completed"] else None
     streak = data["streak"]
+    was_reset = False
+    already_completed = False
 
-    
     if task_type == "daily":
+        already_completed = last_date == now
         if last_date == now - timedelta(days=1):
             streak += 1
-        elif last_date != now:
+        elif not already_completed:
+            was_reset = True
             streak = 1
 
     elif task_type == "weekly":
+        already_completed = last_date and now.isocalendar()[1] == last_date.isocalendar()[1] and now.year == last_date.year
         if last_date and (now - last_date).days in range(7, 15):
             streak += 1
-        elif last_date != now:
+        elif not already_completed:
+            was_reset = True
             streak = 1
 
     elif task_type == "monthly":
+        already_completed = last_date and now.month == last_date.month and now.year == last_date.year
         if last_date and (
             (last_date.month == 12 and now.month == 1 and now.year == last_date.year + 1) or
             (now.year == last_date.year and now.month == last_date.month + 1)
         ):
             streak += 1
-        elif last_date != now:
+        elif not already_completed:
+            was_reset = True
             streak = 1
 
-    
     data["last_completed"] = now.strftime("%Y-%m-%d")
     data["streak"] = streak
+    if streak > data.get("max_streak", 0):
+        data["max_streak"] = streak
+
+    save_streaks(streaks)
+
+    task_channel = user.guild.get_channel(TASK_CHANNEL_ID)
+    if was_reset and task_channel:
+        await task_channel.send(
+            f"{user.mention}, streakisi nollautui ja alkoi alusta tehtävällä **{task_type}**! Uusi putki käynnissä! 🔄"
+        )
 
     rewards = data["rewards"]
-    task_channel = user.guild.get_channel(TASK_CHANNEL_ID)
 
     if task_type == "daily":
         if streak == 7 and "7_day" not in rewards:
@@ -266,17 +278,17 @@ async def update_streak(user: discord.Member, task_type: str):
     elif task_type == "monthly":
         if streak == 3 and "3_month" not in rewards:
             await add_xp(user, 500)
-            give_role(user, 1386679979634327663)  
+            give_role(user, 1386679979634327663)
             rewards.append("3_month")
             await task_channel.send(f"{user.mention} suoritti **3 kuukautta putkeen** kuukausitehtäviä! +500 XP ja erikoisrooli! 🏅")
 
         elif streak == 6 and "6_month" not in rewards:
             await add_xp(user, 1200)
-            give_role(user, 1386680073486204999)  
+            give_role(user, 1386680073486204999)
             rewards.append("6_month")
             await task_channel.send(f"{user.mention} suoritti **6 kuukautta putkeen** kuukausitehtäviä! +1200 XP ja erikoisrooli! 🏆")
 
-    save_streaks(streaks)
+    return was_reset
        
 @tasks.loop(time=dtime(0, 0))
 async def rotate_daily_tasks():
@@ -486,12 +498,10 @@ async def send_timeout_alert(bot, user, task_name, duration="30min"):
 async def complete_task(user: discord.Member, task_name: str, guild: discord.Guild):
     uid = str(user.id)
     user_tasks = await load_user_tasks()
+    user_task_list = user_tasks.get(uid, [])
 
-    if uid not in user_tasks:
-        user_tasks[uid] = []
-
-    if onko_tehtava_suoritettu_ajankohtaisesti(task_name, user_tasks[uid]):
-        print(f"[INFO] Käyttäjä {user} on jo suorittanut tehtävän '{task_name}' tänään/viikolla/kuukaudessa.")
+    if onko_tehtava_suoritettu_ajankohtaisesti(task_name, user_task_list):
+        print(f"[INFO] Käyttäjä {user} on jo suorittanut tehtävän '{task_name}'.")
         channel = bot.get_channel(TASK_CHANNEL_ID)
         if channel:
             if task_name in DAILY_TASKS:
@@ -519,15 +529,17 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
         task_type = None
         xp_amount = 0
 
+    was_reset = False
     if task_type:
         try:
-            await update_streak(user, task_type)
+            was_reset = await update_streak(user, task_type)
         except Exception as e:
             print(f"[ERROR] Streakin päivitys epäonnistui: {e}")
 
     streaks = load_streaks()
     user_streak_data = streaks.get(uid, {}).get(task_type, {})
     current_streak = user_streak_data.get("streak", 0)
+    max_streak = user_streak_data.get("max_streak", 0)
 
     task_labels = {
         "daily": "päivittäisen",
@@ -539,10 +551,16 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
     channel = bot.get_channel(TASK_CHANNEL_ID)
     if channel:
         try:
-            await channel.send(
-                f"{user.mention} suoritti {task_label} tehtävän **{task_name}** ja sai +{xp_amount} XP! ✅\n"
-                f"Streak nousi {task_label} tehtävissä lukemaan **{current_streak}**! 🔥"
-            )
+            if was_reset:
+                await channel.send(
+                    f"{user.mention} aloitti uuden {task_label} tehtäväputken tehtävällä **{task_name}**! \n"
+                    f"+{xp_amount} XP myönnetty ja streak alkoi lukemasta **1**! 🚀"
+                )
+            else:
+                await channel.send(
+                    f"{user.mention} suoritti {task_label} tehtävän **{task_name}** ja sai +{xp_amount} XP! ✅\n"
+                    f"Streak nousi lukemaan **{current_streak}** ({task_label} tehtävissä). Pisin streak: **{max_streak}** 🔥"
+                )
         except Exception as e:
             print(f"[ERROR] Viestin lähetys epäonnistui: {e}")
 
@@ -550,8 +568,8 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
     if log_channel:
         try:
             await log_channel.send(
-                f"{user.mention} suoritti {task_label} tehtävän **{task_name}** ja sai +{xp_amount} XP ✅\n"
-                f"(Streak: {current_streak} {task_label} tehtävissä) 🔥"
+                f"📝 {user.mention} suoritti tehtävän: **{task_name}**\n"
+                f"XP: +{xp_amount} | Streak: {current_streak}/{max_streak} ({task_label}) ✅"
             )
         except Exception as e:
             print(f"[ERROR] Lokiviestin lähetys epäonnistui: {e}")
