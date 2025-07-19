@@ -17,6 +17,6 @@ The code contain lot of commands over 45 commands.
 - Also you need make a bot in the Discord Developer Portal.
 
 # Credits
-The bot was made by me Julle98 and my beginner skills sometimes used Copilot.
+The bot was made by me Julle98 and my beginner skills sometimes used Copilot for code help.
 
 You can always contact me if you need on Discord: Julle98#0 
