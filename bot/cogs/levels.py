@@ -95,6 +95,7 @@ from discord.ext import commands
 import discord
 
 määrä_or_negatiivinen: int = 0
+XP_ALERT_THRESHOLD = 150
 
 class Levels(commands.Cog):
     def __init__(self, bot):
@@ -177,7 +178,7 @@ class Levels(commands.Cog):
         bot_instance = interaction.client
 
         if määrä >= XP_ALERT_THRESHOLD:
-            onnistui = await alert_xp_request(bot_instance, jäsen.id, määrä_or_negatiivinen, interaction)
+            onnistui = await alert_xp_request(bot_instance, jäsen.id, määrä, interaction)
             if not onnistui:
                 await interaction.response.send_message(
                     f"⚠️ XP-määrä ({määrä}) vaatii Mestarin hyväksynnän ennen toteutumista.",
@@ -210,7 +211,7 @@ class Levels(commands.Cog):
         bot_instance = interaction.client
 
         if määrä >= XP_ALERT_THRESHOLD:
-            onnistui = await alert_xp_request(bot_instance, jäsen.id, määrä_or_negatiivinen, interaction)
+            onnistui = await alert_xp_request(bot_instance, jäsen.id, määrä, interaction)
             if not onnistui:
                 await interaction.response.send_message(
                     f"⚠️ XP-määrä ({määrä}) vaatii Mestarin hyväksynnän ennen toteutumista.",
