@@ -91,6 +91,23 @@ async def on_ready():
     start_tasks_loops()
 
     try:
+        xp_path = os.getenv("XP_JSON_PATH")
+        if xp_path and os.path.exists(xp_path):
+            from bot.utils.antinuke import XPFileChangeHandler
+            from watchdog.observers import Observer
+
+            event_handler = XPFileChangeHandler(bot)
+            observer = Observer()
+            observer.schedule(event_handler, path=os.path.dirname(xp_path), recursive=False)
+            observer.start()
+
+            print(f"XP JSON tiedoston monitorointi käynnistetty: {xp_path}")
+        else:
+            print("XP_JSON_PATH ei määritelty tai tiedostoa ei löytynyt.")
+    except Exception as exc:
+        print(f"XP-monitorin käynnistys epäonnistui: {exc}")
+
+    try:
         if TEST_GUILD_ID:
             synced = await bot.tree.sync(guild=discord.Object(TEST_GUILD_ID))
         else:

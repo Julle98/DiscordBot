@@ -13,6 +13,10 @@ import uuid
 from bot.utils.xp_utils import anna_xp_komennosta
 from discord.ui import Button, View
 from discord import Embed
+import os
+import json
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 def start_moderation_loops():
     asyncio.create_task(check_deletion())
@@ -128,6 +132,66 @@ async def alert_xp_request(bot, user_id, xp_amount, interaction):
 
     await modlog_channel.send(embed=embed, view=XPApprovalView(req_id, user_id, xp_amount))
     return False
+
+class XPFileChangeHandler(FileSystemEventHandler):
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+        self.last_known_data = read_xp_data()
+
+    def on_modified(self, event):
+        if event.src_path != os.getenv("XP_JSON_PATH"):
+            return
+        
+        current_data = read_xp_data()
+        for user_id, current_xp in current_data.items():
+            previous_xp = self.last_known_data.get(user_id, 0)
+            delta = current_xp - previous_xp
+
+            if abs(delta) >= XP_ALERT_THRESHOLD:
+                class MockInteraction:
+                    user = type("User", (), {"mention": "*automaattinen*", "id": 0})
+                    guild = self.bot.guilds[0] if self.bot.guilds else None
+
+                asyncio.create_task(alert_xp_request(self.bot, user_id, delta, MockInteraction()))
+
+            self.last_known_data[user_id] = current_xp
+
+def read_xp_data():
+    json_path = os.getenv("XP_JSON_PATH")
+    if not json_path or not os.path.exists(json_path):
+        print(f"XP JSON tiedostoa ei löytynyt polusta: {json_path}")
+        return {}
+
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return {int(user_id): int(xp) for user_id, xp in data.items()}
+    except Exception as e:
+        print(f"Virhe luettaessa XP JSON-tiedostoa: {e}")
+        return {}
+
+async def xp_monitor_loop(bot):
+    await bot.wait_until_ready()
+    last_known_data = {}  
+
+    while not bot.is_closed():
+        try:
+            current_data = read_xp_data()  
+
+            for user_id, current_xp in current_data.items():
+                previous_xp = last_known_data.get(user_id, 0)
+                delta = current_xp - previous_xp
+
+                if abs(delta) >= XP_ALERT_THRESHOLD:
+                    await alert_xp_request(bot, user_id, delta, interaction=None)
+
+                last_known_data[user_id] = current_xp
+
+        except Exception as e:
+            print(f"Virhe XP-monitoroinnissa: {e}")
+
+        await asyncio.sleep(60)  
 
 class XPApprovalView(View):
     def __init__(self, req_id, user_id, xp_amount):
