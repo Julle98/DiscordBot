@@ -21,14 +21,17 @@ OSTOSLOKI_KANAVA_ID = int(os.getenv("OSTOSLOKI_KANAVA_ID"))
 MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", 0))
 
 kauppa_tuotteet = [
-    {"nimi": "Erikoisemoji", "kuvaus": "Käytä erikoisemojeita", "hinta": 1000, "kertakäyttöinen": True, "emoji": "😎", "tarjousprosentti": 30},
-    {"nimi": "Double XP -päivä", "kuvaus": "Saat tuplat XP:t 24h", "hinta": 2000, "kertakäyttöinen": True, "emoji": "⚡", "tarjousprosentti": 50},
-    {"nimi": "Custom rooli", "kuvaus": "Saat oman roolin", "hinta": 5000, "kertakäyttöinen": True, "emoji": "🎨", "tarjousprosentti": 20},
-    {"nimi": "VIP-chat", "kuvaus": "Pääsy VIP-kanavalle", "hinta": 3000, "kertakäyttöinen": False, "emoji": "💎", "tarjousprosentti": 25},
-    {"nimi": "VIP-rooli (7 päivää)", "kuvaus": "Saat VIP-roolin viikoksi", "hinta": 2500, "kertakäyttöinen": True, "emoji": "👑", "tarjousprosentti": 40},
-    {"nimi": "Oma komento", "kuvaus": "Saat tehdä oman /komennon", "hinta": 6000, "kertakäyttöinen": True, "emoji": "🛠️", "tarjousprosentti": 35},
-    {"nimi": "Oma kanava", "kuvaus": "Saat oman tekstikanavan", "hinta": 7000, "kertakäyttöinen": True, "emoji": "📢", "tarjousprosentti": 30},
-    {"nimi": "Oma puhekanava", "kuvaus": "Saat oman äänikanavan", "hinta": 7000, "kertakäyttöinen": True, "emoji": "🎙️", "tarjousprosentti": 30},
+    {"nimi": "Erikoisemoji", "kuvaus": "Käytä erikoisemojeita", "hinta": 1000, "kertakäyttöinen": True, "emoji": "😎"},
+    {"nimi": "Double XP -päivä", "kuvaus": "Saat tuplat XP:t 24h", "hinta": 2000, "kertakäyttöinen": True, "emoji": "⚡"},
+    {"nimi": "Custom rooli", "kuvaus": "Saat oman roolin", "hinta": 5000, "kertakäyttöinen": True, "emoji": "🎨"},
+    {"nimi": "VIP-chat", "kuvaus": "Pääsy VIP-kanavalle", "hinta": 3000, "kertakäyttöinen": False, "emoji": "💎"},
+    {"nimi": "VIP-rooli (7 päivää)", "kuvaus": "Saat VIP-roolin viikoksi", "hinta": 2500, "kertakäyttöinen": True, "emoji": "👑"},
+    {"nimi": "Oma komento", "kuvaus": "Saat tehdä oman /komennon", "hinta": 6000, "kertakäyttöinen": True, "emoji": "🛠️"},
+    {"nimi": "Oma kanava", "kuvaus": "Saat oman tekstikanavan", "hinta": 7000, "kertakäyttöinen": True, "emoji": "📢"},
+    {"nimi": "Oma puhekanava", "kuvaus": "Saat oman äänikanavan", "hinta": 7000, "kertakäyttöinen": True, "emoji": "🎙️"},
+    {"nimi": "Valitse värisi", "kuvaus": "Saat värillisen roolin (esim. sininen)", "hinta": 1500, "kertakäyttöinen": False, "emoji": "🧬"},
+    {"nimi": "Valitse emoji", "kuvaus": "Bot reagoi viesteihisi valitsemallasi emojilla 7 päivää", "hinta": 3500, "kertakäyttöinen": True, "emoji": "🤖"},
+    {"nimi": "Soundboard-oikeus", "kuvaus": "Käyttöoikeus puhekanavan soundboardiin 3 päivää", "hinta": 4000, "kertakäyttöinen": True, "emoji": "🔊"}
 ]
 
 from discord.ext import tasks
@@ -235,19 +238,20 @@ class KanavaModal(Modal, title="Luo oma kanava"):
 
 async def kasittele_tuote(interaction, nimi: str) -> str:
     lisatieto = ""
+    auto_react_users = {}  # user_id -> emoji
 
     if nimi == "erikoisemoji":
         rooli = discord.utils.get(interaction.guild.roles, name="Erikoisemoji")
         if rooli:
             await interaction.user.add_roles(rooli)
-        await interaction.followup.send("😎 Erikoisemoji on nyt käytössäsi!")
+        await interaction.followup.send("😎 Erikoisemoji on nyt käytössäsi!", ephemeral=True)
 
     elif nimi == "double xp -päivä":
         rooli = discord.utils.get(interaction.guild.roles, name="Double XP")
         if not rooli:
             rooli = await interaction.guild.create_role(name="Double XP")
         await interaction.user.add_roles(rooli)
-        await interaction.followup.send("⚡ Sait Double XP -roolin 24 tunniksi!")
+        await interaction.followup.send("⚡ Sait Double XP -roolin 24 tunniksi!", ephemeral=True)
 
         async def poista_rooli_viiveella():
             await asyncio.sleep(24 * 60 * 60)
@@ -263,7 +267,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
         if not rooli:
             rooli = await interaction.guild.create_role(name="VIP")
         await interaction.user.add_roles(rooli)
-        await interaction.followup.send("💎 Sait pääsyn VIP-chattiin!")
+        await interaction.followup.send("💎 Sait pääsyn VIP-chattiin!", ephemeral=True)
 
     elif nimi == "oma puhekanava":
         nimi_kanava = await kysy_kayttajalta(interaction, "Mikä on kanavasi nimi?")
@@ -272,14 +276,75 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             interaction.user: discord.PermissionOverwrite(connect=True)
         }
         kanava = await interaction.guild.create_voice_channel(name=nimi_kanava, overwrites=overwrites)
-        await interaction.followup.send(f"🎙️ Oma puhekanavasi **{kanava.name}** on luotu!")
+        await interaction.followup.send(f"🎙️ Oma puhekanavasi **{kanava.name}** on luotu!", ephemeral=True)
+
+    elif nimi == "valitse värisi":
+        varit = {
+            "punainen": discord.Colour.red(),
+            "sininen": discord.Colour.blue(),
+            "vihreä": discord.Colour.green(),
+            "keltainen": discord.Colour.gold(),
+            "violetti": discord.Colour.purple(),
+            "oranssi": discord.Colour.orange(),
+            "musta": discord.Colour.dark_theme(),
+            "valkoinen": discord.Colour.light_grey()
+        }
+
+        varivalinta = await kysy_kayttajalta(interaction, "Valitse väri (sininen, punainen, vihreä, keltainen, violetti, oranssi, musta tai valkoinen):")
+        vari = varit.get(varivalinta.lower())
+
+        if vari:
+            rooli = await interaction.guild.create_role(name=f"{interaction.user.name}-{varivalinta}", colour=vari)
+
+            roolit = interaction.guild.roles
+            referenssi_rooli = discord.utils.get(roolit, name="24G")
+            if referenssi_rooli:
+                uusi_position = referenssi_rooli.position + 1
+                await interaction.guild.edit_role_positions(positions={rooli: uusi_position})
+
+            await interaction.user.add_roles(rooli)
+            await interaction.followup.send(f"🧬 Roolisi **{rooli.name}** luotiin värillä {varivalinta} ja sijoitettiin 24G-roolisi yläpuolelle!", ephemeral=True)
+            lisatieto = f" (väri: {varivalinta})"
+        else:
+            await interaction.followup.send("❌ Väriä ei tunnistettu. Toiminto peruutettu.", ephemeral=True)
+
+    elif nimi == "valitse emoji":
+        emoji_valinta = await kysy_kayttajalta(interaction, "Millä emojilla botin tulisi reagoida viesteihisi?")
+        if emoji_valinta:
+            auto_react_users[str(interaction.user.id)] = emoji_valinta
+            await interaction.followup.send(f"🤖 Bot reagoi viesteihisi emojilla {emoji_valinta} seuraavat 7 päivää!", ephemeral=True)
+
+            async def poista_reaktio():
+                await asyncio.sleep(7 * 24 * 60 * 60)
+                auto_react_users.pop(str(interaction.user.id), None)
+                await interaction.user.send("⌛ Emoji-oikeutesi on päättynyt.")
+            bot.loop.create_task(poista_reaktio())
+            lisatieto = f" (emoji: {emoji_valinta})"
+        return lisatieto
+
+    elif nimi == "soundboard-oikeus":
+        rooli = discord.utils.get(interaction.guild.roles, name="SoundboardAccess")
+        if not rooli:
+            rooli = await interaction.guild.create_role(name="SoundboardAccess")
+        await interaction.user.add_roles(rooli)
+        await interaction.followup.send("🔊 Soundboard-oikeus myönnetty puhekanavalle 3 päiväksi!", ephemeral=True)
+
+        async def poista_soundboard():
+            await asyncio.sleep(3 * 24 * 60 * 60)
+            try:
+                await interaction.user.remove_roles(rooli)
+                await interaction.user.send("⌛ Soundboard-oikeus on päättynyt.")
+            except:
+                pass
+        bot.loop.create_task(poista_soundboard())
+        return lisatieto
 
     elif "rooli" in nimi:
         if "vip-rooli" in nimi:
             roolinimi = "VIP"
             rooli = discord.utils.get(interaction.guild.roles, name=roolinimi)
             if not rooli:
-                await interaction.followup.send(f"⚠️ VIP-roolia ei löytynyt palvelimelta. Varmista että rooli nimeltä **{roolinimi}** on olemassa.")
+                await interaction.followup.send(f"⚠️ VIP-roolia ei löytynyt palvelimelta. Varmista että rooli nimeltä **{roolinimi}** on olemassa.", ephemeral=True)
                 return ""
         else:
             roolinimi = await kysy_kayttajalta(interaction, "Mikä on roolisi nimi?")
@@ -289,7 +354,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
 
         lisatieto = f" (nimi: {roolinimi})"
         await interaction.user.add_roles(rooli)
-        await interaction.followup.send(f"🎉 Rooli **{roolinimi}** lisätty sinulle!")
+        await interaction.followup.send(f"🎉 Rooli **{roolinimi}** lisätty sinulle!", ephemeral=True)
 
         if "7 päivää" in nimi:
             async def poista_rooli_viiveella():
@@ -309,7 +374,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
         komennon_nimi = await kysy_kayttajalta(interaction, "Mikä on komennon nimi?")
         if komennon_nimi:
             lisatieto = f" (nimi: {komennon_nimi})"
-            await interaction.followup.send(f"🛠️ Komento **/{komennon_nimi}** on odottamassa vuoroaan ja tekeillä!")
+            await interaction.followup.send(f"🛠️ Komento **/{komennon_nimi}** on odottamassa vuoroaan ja tekeillä!", ephemeral=True)
 
     return lisatieto
         
@@ -322,7 +387,7 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset):
     tuote = next((t for t in tuotteet if t["nimi"].lower() == tuotteen_nimi.lower()), None)
 
     if not tuote:
-        await interaction.response.send_message("Tuotetta ei löytynyt.")
+        await interaction.response.send_message("Tuotetta ei löytynyt.", ephemeral=True)
         return
 
     periodi = nykyinen_periodi()
@@ -331,18 +396,17 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset):
     sallitut_tuotteet = vaihdettavat + tarjousnimet
 
     if tuote["nimi"] not in sallitut_tuotteet:
-        await interaction.response.send_message("Tämä tuote ei ole tällä hetkellä saatavilla kaupassa.")
+        await interaction.response.send_message("Tämä tuote ei ole tällä hetkellä saatavilla kaupassa.", ephemeral=True)
         return
 
     ostot = lue_ostokset()
     if user_id not in ostot:
         ostot[user_id] = []
 
-    # Suodatetaan pois virheelliset ostot
     ostot[user_id] = [o for o in ostot[user_id] if isinstance(o, dict) and "nimi" in o]
 
     if tuote["kertakäyttöinen"] and any(o.get("nimi") == tuote["nimi"] for o in ostot[user_id]):
-        await interaction.response.send_message("Olet jo ostanut tämän kertakäyttöisen tuotteen.")
+        await interaction.response.send_message("Olet jo ostanut tämän kertakäyttöisen tuotteen.", ephemeral=True)
         return
 
     ostot[user_id].append({
@@ -351,14 +415,25 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset):
     })
     tallenna_ostokset(ostot)
 
-    await interaction.response.send_message(f"✅ Ostit tuotteen **{tuote['nimi']}**!", ephemeral=True)
-    await interaction.followup.send("⏳ Käsitellään ostosta...")
-
-    # Käsittele tuote
+    await interaction.response.send_message(
+    embed=discord.Embed(
+        title="✅ Ostettu onnistuneesti!",
+        description=f"Ostit tuotteen **{tuote['emoji']} {tuote['nimi']}** ({tuote['hinta']} XP)\nSe on nyt käytössäsi 🎉",
+        color=discord.Color.green()
+    ),
+    ephemeral=True
+)
+    await interaction.followup.send(
+    embed=discord.Embed(
+        description="⏳ *Käsitellään valintaasi...*",
+        color=discord.Color.blurple()
+    ),
+    ephemeral=True
+)
+    
     nimi = puhdista_tuotteen_nimi(tuote["nimi"])
     lisatieto = await kasittele_tuote(interaction, nimi)
 
-    # Lokitus
     try:
         kanava_id = int(os.getenv("OSTOSLOKI_KANAVA_ID"))
         lokikanava = bot.get_channel(kanava_id)

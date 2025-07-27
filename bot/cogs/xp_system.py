@@ -2,6 +2,7 @@ import discord, asyncio
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
+import random
 
 from bot.utils.bot_setup import bot
 from bot.utils.xp_utils import (
@@ -49,7 +50,7 @@ class XPSystem(commands.Cog):
         ero = (viesti_pvm - viime_streak_pvm).days
 
         if ero >= 5:
-            bonus = 20
+            bonus = 50
             xp_data = load_xp_data()
             tiedot = xp_data.get(uid_str, {"xp": 0, "level": 0})
             tiedot["xp"] += bonus
@@ -58,10 +59,31 @@ class XPSystem(commands.Cog):
             save_xp_data(xp_data)
 
             try:
-                await message.channel.send(
-                    f"{message.author.mention} palasi viestimään **{ero} päivän** tauon jälkeen! "
-                    f"Sait **{bonus} XP** bonuksen ja streakisi on nyt käynnissä! 🔥"
-                )
+                if ero > 20000:
+                    bonus_viestit = [
+                        f"{message.author.mention} on palannut viestimään... todella pitkän tauon jälkeen. Sait **{bonus} XP** bonuksen ja streakisi alkaa nyt! 🌟",
+                        f"{message.author.mention} on kuin myytti, joka astui jälleen esiin – aikojen takaa. Sait **{bonus} XP** bonuksen, uudet seikkailut alkavat nyt! 🧙‍♂️",
+                        f"{message.author.mention} ilmestyi kuin salama ikuisuuden takaa! Sait **{bonus} XP**, streakisi aktivoitu! ⚡"
+                    ]
+                    viesti = random.choice(bonus_viestit)
+                    await message.channel.send(viesti)
+
+                if ero > 10:
+                    bonus_viestit = [
+                        f"{message.author.mention} palasi viestimään **{ero} päivän** tauon jälkeen! Vanha legenda on taas täällä! Sait **{bonus} XP** bonuksen ja streakisi alkaa nyt! 🔥",
+                        f"{message.author.mention} ilmestyi takaisin kuin haamu menneisyydestä... Taukoa on takana **{ero} päivää**. Saat **{bonus} XP** paluubonuksen – uusi aikakausi alkaa! 🌒",
+                        f"{message.author.mention} löytyi kadonneiden viestittelijöiden arkistosta! **{ero} päivää** ilman viestiä? Joko unohdit salasanan vai eksyit? Saat **{bonus} XP** bonuksen paluusta! 😱 ",
+                        f"{message.author.mention} – yksi vanhoista 24G ryhmäläisistä palaa riveihin **{ero} päivän** jälkeen! Tervetuloa takaisin! Saat **{bonus} XP** bonuksen ja uusi streaki alkaa! 🛡️",
+                        f"{message.author.mention} palasi viestimään **{ero} päivän** jälkeen! Ihanaa nähdä sinut taas. Saat **{bonus} XP** bonuksen, ja streakisi on käynnissä! ✨"
+                    ]
+                    viesti = random.choice(bonus_viestit)
+                    await message.channel.send(viesti)
+
+                else:
+                    await message.channel.send(
+                        f"{message.author.mention} palasi viestimään **{ero} päivän** tauon jälkeen! "
+                        f"Sait **{bonus} XP** bonuksen ja streakisi on nyt käynnissä! 🔥"
+                    )
             except:
                 pass
 

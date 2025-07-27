@@ -39,7 +39,10 @@ DAILY_TASKS = [
     "Reagoi viestiin emojilla",
     "Lähetä tiedosto",
     "Lähetä meemi",
-    "Striimaa peliäsi"
+    "Striimaa peliäsi",
+    "Lisää tarra viestiin",
+    "Kerro viikonpäivä",
+    "Lähetä viesti, jossa on kysymys"
 ]
 
 WEEKLY_TASKS = [
@@ -49,12 +52,15 @@ WEEKLY_TASKS = [
     "Lähetä viesti viikonloppuna",
     "Tee kysely",
     "Osta jotain kaupasta",
-    "Lähetä viesti arkipäivänä"
+    "Lähetä viesti arkipäivänä",
+    "Kysy jotain toiselta käyttäjältä",
+    "Lisää reaktio toisen viestiin, jota ei ole vielä reagoitu"
 ]
 
 MONTHLY_TASKS = [
     "Aloita keskustelu",
-    "Kerää reaktioita"
+    "Kerää reaktioita",
+    "Jaa kuva, josta syntyy vitsi tai reaktio"
 ]
 
 from pathlib import Path
@@ -367,7 +373,9 @@ class TaskListener(discord.ui.View):
                 await self.finish_task()
 
         elif self.task_name == "Käy yleinen kanavalla lähettämässä viesti":
-            if message.channel.id == TASK_CHANNEL_ID:
+            if message.channel.id == TASK_CHANNEL_ID and (
+                message.content or message.attachments or message.embeds or message.stickers
+            ):
                 await self.finish_task()
 
         elif self.task_name == "Mainitse toinen käyttäjä":
@@ -413,6 +421,57 @@ class TaskListener(discord.ui.View):
                     await self.finish_task()
             except asyncio.TimeoutError:
                 pass
+        
+        elif self.task_name == "Lisää tarra viestiin":
+            if message.channel.id == TASK_CHANNEL_ID and message.stickers:
+                await self.finish_task()
+
+        elif self.task_name == "Lähetä viesti, jossa on kysymys":
+            if message.channel.id == TASK_CHANNEL_ID and "?" in message.content:
+                await self.finish_task()
+
+        elif self.task_name == "Kerro viikonpäivä":
+            weekdays = ["maanantai", "tiistai", "keskiviikko", "torstai", "perjantai", "lauantai", "sunnuntai"]
+            if message.channel.id == TASK_CHANNEL_ID and any(day in message.content.lower() for day in weekdays):
+                await self.finish_task()
+
+        elif self.task_name == "Kysy jotain toiselta käyttäjältä":
+            if (
+                message.channel.id == TASK_CHANNEL_ID
+                and "?" in message.content
+                and message.mentions
+                and message.author.id == self.user.id
+            ):
+                await self.finish_task()
+
+        elif self.task_name == "Jaa kuva, josta syntyy vitsi tai reaktio":
+            if message.channel.id == TASK_CHANNEL_ID and (message.attachments or message.embeds):
+                def response_or_reaction_check(event):
+                    if isinstance(event, discord.Message):
+                        return (
+                            event.reference
+                            and event.reference.message_id == message.id
+                            and event.author.id != self.user.id
+                        )
+                    elif isinstance(event, tuple) and len(event) == 2:
+                        reaction, user = event
+                        return (
+                            reaction.message.id == message.id
+                            and user.id != self.user.id
+                        )
+                    return False
+
+                try:
+                    event = await asyncio.wait_for(
+                        asyncio.gather(
+                            self.bot.wait_for("message", check=response_or_reaction_check),
+                            self.bot.wait_for("reaction_add", check=response_or_reaction_check)
+                        ),
+                        timeout=300
+                    )
+                    await self.finish_task()
+                except asyncio.TimeoutError:
+                    pass
 
     async def on_interaction(self, interaction: discord.Interaction):
         if self.completed or interaction.user.id != self.user.id:
@@ -451,6 +510,14 @@ class TaskListener(discord.ui.View):
 
         if self.task_name in ["Äänestä reaktioilla", "Reagoi viestiin emojilla"]:
             await self.finish_task()
+        
+        elif self.task_name == "Lisää reaktio toisen viestiin, jota ei ole vielä reagoitu":
+            if (
+                reaction.message.channel.id == TASK_CHANNEL_ID
+                and user.id == self.user.id
+                and len(reaction.message.reactions) == 1  
+            ):
+                await self.finish_task()
 
     async def finish_task(self):
         if self.completed:
@@ -582,7 +649,7 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
                  
 TASK_INSTRUCTIONS = {
     "Lähetä viesti tiettyyn aikaan": "Lähetä viesti <#1339846062281588777> kanavalle klo 12–14 UTC välisenä aikana. Aikaa suoritukseen 30 min.",
-    "Käy yleinen kanavalla lähettämässä viesti": "Lähetä viesti <#1339846062281588777> kanavassa. Aikaa suoritukseen 30 min.",
+    "Käy yleinen kanavalla lähettämässä viesti": "Lähetä viesti <#1339846062281588777> kanavassa. Viestisi voi olla tekstiä, tiedosto, gif ja/tai tarra. Aikaa suoritukseen 30 min.",
     "Mainitse toinen käyttäjä": "Mainitse joku käyttäjä viestissäsi <#1339846062281588777> kanavalla. Aikaa suoritukseen 30 min.",
     "Käytä bottikomentoja": "Käytä mitä tahansa bottikomentoa <#1339846062281588777> kanavalla. Aikaa suoritukseen 30 min.",
     "Lähetä kuva tai liite": "Lähetä kuva tai tiedostoliite <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
@@ -597,7 +664,14 @@ TASK_INSTRUCTIONS = {
     "Osta jotain kaupasta": "Käytä komentoa `/kauppa [tuotteen nimi]` ostaaksesi tuotteen <#1339846062281588777> kanavalla. Aikaa suoritukseen 30 min.",
     "Lähetä viesti arkipäivänä": "Lähetä viesti <#1339846062281588777> kanavalle maanantaista perjantaihin. Aikaa suoritukseen 30 min.",
     "Aloita keskustelu": "Lähetä viesti <#1339846062281588777> kanavalle ja saa joku vastaamaan siihen vastauksena (reply). Aikaa suoritukseen 30 min.",
-    "Kerää reaktioita": "Lähetä viesti <#1339846062281588777> kanavalle ja saa joku muu reagoimaan siihen emojilla. Aikaa suoritukseen 30 min."
+    "Kerää reaktioita": "Lähetä viesti <#1339846062281588777> kanavalle ja saa joku muu reagoimaan siihen emojilla. Aikaa suoritukseen 30 min.",
+    "Lisää tarra viestiin": "Lähetä viesti <#1339846062281588777> kanavalle ja liitä siihen tarra. Aikaa suoritukseen 30 min.",
+    "Kerro viikonpäivä": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää viikonpäivän nimen (esim. 'maanantai'). Aikaa suoritukseen 30 min.",
+    "Lähetä viesti, jossa on kysymys": "Lähetä kysymys sisältävä viesti <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
+    "Lähetä emoji": "Lähetä viesti, jossa on vähintään yksi emoji <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
+    "Kysy jotain toiselta käyttäjältä": "Lähetä kysymys toiselle käyttäjälle <#1339846062281588777> kanavalla. Mainitse käyttäjä ja käytä kysymysmerkkiä viestissä. Aikaa suoritukseen 30 min.",
+    "Lisää reaktio toisen viestiin, jota ei ole vielä reagoitu": "Lisää emoji-reaktio viestiin <#1339846062281588777> kanavalla, jossa ei ollut vielä reaktioita. Aikaa suoritukseen 30 min.",
+    "Jaa kuva, josta syntyy vitsi tai reaktio": "Lähetä kuva <#1339846062281588777> kanavalle, johon joku muu vastaa viestillä tai reagoi emojilla. Aikaa suoritukseen 30 min.",
 }
 
 class TaskControlView(discord.ui.View):
