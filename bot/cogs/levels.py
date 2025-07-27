@@ -18,6 +18,8 @@ from bot.utils.xp_utils import (
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.xp_utils import load_xp_data, save_xp_data
 from bot.utils.error_handler import CommandErrorHandler
+from bot.utils.antinuke import XP_ALERT_THRESHOLD
+from bot.utils.antinuke import alert_xp_request
 
 load_dotenv()
 XP_CHANNEL_ID = int(os.getenv("XP_CHANNEL_ID", 0))
@@ -164,40 +166,58 @@ class Levels(commands.Cog):
 
     @app_commands.command(name="lisää_xp", description="Lisää käyttäjälle XP:tä.")
     @app_commands.checks.has_role("Mestari")
-    @app_commands.describe(jäsen="Jäsen", määrä="Lisättävä XP määrä")
-    async def lisää_xp(self, interaction: Interaction, jäsen: discord.Member, määrä: int):
+    @app_commands.describe(
+        jäsen="Jäsen jolle XP:t lisätään",
+        määrä="Lisättävä XP määrä",
+        näkyvä="Näytetäänkö viesti kaikille (True) vai vain sinulle (False)"
+    )
+    async def lisää_xp(self, interaction: Interaction, jäsen: discord.Member, määrä: int, näkyvä: bool = False):
+        bot_instance = interaction.client
+
+        if määrä >= XP_ALERT_THRESHOLD:
+            await alert_xp_request(bot_instance, jäsen.id, määrä, interaction)
+            return
+
         user_id = str(jäsen.id)
         xp_data = load_xp_data()
         tiedot = xp_data.get(user_id, {"xp": 0, "level": 0})
 
         tiedot["xp"] += määrä
         tiedot["level"] = calculate_level(tiedot["xp"])
-
         xp_data[user_id] = tiedot
         save_xp_data(xp_data)
 
         await interaction.response.send_message(
-            f"Lisättiin {määrä} XP:tä käyttäjälle {jäsen.display_name}. Nykyinen XP: {tiedot['xp']}, Taso: {tiedot['level']}",
-            ephemeral=True
+            f"✅ Lisättiin {määrä} XP:tä käyttäjälle {jäsen.mention}. Nykyinen XP: {tiedot['xp']}, Taso: {tiedot['level']}",
+            ephemeral=not näkyvä
         )
 
     @app_commands.command(name="vähennä_xp", description="Vähennä käyttäjältä XP:tä.")
     @app_commands.checks.has_role("Mestari")
-    @app_commands.describe(jäsen="Jäsen", määrä="Vähennettävä XP määrä")
-    async def vähennä_xp(self, interaction: Interaction, jäsen: discord.Member, määrä: int):
+    @app_commands.describe(
+        jäsen="Jäsen jolta XP:t vähennetään",
+        määrä="Vähennettävä XP määrä",
+        näkyvä="Näytetäänkö viesti kaikille (True) vai vain sinulle (False)"
+    )
+    async def vähennä_xp(self, interaction: Interaction, jäsen: discord.Member, määrä: int, näkyvä: bool = False):
+        bot_instance = interaction.client
+
+        if määrä >= XP_ALERT_THRESHOLD:
+            await alert_xp_request(bot_instance, jäsen.id, -määrä, interaction)
+            return
+
         user_id = str(jäsen.id)
         xp_data = load_xp_data()
         tiedot = xp_data.get(user_id, {"xp": 0, "level": 0})
 
         tiedot["xp"] = max(0, tiedot["xp"] - määrä)
         tiedot["level"] = calculate_level(tiedot["xp"])
-
         xp_data[user_id] = tiedot
         save_xp_data(xp_data)
 
         await interaction.response.send_message(
-            f"Vähennettiin {määrä} XP:tä käyttäjältä {jäsen.display_name}. Nykyinen XP: {tiedot['xp']}, Taso: {tiedot['level']}",
-            ephemeral=True
+            f"✅ Vähennettiin {määrä} XP:tä käyttäjältä {jäsen.mention}. Nykyinen XP: {tiedot['xp']}, Taso: {tiedot['level']}",
+            ephemeral=not näkyvä
         )
 
     @commands.Cog.listener()

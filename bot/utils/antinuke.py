@@ -9,6 +9,10 @@ from bot.utils.bot_setup import bot
 from functools import wraps
 import time
 from datetime import datetime, timedelta
+import uuid
+from bot.utils.xp_utils import anna_xp_komennosta
+from discord.ui import Button, View
+from discord import Embed
 
 def start_moderation_loops():
     asyncio.create_task(check_deletion())
@@ -84,8 +88,84 @@ def cooldown(komento_nimi: str):
         return wrapper
     return decorator
 
-from discord.ext import commands
-from datetime import datetime, timezone, timedelta
+xp_approval_requests = {}  
+
+XP_ALERT_THRESHOLD = 150  
+MODLOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID", 0))
+
+XP_REQUEST_TIMEOUT = timedelta(minutes=10)
+
+def has_mestari_role(member):
+    return any(role.name == "Mestari" for role in member.roles)
+
+async def alert_xp_request(bot, user_id, xp_amount, interaction):
+    if xp_amount < XP_ALERT_THRESHOLD:
+        return True
+
+    req_id = str(uuid.uuid4())[:8]
+    xp_approval_requests[req_id] = {
+        "user_id": user_id,
+        "xp_amount": xp_amount,
+        "requester": interaction.user.id,
+        "timestamp": datetime.utcnow()
+    }
+
+    modlog_channel = bot.get_channel(MODLOG_CHANNEL_ID)
+    is_decrease = xp_amount < 0
+    abs_xp = abs(xp_amount)
+    target = interaction.guild.get_member(user_id)
+
+    embed = Embed(
+        title="🚨 XP-hälytys: suuri " + ("vähennys!" if is_decrease else "lisäys!"),
+        description=(
+            f"👤 Kohde: {target.mention if target else user_id}\n"
+            f"{'📉 XP määrä: -' + str(abs_xp) if is_decrease else '📈 XP määrä: ' + str(abs_xp)}\n"
+            f"🙋‍♂️ Pyytäjä: {interaction.user.mention}\n\n"
+            f"✅ Hyväksy tai ❌ peruuta alla olevista painikkeista."
+        ),
+        color=discord.Color.red() if is_decrease else discord.Color.orange()
+    )
+
+    await modlog_channel.send(embed=embed, view=XPApprovalView(req_id, user_id, xp_amount))
+    return False
+
+class XPApprovalView(View):
+    def __init__(self, req_id, user_id, xp_amount):
+        super().__init__(timeout=XP_REQUEST_TIMEOUT.total_seconds())
+        self.req_id = req_id
+        self.user_id = user_id
+        self.xp_amount = xp_amount
+
+    @discord.ui.button(label="Hyväksy XP", style=discord.ButtonStyle.success)
+    async def approve(self, interaction: discord.Interaction, button: Button):
+        if not has_mestari_role(interaction.user):
+            await interaction.response.send_message("🚫 Vain Mestari-rooli voi hyväksyä XP:n.", ephemeral=True)
+            return
+
+        data = xp_approval_requests.pop(self.req_id, None)
+        if not data or datetime.utcnow() - data["timestamp"] > XP_REQUEST_TIMEOUT:
+            await interaction.response.send_message("⏳ Pyyntö on vanhentunut tai ei kelvollinen.", ephemeral=True)
+            return
+
+        dummy_interaction = type("DummyInteraction", (), {
+            "user": interaction.guild.get_member(self.user_id),
+            "channel": interaction.channel,
+            "guild": interaction.guild
+        })()
+        await anna_xp_komennosta(interaction.client, dummy_interaction, self.xp_amount)
+        await interaction.response.send_message(f"✅ {self.xp_amount} XP lisätty käyttäjälle <@{self.user_id}>.")
+
+    @discord.ui.button(label="Peruuta", style=discord.ButtonStyle.danger)
+    async def deny(self, interaction: discord.Interaction, button: Button):
+        if not has_mestari_role(interaction.user):
+            await interaction.response.send_message("🚫 Vain Mestari-rooli voi peruuttaa XP:n.", ephemeral=True)
+            return
+
+        if self.req_id in xp_approval_requests:
+            xp_approval_requests.pop(self.req_id)
+            await interaction.response.send_message(f"❌ XP-pyyntö {self.req_id} peruttu.")
+        else:
+            await interaction.response.send_message("❌ Pyyntöä ei löytynyt.", ephemeral=True)
 
 class DeletionWatcher(commands.Cog):
     def __init__(self, bot):
