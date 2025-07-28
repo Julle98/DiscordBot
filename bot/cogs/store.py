@@ -14,7 +14,8 @@ from functools import wraps
 from datetime import datetime, timedelta
 from collections import defaultdict
 from bot.utils.error_handler import CommandErrorHandler
-from bot.utils import store_utils as su
+from typing import Optional
+from bot.utils.store_utils import tarkista_kuponki
 
 komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
 
@@ -50,9 +51,12 @@ class Store(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="kauppa", description="Näytä kaupan tuotteet tai osta tuote")
-    @app_commands.describe(tuote="Tuotteen nimi ostamista varten (valinnainen)")
+    @app_commands.describe(
+        tuote="Tuotteen nimi ostamista varten (valinnainen)",
+        kuponki="Alennuskoodi (valinnainen)"
+    )
     @app_commands.checks.has_role("24G")
-    async def kauppa(self, interaction: discord.Interaction, tuote: str = None):
+    async def kauppa(self, interaction: discord.Interaction, tuote: Optional[str] = None, kuponki: Optional[str] = None):
         try:
             await kirjaa_komento_lokiin(self.bot, interaction, "/kauppa")
             await kirjaa_ga_event(self.bot, interaction.user.id, "kauppa_komento")
@@ -63,7 +67,14 @@ class Store(commands.Cog):
                 embed = nayta_kauppa_embed(interaction, tarjoukset)
                 await interaction.response.send_message(embed=embed, ephemeral=True)
             else:
-                await osta_command(self.bot, interaction, tuote, tarjoukset)
+                alennus = 0
+                if kuponki:
+                    alennus = tarkista_kuponki(kuponki, tuote)
+                    if alennus == 0:
+                        await interaction.response.send_message("❌ Kuponki ei kelpaa tälle tuotteelle, vanhentunut tai käyttöraja täynnä. Osto peruutettu.", ephemeral=True)
+                        return
+
+                await osta_command(self.bot, interaction, tuote, tarjoukset, alennus=alennus)
 
         except Exception as e:
             try:

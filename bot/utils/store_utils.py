@@ -20,18 +20,20 @@ load_dotenv()
 OSTOSLOKI_KANAVA_ID = int(os.getenv("OSTOSLOKI_KANAVA_ID"))
 MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", 0))
 
+auto_react_users = {}  # user_id -> emoji
+
 kauppa_tuotteet = [
     {"nimi": "Erikoisemoji", "kuvaus": "Käytä erikoisemojeita", "hinta": 1000, "kertakäyttöinen": True, "emoji": "😎"},
-    {"nimi": "Double XP -päivä", "kuvaus": "Saat tuplat XP:t 24h", "hinta": 2000, "kertakäyttöinen": True, "emoji": "⚡"},
-    {"nimi": "Custom rooli", "kuvaus": "Saat oman roolin", "hinta": 5000, "kertakäyttöinen": True, "emoji": "🎨"},
-    {"nimi": "VIP-chat", "kuvaus": "Pääsy VIP-kanavalle", "hinta": 3000, "kertakäyttöinen": False, "emoji": "💎"},
-    {"nimi": "VIP-rooli (7 päivää)", "kuvaus": "Saat VIP-roolin viikoksi", "hinta": 2500, "kertakäyttöinen": True, "emoji": "👑"},
-    {"nimi": "Oma komento", "kuvaus": "Saat tehdä oman /komennon", "hinta": 6000, "kertakäyttöinen": True, "emoji": "🛠️"},
-    {"nimi": "Oma kanava", "kuvaus": "Saat oman tekstikanavan", "hinta": 7000, "kertakäyttöinen": True, "emoji": "📢"},
-    {"nimi": "Oma puhekanava", "kuvaus": "Saat oman äänikanavan", "hinta": 7000, "kertakäyttöinen": True, "emoji": "🎙️"},
-    {"nimi": "Valitse värisi", "kuvaus": "Saat värillisen roolin (esim. sininen)", "hinta": 1500, "kertakäyttöinen": False, "emoji": "🧬"},
-    {"nimi": "Valitse emoji", "kuvaus": "Bot reagoi viesteihisi valitsemallasi emojilla 7 päivää", "hinta": 3500, "kertakäyttöinen": True, "emoji": "🤖"},
-    {"nimi": "Soundboard-oikeus", "kuvaus": "Käyttöoikeus puhekanavan soundboardiin 3 päivää", "hinta": 4000, "kertakäyttöinen": True, "emoji": "🔊"}
+    {"nimi": "Double XP -päivä", "kuvaus": "Saat tuplat XP:t 24h", "hinta": 2000, "kertakäyttöinen": True, "emoji": "⚡", "tarjousprosentti": 50},
+    {"nimi": "Custom rooli", "kuvaus": "Saat oman roolin", "hinta": 5000, "kertakäyttöinen": True, "emoji": "🎨", "tarjousprosentti": 20},
+    {"nimi": "VIP-chat", "kuvaus": "Pääsy VIP-kanavalle", "hinta": 3000, "kertakäyttöinen": False, "emoji": "💎", "tarjousprosentti": 10},
+    {"nimi": "VIP-rooli (7 päivää)", "kuvaus": "Saat VIP-roolin viikoksi", "hinta": 2500, "kertakäyttöinen": True, "emoji": "👑", "tarjousprosentti": 10},
+    {"nimi": "Oma komento", "kuvaus": "Saat tehdä oman /komennon", "hinta": 6000, "kertakäyttöinen": True, "emoji": "🛠️", "tarjousprosentti": 25},
+    {"nimi": "Oma kanava", "kuvaus": "Saat oman tekstikanavan", "hinta": 7000, "kertakäyttöinen": True, "emoji": "📢", "tarjousprosentti": 25},
+    {"nimi": "Oma puhekanava", "kuvaus": "Saat oman äänikanavan", "hinta": 7000, "kertakäyttöinen": True, "emoji": "🎙️", "tarjousprosentti": 25},
+    {"nimi": "Valitse värisi", "kuvaus": "Saat värillisen roolin (esim. sininen)", "hinta": 1500, "kertakäyttöinen": False, "emoji": "🧬", "tarjousprosentti": 30},
+    {"nimi": "Valitse emoji", "kuvaus": "Bot reagoi viesteihisi valitsemallasi emojilla 7 päivää", "hinta": 3500, "kertakäyttöinen": True, "emoji": "🤖", "tarjousprosentti": 30},
+    {"nimi": "Soundboard-oikeus", "kuvaus": "Käyttöoikeus puhekanavan soundboardiin 3 päivää", "hinta": 4000, "kertakäyttöinen": True, "emoji": "🔊", "tarjousprosentti": 10}
 ]
 
 from discord.ext import tasks
@@ -108,6 +110,48 @@ def hae_tai_paivita_tarjous():
         json.dump({"paivamaara": datetime.now(timezone.utc).isoformat(), "tuote": tarjous}, f, ensure_ascii=False, indent=2)
 
     return [tarjous]
+
+def tarkista_kuponki(koodi: str, tuotteen_nimi: str) -> int:
+    from datetime import datetime
+    import os
+    from pathlib import Path
+    import json
+
+    polku = Path(os.getenv("JSON_DIRS")) / "kuponki.json"
+    tuotteen_nimi = tuotteen_nimi.strip().lower()
+
+    try:
+        with open(polku, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except:
+        return 0
+
+    koodi = koodi.strip().upper()
+    kuponki = data.get(koodi)
+    if not kuponki:
+        return 0
+
+    vanhentuu = datetime.fromisoformat(kuponki["vanhentuu"])
+    if datetime.now() > vanhentuu:
+        return 0
+
+    if kuponki["kayttoja"] >= kuponki["maxkayttoja"]:
+        return 0
+
+    sallitut = os.getenv("ALENNUS_SALLITUT_TUOTTEET", "")
+    sallitut_lista = [n.strip().lower() for n in sallitut.split(",") if n.strip()]
+    if sallitut_lista and tuotteen_nimi not in sallitut_lista:
+        return 0
+
+    kuponki["kayttoja"] += 1
+    data[koodi] = kuponki
+    try:
+        with open(polku, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except:
+        pass
+
+    return kuponki["prosentti"]
 
 def nykyinen_periodi():
     alku = datetime(2025, 1, 1, tzinfo=timezone.utc)
@@ -238,7 +282,6 @@ class KanavaModal(Modal, title="Luo oma kanava"):
 
 async def kasittele_tuote(interaction, nimi: str) -> str:
     lisatieto = ""
-    auto_react_users = {}  # user_id -> emoji
 
     if nimi == "erikoisemoji":
         rooli = discord.utils.get(interaction.guild.roles, name="Erikoisemoji")
@@ -339,32 +382,25 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
         bot.loop.create_task(poista_soundboard())
         return lisatieto
 
-    elif "rooli" in nimi:
-        if "vip-rooli" in nimi:
-            roolinimi = "VIP"
-            rooli = discord.utils.get(interaction.guild.roles, name=roolinimi)
-            if not rooli:
-                await interaction.followup.send(f"⚠️ VIP-roolia ei löytynyt palvelimelta. Varmista että rooli nimeltä **{roolinimi}** on olemassa.", ephemeral=True)
-                return ""
-        else:
-            roolinimi = await kysy_kayttajalta(interaction, "Mikä on roolisi nimi?")
-            if not roolinimi:
-                return ""
-            rooli = await interaction.guild.create_role(name=roolinimi)
-
-        lisatieto = f" (nimi: {roolinimi})"
+    elif nimi == "vip-rooli":
+        rooli = discord.utils.get(interaction.guild.roles, name="VIP")
+        if not rooli:
+            await interaction.followup.send("⚠️ VIP-roolia ei löytynyt palvelimelta. Luo se ensin manuaalisesti!", ephemeral=True)
+            return ""
+        
         await interaction.user.add_roles(rooli)
-        await interaction.followup.send(f"🎉 Rooli **{roolinimi}** lisätty sinulle!", ephemeral=True)
+        await interaction.followup.send("👑 VIP-rooli myönnetty sinulle 7 päiväksi!", ephemeral=True)
 
-        if "7 päivää" in nimi:
-            async def poista_rooli_viiveella():
-                await asyncio.sleep(7 * 24 * 60 * 60)
-                try:
-                    await interaction.user.remove_roles(rooli)
-                    await interaction.user.send(f"⏳ Rooli **{rooli.name}** on nyt vanhentunut ja poistettu.")
-                except:
-                    pass
-            bot.loop.create_task(poista_rooli_viiveella())
+        async def poista_rooli_viiveella():
+            await asyncio.sleep(7 * 24 * 60 * 60)
+            try:
+                await interaction.user.remove_roles(rooli)
+                await interaction.user.send("⌛ VIP-roolisi on nyt vanhentunut.")
+            except:
+                pass
+        bot.loop.create_task(poista_rooli_viiveella())
+
+        return ""
 
     elif "kanava" in nimi:
         await interaction.response.send_modal(KanavaModal())
@@ -380,7 +416,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
         
 from dotenv import load_dotenv
 
-async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset):
+async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, kuponki=None):
     global ostot
     user_id = str(interaction.user.id)
     tuotteet = kauppa_tuotteet + tarjoukset
@@ -409,28 +445,34 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset):
         await interaction.response.send_message("Olet jo ostanut tämän kertakäyttöisen tuotteen.", ephemeral=True)
         return
 
+    if kuponki:
+        alennus_prosentti = tarkista_kuponki(kuponki, tuote["nimi"])
+        if alennus_prosentti == 0:
+            await interaction.response.send_message("❌ Kuponki ei kelpaa tälle tuotteelle, vanhentunut tai käyttöraja täynnä. Osto peruutettu.", ephemeral=True)
+            return
+    else:
+        alennus_prosentti = alennus
+
+    hinta = tuote["hinta"]
+    hinta_alennettu = max(0, int(hinta * (1 - alennus_prosentti / 100)))
+
     ostot[user_id].append({
         "nimi": tuote["nimi"],
         "pvm": datetime.now().isoformat()
     })
     tallenna_ostokset(ostot)
 
+    kuponkiviesti = f"\n🎟️ Käytit koodin **{kuponki}** (-{alennus_prosentti}%)" if kuponki else ""
+
     await interaction.response.send_message(
-    embed=discord.Embed(
-        title="✅ Ostettu onnistuneesti!",
-        description=f"Ostit tuotteen **{tuote['emoji']} {tuote['nimi']}** ({tuote['hinta']} XP)\nSe on nyt käytössäsi 🎉",
-        color=discord.Color.green()
-    ),
-    ephemeral=True
-)
-    await interaction.followup.send(
-    embed=discord.Embed(
-        description="⏳ *Käsitellään valintaasi...*",
-        color=discord.Color.blurple()
-    ),
-    ephemeral=True
-)
-    
+        embed=discord.Embed(
+            title="✅ Ostettu onnistuneesti!",
+            description=f"Ostit tuotteen **{tuote['emoji']} {tuote['nimi']}** ({hinta_alennettu} XP){kuponkiviesti}\nSe on nyt käytössäsi 🎉",
+            color=discord.Color.green()
+        ),
+        ephemeral=True
+    )
+
     nimi = puhdista_tuotteen_nimi(tuote["nimi"])
     lisatieto = await kasittele_tuote(interaction, nimi)
 
@@ -439,7 +481,7 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset):
         lokikanava = bot.get_channel(kanava_id)
         if lokikanava:
             await lokikanava.send(
-                f"🧾 {interaction.user.mention} osti tuotteen **{tuote['nimi']}** ({tuote['hinta']} XP){lisatieto}"
+                f"🧾 {interaction.user.mention} osti tuotteen **{tuote['nimi']}** ({hinta_alennettu} XP){lisatieto}{kuponkiviesti}"
             )
     except Exception as e:
         print(f"Lokitus epäonnistui: {e}")

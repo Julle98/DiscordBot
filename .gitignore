@@ -14,6 +14,7 @@ data/tasks/tasks.json
 data/tasks/streaks.json
 data/shop/tarjous.json
 data/shop/ostot.json
+data/shop/kuponki.json
 bot/cogs/__pycache__/
 bot/__init__.py
 bot/utils/status_updater.py

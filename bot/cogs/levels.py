@@ -184,7 +184,9 @@ class Levels(commands.Cog):
                     f"⚠️ XP-määrä ({määrä}) vaatii Mestarin hyväksynnän ennen toteutumista.",
                     ephemeral=True
                 )
-            return
+                return
+            else:
+                return  
 
         user_id = str(jäsen.id)
         xp_data = load_xp_data()
@@ -217,7 +219,9 @@ class Levels(commands.Cog):
                     f"⚠️ XP-määrä ({määrä}) vaatii Mestarin hyväksynnän ennen toteutumista.",
                     ephemeral=True
                 )
-            return
+                return
+            else:
+                return  
 
         user_id = str(jäsen.id)
         xp_data = load_xp_data()
