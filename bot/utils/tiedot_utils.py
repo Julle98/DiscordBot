@@ -60,7 +60,7 @@ def jäsennä_tehtäväviesti(viesti):
         return None
 
 def jäsennä_tehtävätekstistä(teksti):
-    m = re.search(r"suoritti .* tehtävän (?P<tehtävä>.+?) ja sai \+(\d+) XP", teksti)
+    m = re.search(r"suoritti.*tehtävän:? (?P<tehtävä>.+?)\s+XP: \+(\d+)", teksti)
     if m:
         tehtävä = m.group("tehtävä")
         xp = int(m.group(2))
@@ -77,7 +77,11 @@ def laske_tehtävä_xp_viesteistä(viestit):
     tehtävälista = []
 
     for viesti in viestit:
-        tehtävä = jäsennä_tehtävätekstistä(viesti["content"])
+        sisältö = viesti.get("content")
+        if not sisältö:
+            continue
+
+        tehtävä = jäsennä_tehtävätekstistä(sisältö)
         if tehtävä:
             yhteensä_xp += tehtävä["xp"]
             tehtävälista.append(tehtävä)
@@ -235,6 +239,21 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
         color=discord.Color.blurple()
     )
 
+    if user.id != interaction.user.id:
+        roolit = getattr(interaction.user, "roles", [])
+        is_mestari = any(r.name == "Mestari" for r in roolit)
+        if is_mestari:
+            embed.description = (
+                f"👀 Katselet toisen käyttäjän tietoja: **{user.display_name}**\n\n"
+                + embed.description
+            )
+        else:
+            embed.clear_fields()
+            embed.title = "🚫 Ei oikeuksia"
+            embed.description = "Sinulla ei ole oikeutta tarkastella muiden käyttäjien tietoja."
+            embed.color = discord.Color.red()
+            return embed
+
     user_data = None
     historia = []
 
@@ -317,86 +336,6 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
             except Exception as e:
                 embed.add_field(name="⚠️ Virhe", value=f"Streak-datan lataus epäonnistui: {e}", inline=False)
 
-        elif kategoria == "Komennot":
-            await interaction.response.defer(ephemeral=True)
-
-            odotus_embed = discord.Embed(
-                title="⏳ Ladataan...",
-                description="Haetaan tietoja, tämä vain kestää hetken...",
-                color=discord.Color.orange()
-            )
-            await interaction.followup.send(embed=odotus_embed, ephemeral=True)
-
-            embed = discord.Embed(title="📊 Komentostatistiikka", color=discord.Color.blue())
-
-            try:
-                yhteensä, komentolista = await hae_käyttäjän_komennot(user.id)
-                embed.add_field(name="💬 Komentoja käytetty", value=f"{yhteensä} kertaa", inline=True)
-
-                if yhteensä > 0:
-                    top_komennot = komentolista.most_common(5)
-                    rivit = [f"- `{nimi}` ({määrä}×)" for nimi, määrä in top_komennot]
-                    embed.add_field(
-                        name="📚 Eniten käytetyt komennot (globaalisti)",
-                        value="\n".join(rivit),
-                        inline=False
-                    )
-                else:
-                    embed.add_field(
-                        name="📚 Eniten käytetyt komennot (globaalisti)",
-                        value="Ei komentoja havaittu.",
-                        inline=False
-                    )
-
-                log_channel_id = int(os.getenv("LOG_CHANNEL_ID"))
-                log_channel = bot.get_channel(log_channel_id)
-                laskuri = Counter()
-
-                if log_channel:
-                    async for msg in log_channel.history(limit=1000):
-                        if f"({user.id})" in msg.content:
-                            if (match := re.search(r"Komento: `(.+?)`", msg.content)):
-                                komento = match.group(1)
-                                laskuri[komento] += 1
-
-                    if laskuri:
-                        rivit = [f"- `{komento}` ({määrä}×)" for komento, määrä in laskuri.most_common(5)]
-                        embed.add_field(
-                            name="📌 Omat käytetyimmät komennot",
-                            value="\n".join(rivit),
-                            inline=False
-                        )
-                        oma_yht = sum(laskuri.values())
-                        embed.set_footer(text=f"Olet käyttänyt {oma_yht} komentoa.")
-                    else:
-                        embed.add_field(
-                            name="📌 Omat käytetyimmät komennot",
-                            value="Et ole käyttänyt vielä komentoja.",
-                            inline=False
-                        )
-                else:
-                    embed.add_field(
-                        name="📌 Omat käytetyimmät komennot",
-                        value="Lokikanavaa ei löytynyt.",
-                        inline=False
-                    )
-
-            except Exception as e:
-                embed.add_field(
-                    name="⚠️ Virhe",
-                    value=f"Komentodatan lataus epäonnistui: {e}",
-                    inline=False
-                )
-
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
-            valmis_embed = discord.Embed(
-                title="✅ Lataus valmis",
-                description="Voit sulkea tämän viestin.",
-                color=discord.Color.green()
-            )
-            await interaction.followup.send(embed=valmis_embed, ephemeral=True)
-
         elif kategoria == "Ostokset":
             try:
                 ostosviestit = await hae_ostosviestit(str(user.id))
@@ -472,6 +411,26 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                         ),
                         inline=False
                     )
+
+                    pisin_uid = None
+                    pisin_streak = 0
+                    for uid, tiedot in data.items():
+                        nykyinen = tiedot.get("streak", 0)
+                        if nykyinen > pisin_streak:
+                            pisin_streak = nykyinen
+                            pisin_uid = uid
+
+                    if pisin_uid:
+                        status = "👑 Olet kärjessä! 🔥" if str(user.id) == pisin_uid else "💪 Voit ohittaa kärkipaikan!"
+                        embed.add_field(
+                            name="🏆 Pisin puhe-streak",
+                            value=(
+                                f"{pisin_streak} päivää – käyttäjä <@{pisin_uid}>\n"
+                                f"{status}"
+                            ),
+                            inline=False
+                        )
+
                 else:
                     embed.add_field(
                         name="🎤 Puhe-streak",
@@ -486,26 +445,32 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                 )
 
         elif kategoria == "XP-data":
-            kokonais_xp = hae_kokonais_xp(uid)
+            uid = str(user.id)
+            tehtäväviestit = await hae_tehtäväviestit(uid)
+            tehtävä_xp, _ = laske_tehtävä_xp_viesteistä(tehtäväviestit)
 
-            viestit = await hae_tehtäväviestit(uid)  
-            tehtävä_xp, tehtävälista = laske_tehtävä_xp_viesteistä(viestit)
+            try:
+                with open(TIEDOSTOT["XP-data"], "r", encoding="utf-8") as f:
+                    xp_data = json.load(f)
+                tallennettu_xp = xp_data.get(uid, {}).get("xp", 0)
+            except Exception as e:
+                tallennettu_xp = 0
+                embed.add_field(name="⚠️ Virhe", value=f"XP-datan lataus epäonnistui: {e}", inline=False)
 
-            arvio_viesti_xp = max(0, kokonais_xp - tehtävä_xp)
-
-            tehtävä_prosentti = (tehtävä_xp / kokonais_xp) * 100 if kokonais_xp > 0 else 0
-            viesti_prosentti = (arvio_viesti_xp / kokonais_xp) * 100 if kokonais_xp > 0 else 0
+            arvio_viesti_xp = max(0, tallennettu_xp - tehtävä_xp)
+            tehtävä_prosentti = (tehtävä_xp / tallennettu_xp) * 100 if tallennettu_xp > 0 else 0
+            viesti_prosentti = (arvio_viesti_xp / tallennettu_xp) * 100 if tallennettu_xp > 0 else 0
 
             embed = discord.Embed(
                 title="🔢 XP-raportti",
-                description=f"Käyttäjän {uid} XP-erittely",
+                description=f"Käyttäjän {user.display_name} XP-erittely",
                 color=discord.Color.blue()
             )
 
             embed.add_field(name="🧩 XP-erittely", value=(
-                f"📘 Tehtävistä: {tehtävä_xp} XP\n"
+                f"📘 Tehtävistä arvioitu: {tehtävä_xp} XP\n"
                 f"🔍 Arvio viestipohjaisesta XP:stä: {arvio_viesti_xp} XP\n"
-                f"✨ Yhteensä: {kokonais_xp} XP"
+                f"✨ Tallennettu yhteensä: {tallennettu_xp} XP"
             ), inline=False)
 
             embed.add_field(name="📈 XP-jakauma (%)", value=(
@@ -513,9 +478,14 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                 f"🔎 Viestit: {viesti_prosentti:.1f}%"
             ), inline=False)
 
+            if tehtävä_xp > tallennettu_xp:
+                embed.add_field(name="⚠️ Huomautus", value=(
+                    "Tehtävistä arvioitu XP on suurempi kuin tallennettu. Voi viitata tallennusvirheeseen."
+                ), inline=False)
+
     elif kategoria == "Moderointi":
-        varoituskanava = bot.get_channel(MODLOG_CHANNEL_ID)
-        mutekanava = bot.get_channel(MODLOG_CHANNEL_ID)
+        varoituskanava = bot.get_channel(int(os.getenv("MODLOG_CHANNEL_ID")))
+        mutekanava = bot.get_channel(int(os.getenv("MODLOG_CHANNEL_ID")))
         helpkanava = bot.get_channel(int(os.getenv("HELP_CHANNEL_ID")))
         
         varoitukset = []
@@ -537,13 +507,17 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
 
         if mutekanava:
             async for msg in mutekanava.history(limit=1000):
-                if f"{user.mention}" in msg.content and "🔇 Jäähy asetettu" in msg.content:
-                    sisältö = msg.content
-                    rivit = sisältö.split("\n")
-
-                    kesto = next((r.split(": ", 1)[-1] for r in rivit if "⏱ Kesto:" in r), "Tuntematon")
-                    syy = next((r.split(": ", 1)[-1] for r in rivit if "📝 Syy:" in r), "Tuntematon")
-                    asettaja = next((r.split(": ", 1)[-1] for r in rivit if "👮 Asetti:" in r), "Tuntematon")
+                if (
+                    "🔇 Jäähy asetettu" in msg.content and (
+                        f"<@{user.id}>" in msg.content or
+                        f"@{user.display_name}" in msg.content or
+                        f"@{user.name}" in msg.content
+                    )
+                ):
+                    rivit = msg.content.splitlines()
+                    kesto = next((r.split(": ", 1)[-1] for r in rivit if "⏱" in r), "Tuntematon")
+                    syy = next((r.split(": ", 1)[-1] for r in rivit if "📝" in r), "Tuntematon")
+                    asettaja = next((r.split(": ", 1)[-1] for r in rivit if "👮" in r), "Tuntematon")
                     aika = msg.created_at.strftime("%d.%m.%Y %H:%M")
 
                     mute_tiedot.append({
@@ -594,6 +568,86 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                 )
         else:
             embed.add_field(name="✅ Ei help-pyyntöjä", value="Käyttäjältä ei löytynyt pyyntöjä.", inline=False)
+    
+    elif kategoria == "Komennot":
+            await interaction.response.defer(ephemeral=True)
+
+            odotus_embed = discord.Embed(
+                title="⏳ Ladataan...",
+                description="Haetaan tietoja, tämä vain kestää hetken...",
+                color=discord.Color.orange()
+            )
+            await interaction.followup.send(embed=odotus_embed, ephemeral=True)
+
+            embed = discord.Embed(title="📊 Komentostatistiikka", color=discord.Color.blue())
+
+            try:
+                yhteensä, komentolista = await hae_käyttäjän_komennot(user.id)
+                embed.add_field(name="💬 Komentoja käytetty", value=f"{yhteensä} kertaa", inline=True)
+
+                is_mestari = any(r.name == "Mestari" for r in getattr(interaction.user, "roles", []))
+
+                if is_mestari:
+                    top_komennot = komentolista.most_common(5)
+                    rivit = [f"- `{nimi}` ({määrä}×)" for nimi, määrä in top_komennot]
+                    embed.add_field(
+                        name="📚 Eniten käytetyt komennot (globaalisti)",
+                        value="\n".join(rivit),
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name="📚 Eniten käytetyt komennot (globaalisti)",
+                        value="🔒 Näkyvissä vain Mestari-roolille.",
+                        inline=False
+                    )
+
+                log_channel_id = int(os.getenv("LOG_CHANNEL_ID"))
+                log_channel = bot.get_channel(log_channel_id)
+                laskuri = Counter()
+
+                if log_channel:
+                    async for msg in log_channel.history(limit=1000):
+                        if f"({user.id})" in msg.content:
+                            if (match := re.search(r"Komento: `(.+?)`", msg.content)):
+                                komento = match.group(1)
+                                laskuri[komento] += 1
+
+                    if laskuri:
+                        rivit = [f"- `{komento}` ({määrä}×)" for komento, määrä in laskuri.most_common(5)]
+                        embed.add_field(
+                            name="📌 Omat käytetyimmät komennot",
+                            value="\n".join(rivit),
+                            inline=False
+                        )
+                    else:
+                        embed.add_field(
+                            name="📌 Omat käytetyimmät komennot",
+                            value="Et ole käyttänyt vielä komentoja.",
+                            inline=False
+                        )
+                else:
+                    embed.add_field(
+                        name="📌 Omat käytetyimmät komennot",
+                        value="Lokikanavaa ei löytynyt.",
+                        inline=False
+                    )
+
+            except Exception as e:
+                embed.add_field(
+                    name="⚠️ Virhe",
+                    value=f"Komentodatan lataus epäonnistui: {e}",
+                    inline=False
+                )
+
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+            valmis_embed = discord.Embed(
+                title="✅ Lataus valmis",
+                description="Voit sulkea tämän viestin.",
+                color=discord.Color.green()
+            )
+            await interaction.followup.send(embed=valmis_embed, ephemeral=True)
 
     elif kategoria == "Toiminta":
         await interaction.response.defer(ephemeral=True)
@@ -652,18 +706,36 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
     else:
         embed.add_field(name="❓ Tuntematon kategoria", value="Ei sisältöä saatavilla.", inline=False)
 
-    embed.set_footer(text="📁 Tiedot päivittyvät reaaliaikaisesti")
+    try:
+        avaimet = AVAIMET_KATEGORIALLE.get(kategoria)
+        if not avaimet:
+            polku = TIEDOSTOT.get(kategoria)
+            if polku and polku.exists():
+                with open(polku, encoding="utf-8") as f:
+                    tiedot = json.load(f)
+                käyttäjädata = tiedot.get(str(user.id), {})
+                if isinstance(käyttäjädata, dict):
+                    avaimet = list(käyttäjädata.keys())
+    except Exception:
+        avaimet = []
+
+    avaimet_str = ", ".join(avaimet) if avaimet else "Ei ladattavia avaimia"
+
+    embed.set_footer(
+        text=f"📁 Tiedot päivittyvät reaaliaikaisesti • 🔑 Ladattavissa olevat tiedot: {avaimet_str}"
+    )
     return embed
 
 class DataValintaView(ui.View):
-    def __init__(self, user):
+    def __init__(self, user, alkuperäinen_käyttäjä=None):
         super().__init__(timeout=None)
         self.user = user
+        self.alkuperäinen_käyttäjä = alkuperäinen_käyttäjä or user
         for nimi in KATEGORIAT:
-            self.add_item(KategoriaNappi(nimi, user=self.user))
+            self.add_item(KategoriaNappi(nimi, user=self.user, alkuperäinen_käyttäjä=self.alkuperäinen_käyttäjä))
 
     async def interaction_check(self, interaction):
-        return interaction.user.id == self.user.id
+        return interaction.user.id == self.alkuperäinen_käyttäjä.id
 
 async def käsittele_valinta(user: discord.User, valinta: str, interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
@@ -689,10 +761,11 @@ async def käsittele_valinta(user: discord.User, valinta: str, interaction: disc
         await msg.edit(content="❌ Virhe tiedonhaussa.", embed=None)
 
 class KategoriaNappi(ui.Button):
-    def __init__(self, nimi, user):
+    def __init__(self, nimi, user, alkuperäinen_käyttäjä):
         super().__init__(label=nimi, style=discord.ButtonStyle.primary)
         self.nimi = nimi
         self.user = user
+        self.alkuperäinen_käyttäjä = alkuperäinen_käyttäjä
         self.bot = bot
 
     async def callback(self, interaction):
@@ -701,7 +774,7 @@ class KategoriaNappi(ui.Button):
             await interaction.response.edit_message(
                 content=f"📁 Kategoria: {self.nimi}",
                 embed=embed,
-                view=KategoriaView(self.user, self.nimi)
+                view=KategoriaView(self.user, self.nimi, alkuperäinen_käyttäjä=self.alkuperäinen_käyttäjä)
             )
         except Exception as e:
             print(f"Embedin luonti epäonnistui: {e}")
@@ -715,21 +788,26 @@ AVAIMET_KATEGORIALLE = {
 }
 
 class KategoriaView(ui.View):
-    def __init__(self, user, valittu=None):
+    def __init__(self, user, valittu=None, alkuperäinen_käyttäjä=None):
         super().__init__(timeout=None)
         self.user = user
         self.kategoria = valittu
+        self.alkuperäinen_käyttäjä = alkuperäinen_käyttäjä or user
 
         if not valittu:
             for nimi in KATEGORIAT:
-                self.add_item(KategoriaNappi(nimi, user))
+                self.add_item(KategoriaNappi(nimi, user, alkuperäinen_käyttäjä=self.alkuperäinen_käyttäjä))
         else:
             self.add_item(PalaaNappi(user))
             self.add_item(LataaNappi(valittu, user, AVAIMET_KATEGORIALLE.get(valittu, [])))
-            self.add_item(PoistaNappi(valittu, user, AVAIMET_KATEGORIALLE.get(valittu, [])))
+
+            if valittu != "Moderointi":
+                self.add_item(PoistaNappi(valittu, user, AVAIMET_KATEGORIALLE.get(valittu, [])))
+            else:
+                self.add_item(IlmoitaPoistopyyntöNappi(valittu, user, AVAIMET_KATEGORIALLE.get(valittu, [])))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        return interaction.user.id == self.user.id
+        return interaction.user.id in {self.user.id, self.alkuperäinen_käyttäjä.id}
 
 class KatsoNappi(ui.Button):
     def __init__(self, user):
@@ -741,14 +819,14 @@ class KatsoNappi(ui.Button):
             await interaction.response.edit_message(
                 content="📁 Valitse kategoria, jonka tiedot haluat nähdä:",
                 embed=None,
-                view=KategoriaView(self.user, None)
+                view=KategoriaView(self.user, None, alkuperäinen_käyttäjä=interaction.user)
             )
         except discord.NotFound:
             print("⚠️ Interaktio vanhentunut — käytetään followup.send")
             await interaction.followup.send(
                 content="📁 Valitse kategoria, jonka tiedot haluat nähdä:",
                 embed=None,
-                view=KategoriaView(self.user, None),
+                view=KategoriaView(self.user, None, alkuperäinen_käyttäjä=interaction.user),
                 ephemeral=True
             )
         except Exception as e:
@@ -766,14 +844,14 @@ class PalaaNappi(ui.Button):
             await interaction.response.edit_message(
                 content="📁 Valitse kategoria, jonka tiedot haluat nähdä:",
                 embed=None,
-                view=KategoriaView(self.user, None)
+                view=KategoriaView(self.user, None, alkuperäinen_käyttäjä=interaction.user)
             )
         except discord.NotFound:
             print("⚠️ Interaktio vanhentunut — käytetään followup.send")
             await interaction.followup.send(
                 content="📁 Valitse kategoria, jonka tiedot haluat nähdä:",
                 embed=None,
-                view=KategoriaView(self.user, None),
+                view=KategoriaView(self.user, None, alkuperäinen_käyttäjä=interaction.user),
                 ephemeral=True
             )
         except Exception as e:
@@ -781,53 +859,114 @@ class PalaaNappi(ui.Button):
             await interaction.response.send_message("❌ Virhe näkymän avaamisessa.", ephemeral=True)
 
 class LataaNappi(ui.Button):
-    def __init__(self, nimi, user, avaimet: list[str] = None):
+    def __init__(self, nimi, user, avaimet=None):
         super().__init__(label="Lataa tiedosto", style=discord.ButtonStyle.success)
         self.nimi = nimi
         self.user = user
-        self.avaimet = avaimet or []  
+        self.avaimet = avaimet or []
 
-    async def callback(self, interaction):
-        varmuuskopioi_json_tiedostot()
+    async def callback(self, interaction: discord.Interaction):
         path = TIEDOSTOT.get(self.nimi)
         if not path or not path.exists():
             await interaction.response.send_message("❌ Tiedostoa ei löytynyt.", ephemeral=True)
             return
+
         try:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
-            alkuperäinen = data.get(str(self.user.id))
-            if not alkuperäinen:
-                await interaction.response.send_message("ℹ️ Sinulla ei ole dataa tässä tiedostossa.", ephemeral=True)
-                return
-
-            suodatettu = {key: alkuperäinen[key] for key in self.avaimet if key in alkuperäinen}
-
-            if not suodatettu:
-                await interaction.response.send_message("ℹ️ Ei ladattavaa dataa valituilla avaimilla.", ephemeral=True)
+            käyttäjädata = data.get(str(self.user.id))
+            if not isinstance(käyttäjädata, dict) or not käyttäjädata:
+                await interaction.response.send_message("ℹ️ Sinulla ei ole ladattavaa dataa tässä tiedostossa.", ephemeral=True)
                 return
 
             buffer = BytesIO()
-            json.dump({str(self.user.id): suodatettu}, buffer, ensure_ascii=False, indent=2)
+            json.dump({str(self.user.id): käyttäjädata}, buffer, ensure_ascii=False, indent=2)
             buffer.seek(0)
-            await interaction.response.send_message(
-                file=discord.File(buffer, filename=f"{self.nimi}_{self.user.id}.txt"),
-                ephemeral=True
+            tiedostonimi = f"{self.nimi}_{self.user.id}.txt"
+
+            kanava = bot.get_channel(MOD_LOG_CHANNEL_ID)
+            if not kanava:
+                await interaction.response.send_message("⚠️ Ilmoituskanavaa ei löytynyt.", ephemeral=True)
+                return
+
+            await lähetä_lataus_lokiviesti(
+                kanava=kanava,
+                pyytäjä=interaction.user,
+                käyttäjä=self.user,
+                nimi=self.nimi,
+                avaimet=list(käyttäjädata.keys()),
+                tekstitiedosto=buffer,
+                tiedostonimi=tiedostonimi
             )
+
+            await interaction.response.send_message("✅ Latauspyyntö lähetetty moderaattoreille vahvistusta varten.", ephemeral=True)
+
         except Exception as e:
-            await interaction.response.send_message("⚠️ Lataus epäonnistui.", ephemeral=True)
+            await interaction.response.send_message(f"⚠️ Lataus epäonnistui: {e}", ephemeral=True)
 
 class PoistaNappi(ui.Button):
     def __init__(self, nimi, user, avaimet: list[str] = None):
         super().__init__(label="Poista tiedot", style=discord.ButtonStyle.danger)
         self.nimi = nimi
         self.user = user
+
+        if not avaimet:
+            polku = TIEDOSTOT.get(nimi)
+            if polku and polku.exists():
+                try:
+                    with open(polku, encoding="utf-8") as f:
+                        data = json.load(f)
+                    käyttäjädata = data.get(str(user.id), {})
+                    if isinstance(käyttäjädata, dict):
+                        self.avaimet = list(käyttäjädata.keys())
+                    else:
+                        self.avaimet = []
+                except Exception:
+                    self.avaimet = []
+            else:
+                self.avaimet = []
+        else:
+            self.avaimet = avaimet
+
+    async def callback(self, interaction: discord.Interaction):
+        kanava = bot.get_channel(MOD_LOG_CHANNEL_ID)
+        if not kanava:
+            await interaction.response.send_message("⚠️ Ilmoituskanavaa ei löytynyt.", ephemeral=True)
+            return
+
+        await lähetä_poisto_lokiviesti(
+            kanava=kanava,
+            poistaja=interaction.user,
+            käyttäjä=self.user,
+            nimi=self.nimi,
+            avaimet=self.avaimet
+        )
+        await interaction.response.send_message("✅ Poistopyyntö lähetetty moderaattoreille vahvistusta varten.", ephemeral=True)
+
+class IlmoitaPoistopyyntöNappi(ui.Button):
+    def __init__(self, nimi, user, avaimet: list[str] = None):
+        super().__init__(label="Ilmoita virhe / poisto", style=discord.ButtonStyle.danger)
+        self.nimi = nimi
+        self.user = user
         self.avaimet = avaimet or []
 
-    async def callback(self, interaction):
-        await interaction.response.send_modal(
-            PoistovarmistusModal(self.nimi, [TIEDOSTOT[self.nimi]], self.user, self.avaimet)
-        )
+    async def callback(self, interaction: discord.Interaction):
+        kanava = bot.get_channel(MOD_LOG_CHANNEL_ID)
+        if kanava:
+            await kanava.send(
+                f"🗑️ **Poistopyyntö / Virheilmoitus**\n"
+                f"📁 Kategoria: {self.nimi}\n"
+                f"👤 Käyttäjä: {self.user.mention} ({self.user.id})\n"
+                f"🗂️ Avaimet: {', '.join(self.avaimet) if self.avaimet else 'Kaikki'}\n"
+                f"👮 Ilmoittaja: {interaction.user.mention} ({interaction.user.id})\n"
+                f"🕒 Aika: <t:{int(discord.utils.utcnow().timestamp())}:F>"
+            )
+            await interaction.response.send_message(
+                "✅ Ilmoitus moderaattoreille lähetetty. He tarkistavat ja käsittelevät asian.",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message("⚠️ Ilmoituskanavaa ei löytynyt.", ephemeral=True)
 
 class IlmoitaVirheNappi(ui.Button):
     def __init__(self, user):
@@ -842,66 +981,108 @@ class IlmoitaVirheNappi(ui.Button):
             )
         await interaction.response.send_message("✅ Ilmoitus lähetetty moderaattoreille.", ephemeral=True)
 
-class PoistovarmistusModal(ui.Modal, title="Vahvista tietojen poisto"):
-    vahvistus = ui.TextInput(label="Kirjoita VAHVISTA poistaaksesi", placeholder="vahvista", required=True)
-
-    def __init__(self, nimi: str, polut: list[Path], user: discord.User, avaimet: list[str] = None):
-        super().__init__()
-        self.nimi = nimi
-        self.polut = polut
-        self.user = user
-        self.avaimet = avaimet or []
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if self.vahvistus.value.lower() != "vahvista":
-            await interaction.response.send_message("❌ Vahvistus epäonnistui. Tietoja ei poistettu.", ephemeral=True)
-            return
-
-        tiedot_poistettu = False
-        koko_poisto = False
-
-        for polku in self.polut:
-            try:
-                if polku.exists():
-                    with open(polku, "r+", encoding="utf-8") as f:
-                        data = json.load(f)
-                        uid = str(self.user.id)
-                        if uid in data:
-                            if self.avaimet:
-                                for avain in self.avaimet:
-                                    if avain in data[uid]:
-                                        del data[uid][avain]
-                                        tiedot_poistettu = True
-                                if not data[uid]:  
-                                    del data[uid]
-                                    koko_poisto = True
-                            else:
-                                del data[uid]
-                                koko_poisto = True
-                                tiedot_poistettu = True
-
-                            f.seek(0)
-                            json.dump(data, f, indent=2, ensure_ascii=False)
-                            f.truncate()
-            except Exception as e:
-                print("Poistovirhe:", e)
-
-        if tiedot_poistettu:
-            viesti = (
-                f"🗑️ Poistettiin {'kaikki' if koko_poisto else 'valitut'} tiedot kohteesta **{self.nimi}**."
-            )
-        else:
-            viesti = f"ℹ️ Ei löytynyt poistettavaa dataa kohteesta **{self.nimi}**."
-
-        await interaction.response.send_message(viesti, ephemeral=True)
-        await logita_poisto(interaction.user, self.nimi, self.user)
-
-async def logita_poisto(poistaja: discord.User, kohde: str, käyttäjä: discord.User):
+async def logita_poisto(poistaja: discord.User, kohde: str, käyttäjä: discord.User, avaimet: list[str]):
     kanava = bot.get_channel(MOD_LOG_CHANNEL_ID)
     if kanava:
         await kanava.send(
-            f"🗑️ **Poisto:** {kohde}\n"
+            f"🗑️ **Poistopyyntö:** `{kohde}`\n"
             f"👤 Kohdekäyttäjä: {käyttäjä.mention} ({käyttäjä.id})\n"
-            f"👮 Poistaja: {poistaja.mention} ({poistaja.id})\n"
-            f"🕒 Aika: <t:{int(discord.utils.utcnow().timestamp())}:F>"
+            f"🔑 Avaimet: {', '.join(avaimet) if avaimet else 'Kaikki tiedot'}\n"
+            f"👮 Pyyntö tehty: {poistaja.mention} ({poistaja.id})\n"
+            f"🕒 Aika: <t:{int(discord.utils.utcnow().timestamp())}:F>\n"
+            f"⚠️ Poisto on suoritettava manuaalisesti tarkistuksen jälkeen."
         )
+
+async def logita_lataus(pyytäjä: discord.User, kohde: str, käyttäjä: discord.User, avaimet: list[str]):
+    kanava = bot.get_channel(MOD_LOG_CHANNEL_ID)
+    if kanava:
+        await kanava.send(
+            f"📥 **Latauspyyntö:** `{kohde}`\n"
+            f"👤 Kohdekäyttäjä: {käyttäjä.mention} ({käyttäjä.id})\n"
+            f"🔑 Avaimet: {', '.join(avaimet) if avaimet else 'Kaikki tiedot'}\n"
+            f"📨 Pyytäjä: {pyytäjä.mention} ({pyytäjä.id})\n"
+            f"🕒 Aika: <t:{int(discord.utils.utcnow().timestamp())}:F>\n"
+            f"📎 Tiedosto toimitetaan yksityisviestillä."
+        )
+
+async def lähetä_vahvistus_dm(käyttäjä: discord.User, tiedostonimi: str, tekstitiedosto: str, otsikko: str):
+    try:
+        buffer = BytesIO(tekstitiedosto.encode("utf-8"))
+        await käyttäjä.send(
+            content=(
+                f"✅ **{otsikko}**\n"
+                f"Tarkista liitteenä oleva tiedosto.\n"
+                f"Ota yhteyttä ylläpitoon, jos jokin ei täsmää."
+            ),
+            file=discord.File(buffer, filename=tiedostonimi)
+        )
+    except discord.Forbidden:
+        print(f"Käyttäjälle {käyttäjä.id} ei voitu lähettää DM:ää.")
+
+class VahvistaLähetysNappi(ui.Button):
+    def __init__(self, käyttäjä: discord.User, tekstitiedosto: str, tiedostonimi: str, otsikko: str):
+        super().__init__(label="📨 Vahvista lähetys", style=discord.ButtonStyle.primary)
+        self.käyttäjä = käyttäjä
+        self.tiedostonimi = tiedostonimi
+        self.tekstitiedosto = tekstitiedosto
+        self.otsikko = otsikko
+
+    async def callback(self, interaction: discord.Interaction):
+        await lähetä_vahvistus_dm(
+            käyttäjä=self.käyttäjä,
+            tiedostonimi=self.tiedostonimi,
+            tekstitiedosto=self.tekstitiedosto,
+            otsikko=self.otsikko
+        )
+        await interaction.response.send_message("✅ Tiedosto lähetetty jäsenelle yksityisviestillä.", ephemeral=True)
+
+class VahvistaPoistoNappi(ui.Button):
+    def __init__(self, käyttäjä: discord.User, tiedostonimi: str):
+        super().__init__(label="🗑️ Vahvista poisto", style=discord.ButtonStyle.danger)
+        self.käyttäjä = käyttäjä
+        self.tiedostonimi = tiedostonimi
+
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            await self.käyttäjä.send(
+                f"🗑️ Tietosi tiedostosta `{self.tiedostonimi}` on nyt poistettu pysyvästi.\n"
+                f"Jos sinulla on kysyttävää, ole yhteydessä ylläpitoon."
+            )
+        except discord.Forbidden:
+            await interaction.response.send_message("⚠️ Käyttäjälle ei voitu lähettää DM:ää.", ephemeral=True)
+
+        self.disabled = True
+        self.label = "🗑️ Poisto suoritettu"
+        self.style = discord.ButtonStyle.secondary
+        await interaction.message.edit(view=self.view)
+        await interaction.response.send_message("✅ Poisto vahvistettu ja ilmoitettu käyttäjälle.", ephemeral=True)
+
+async def lähetä_lataus_lokiviesti(kanava, pyytäjä, käyttäjä, nimi, avaimet, tekstitiedosto, tiedostonimi):
+    view = ui.View()
+    view.add_item(VahvistaLähetysNappi(käyttäjä, tekstitiedosto, tiedostonimi, f"Latauspyyntö tiedostolle `{nimi}`"))
+
+    await kanava.send(
+        content=(
+            f"📥 **Latauspyyntö** `{nimi}`\n"
+            f"👤 Kohdekäyttäjä: {käyttäjä.mention}\n"
+            f"📨 Pyytäjä: {pyytäjä.mention}\n"
+            f"🔑 Avaimet: {', '.join(avaimet)}\n"
+            f"⚠️ Vahvista ennen kuin tiedosto lähetetään jäsenelle."
+        ),
+        view=view
+    )
+
+async def lähetä_poisto_lokiviesti(kanava, poistaja, käyttäjä, nimi, avaimet):
+    view = ui.View()
+    view.add_item(VahvistaPoistoNappi(käyttäjä, nimi))
+
+    await kanava.send(
+        content=(
+            f"🗑️ **Poistopyyntö** `{nimi}`\n"
+            f"👤 Kohdekäyttäjä: {käyttäjä.mention}\n"
+            f"👮 Poistaja: {poistaja.mention}\n"
+            f"🔑 Avaimet: {', '.join(avaimet)}\n"
+            f"⚠️ Vahvista ennen kuin poistoilmoitus lähetetään jäsenelle."
+        ),
+        view=view
+    )

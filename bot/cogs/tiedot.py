@@ -24,7 +24,7 @@ class TiedotCog(commands.Cog):
 
         await interaction.followup.send(
             content="📁 Valitse kategoria, jonka tiedot haluat nähdä:",
-            view=KategoriaView(target, None),
+            view=KategoriaView(target, valittu=None, alkuperäinen_käyttäjä=interaction.user),
             ephemeral=True
         )
 
