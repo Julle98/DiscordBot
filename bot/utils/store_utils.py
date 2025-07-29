@@ -11,6 +11,11 @@ from bot.utils.bot_setup import bot
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.xp_utils import load_xp_data
 from pathlib import Path
+from datetime import datetime
+import os
+import json
+from pathlib import Path
+import discord
 
 def start_store_loops():
     if not tarkista_ostojen_kuukausi.is_running():
@@ -111,19 +116,14 @@ def hae_tai_paivita_tarjous():
 
     return [tarjous]
 
-def tarkista_kuponki(koodi: str, tuotteen_nimi: str) -> int:
-    from datetime import datetime
-    import os
-    from pathlib import Path
-    import json
-
+def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: discord.Interaction) -> int:
     polku = Path(os.getenv("JSON_DIRS")) / "kuponki.json"
     tuotteen_nimi = tuotteen_nimi.strip().lower()
 
     try:
         with open(polku, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except:
+    except Exception:
         return 0
 
     koodi = koodi.strip().upper()
@@ -131,27 +131,40 @@ def tarkista_kuponki(koodi: str, tuotteen_nimi: str) -> int:
     if not kuponki:
         return 0
 
-    vanhentuu = datetime.fromisoformat(kuponki["vanhentuu"])
-    if datetime.now() > vanhentuu:
+    try:
+        vanhentuu = datetime.fromisoformat(kuponki["vanhentuu"])
+        if datetime.now() > vanhentuu:
+            return 0
+    except Exception:
         return 0
 
-    if kuponki["kayttoja"] >= kuponki["maxkayttoja"]:
+    if kuponki.get("kayttoja", 0) >= kuponki.get("maxkayttoja", 0):
         return 0
 
-    sallitut = os.getenv("ALENNUS_SALLITUT_TUOTTEET", "")
-    sallitut_lista = [n.strip().lower() for n in sallitut.split(",") if n.strip()]
-    if sallitut_lista and tuotteen_nimi not in sallitut_lista:
+    sallitut_tuotteet = [t.strip().lower() for t in kuponki.get("tuotteet", [])]
+    if sallitut_tuotteet and tuotteen_nimi not in sallitut_tuotteet:
         return 0
+
+    sallitut_kayttajat_raw = kuponki.get("kayttajat", [])
+    if sallitut_kayttajat_raw:
+        kayttaja_ids = [v for v in sallitut_kayttajat_raw if not v.startswith("rooli:")]
+        rooli_ids = [v.replace("rooli:", "") for v in sallitut_kayttajat_raw if v.startswith("rooli:")]
+
+        kuuluu_rooliin = any(discord.utils.get(interaction.user.roles, id=int(rid)) for rid in rooli_ids)
+        on_hyvaksytty_kayttaja = str(user_id) in kayttaja_ids
+
+        if not on_hyvaksytty_kayttaja and not kuuluu_rooliin:
+            return 0
 
     kuponki["kayttoja"] += 1
     data[koodi] = kuponki
     try:
         with open(polku, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-    except:
+    except Exception:
         pass
 
-    return kuponki["prosentti"]
+    return kuponki.get("prosentti", 0)
 
 def nykyinen_periodi():
     alku = datetime(2025, 1, 1, tzinfo=timezone.utc)
@@ -446,7 +459,7 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
         return
 
     if kuponki:
-        alennus_prosentti = tarkista_kuponki(kuponki, tuote["nimi"])
+        alennus_prosentti = tarkista_kuponki(kuponki, tuote["nimi"], user_id)
         if alennus_prosentti == 0:
             await interaction.response.send_message("❌ Kuponki ei kelpaa tälle tuotteelle, vanhentunut tai käyttöraja täynnä. Osto peruutettu.", ephemeral=True)
             return
@@ -462,12 +475,12 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
     })
     tallenna_ostokset(ostot)
 
-    kuponkiviesti = f"\n🎟️ Käytit koodin **{kuponki}** (-{alennus_prosentti}%)" if kuponki else ""
+    kuponkiviesti = f"\n📄 Käytit koodin **{kuponki}** (-{alennus_prosentti}%)" if kuponki else ""
 
     await interaction.response.send_message(
         embed=discord.Embed(
             title="✅ Ostettu onnistuneesti!",
-            description=f"Ostit tuotteen **{tuote['emoji']} {tuote['nimi']}** ({hinta_alennettu} XP){kuponkiviesti}\nSe on nyt käytössäsi 🎉",
+            description=f"Ostit tuotteen **{tuote['emoji']} {tuote['nimi']}** ({hinta_alennettu} XP) {kuponkiviesti}\nSe on nyt käytössäsi 🎉",
             color=discord.Color.green()
         ),
         ephemeral=True
@@ -481,7 +494,7 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
         lokikanava = bot.get_channel(kanava_id)
         if lokikanava:
             await lokikanava.send(
-                f"🧾 {interaction.user.mention} osti tuotteen **{tuote['nimi']}** ({hinta_alennettu} XP){lisatieto}{kuponkiviesti}"
+                f"🧾 {interaction.user.mention} osti tuotteen **{tuote['nimi']}** ({hinta_alennettu} XP){lisatieto}" + (f"\n📄 Kuponki: **{kuponki}** (-{alennus_prosentti}%)" if kuponki else "")
             )
     except Exception as e:
         print(f"Lokitus epäonnistui: {e}")
