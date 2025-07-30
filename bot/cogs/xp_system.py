@@ -3,6 +3,7 @@ from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import random
+from io import BytesIO
 
 from bot.utils.bot_setup import bot
 from bot.utils.xp_utils import (
@@ -15,6 +16,7 @@ from bot.utils.xp_utils import (
     load_streaks,
     save_streaks,
 )
+from bot.utils.tiedot_utils import pending_file_sends
 
 komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
 viestit_ja_ajat = {}  # {message_id: (user_id, timestamp)}
@@ -29,6 +31,32 @@ class XPSystem(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author.bot or isinstance(message.channel, discord.DMChannel):
             return
+
+        request = pending_file_sends.get(message.author.id)
+        if not request:
+                return  
+
+        del pending_file_sends[message.author.id]
+
+        try:
+                liite = message.attachments[0]
+                tiedosto = await liite.read()
+                buffer = BytesIO(tiedosto)
+
+                await request["kohde"].send(
+                    content=(
+                        f"✅ **{request['otsikko']}**\n"
+                        f"Tarkista liitteenä oleva tiedosto.\n"
+                        f"Ota yhteyttä ylläpitoon, jos jokin ei täsmää."
+                    ),
+                    file=discord.File(buffer, filename=liite.filename)
+                )
+
+                await message.channel.send(f"✅ Tiedosto toimitettiin yksityisviestillä käyttäjälle {request['kohde'].mention}.")
+        except discord.Forbidden:
+            await message.channel.send("⚠️ Käyttäjälle ei voitu lähettää tiedostoa yksityisviestillä.")
+        except Exception as e:
+            await message.channel.send(f"⚠️ Tiedoston lähetys epäonnistui: {e}")
 
         user_id = message.author.id
         komento_nimi = "xp_viesti"

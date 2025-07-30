@@ -75,12 +75,15 @@ TARJOUS_TIEDOSTO = JSON_DIR / "tarjous.json"
 
 def hae_tai_paivita_tarjous():
     nyt = datetime.now(timezone.utc).date()
+    periodi = nykyinen_periodi()
 
     try:
         with open(TARJOUS_TIEDOSTO, "r", encoding="utf-8") as f:
             data = json.load(f)
             paivamaara = datetime.fromisoformat(data.get("paivamaara"))
-            if (nyt - paivamaara.date()).days < 4:
+            edellinen_periodi = (paivamaara.date() - datetime(2025, 1, 1).date()).days // 4
+
+            if edellinen_periodi == periodi:
                 tuote = data.get("tuote")
                 if isinstance(tuote, dict):
                     return [tuote]
@@ -91,9 +94,7 @@ def hae_tai_paivita_tarjous():
     except (FileNotFoundError, json.JSONDecodeError, TypeError, ValueError):
         pass
 
-    periodi = nykyinen_periodi()
-    normaalit = kauppa_tuotteet[periodi*2:(periodi+1)*2]
-
+    normaalit = kauppa_tuotteet[periodi * 2:(periodi + 1) * 2]
     valittavat = [t for t in kauppa_tuotteet if t.get("tarjousprosentti") and t not in normaalit]
 
     if not valittavat:
@@ -119,6 +120,7 @@ def hae_tai_paivita_tarjous():
 def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: discord.Interaction) -> int:
     polku = Path(os.getenv("JSON_DIRS")) / "kuponki.json"
     tuotteen_nimi = tuotteen_nimi.strip().lower()
+    koodi = koodi.strip().upper()
 
     try:
         with open(polku, "r", encoding="utf-8") as f:
@@ -126,7 +128,6 @@ def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: 
     except Exception:
         return 0
 
-    koodi = koodi.strip().upper()
     kuponki = data.get(koodi)
     if not kuponki:
         return 0
@@ -138,7 +139,8 @@ def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: 
     except Exception:
         return 0
 
-    if kuponki.get("kayttoja", 0) >= kuponki.get("maxkayttoja", 0):
+    maxkayttoja = kuponki.get("maxkayttoja", -1)
+    if maxkayttoja != -1 and kuponki.get("kayttoja", 0) >= maxkayttoja:
         return 0
 
     sallitut_tuotteet = [t.strip().lower() for t in kuponki.get("tuotteet", [])]
@@ -156,8 +158,17 @@ def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: 
         if not on_hyvaksytty_kayttaja and not kuuluu_rooliin:
             return 0
 
-    kuponki["kayttoja"] += 1
+    kayttaja_key = f"user:{user_id}"
+    kayttaja_kayttoja = kuponki.setdefault("kayttajat_dict", {}).get(kayttaja_key, 0)
+
+    maxkayttoja_per_jasen = kuponki.get("maxkayttoja_per_jasen", -1)
+    if maxkayttoja_per_jasen != -1 and kayttaja_kayttoja >= maxkayttoja_per_jasen:
+        return 0
+
+    kuponki["kayttoja"] = kuponki.get("kayttoja", 0) + 1
+    kuponki["kayttajat_dict"][kayttaja_key] = kayttaja_kayttoja + 1
     data[koodi] = kuponki
+
     try:
         with open(polku, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -194,7 +205,6 @@ def nayta_kauppa_embed(interaction, tarjoukset):
         color=discord.Color.gold()
     )
 
-    # 🔁 Kertakäyttöiset tuotteet
     kertakayttoiset = [t for t in vaihdettavat if t["kertakäyttöinen"]]
     if kertakayttoiset:
         embed.add_field(name="🔁 Kertakäyttöiset tuotteet", value="\u200b", inline=False)
@@ -207,7 +217,6 @@ def nayta_kauppa_embed(interaction, tarjoukset):
                 inline=False
             )
 
-    # ♻️ Monikäyttöiset tuotteet
     monikayttoiset = [t for t in vaihdettavat if not t["kertakäyttöinen"]]
     if monikayttoiset:
         embed.add_field(name="\u200b", value="\u200b", inline=False)
@@ -221,7 +230,6 @@ def nayta_kauppa_embed(interaction, tarjoukset):
                 inline=False
             )
 
-    # 🎉 Tarjoukset
     if tarjoukset:
         embed.add_field(name="\u200b", value="━━━━━━━━━━━━━━", inline=False)  
         embed.add_field(name="🎉 Tarjoukset", value="\u200b", inline=False)
@@ -235,7 +243,6 @@ def nayta_kauppa_embed(interaction, tarjoukset):
                 inline=False
             )
 
-    # Footer: uusiutumispäivä
     nyt = datetime.now(timezone.utc)
     alku = datetime(2025, 1, 1, tzinfo=timezone.utc)
     seuraava_uusiutuminen = nyt.date() + timedelta(days=(4 - (nyt - alku).days % 4))
@@ -281,17 +288,29 @@ class KanavaModal(Modal, title="Luo oma kanava"):
     tyyppi = TextInput(label="Tyyppi (teksti/puhe)", placeholder="teksti tai puhe")
 
     async def on_submit(self, interaction: discord.Interaction):
+        vip_kategoria = discord.utils.get(interaction.guild.categories, name="⭐VIP kanavat")
         overwrites = {
             interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
             interaction.user: discord.PermissionOverwrite(read_messages=True)
         }
 
         if self.tyyppi.value.lower() == "puhe":
-            kanava = await interaction.guild.create_voice_channel(name=self.nimi.value, overwrites=overwrites)
+            kanava = await interaction.guild.create_voice_channel(
+                name=self.nimi.value,
+                overwrites=overwrites,
+                category=vip_kategoria
+            )
         else:
-            kanava = await interaction.guild.create_text_channel(name=self.nimi.value, overwrites=overwrites)
+            kanava = await interaction.guild.create_text_channel(
+                name=self.nimi.value,
+                overwrites=overwrites,
+                category=vip_kategoria
+            )
 
-        await interaction.response.send_message(f"📢 Kanava **{kanava.mention}** luotu ja näkyy sinulle!", ephemeral=True)
+        await interaction.response.send_message(
+            f"📢 Kanava **{kanava.mention}** luotu ⭐VIP kanavat -kategoriaan ja näkyy sinulle!",
+            ephemeral=True
+        )
 
 async def kasittele_tuote(interaction, nimi: str) -> str:
     lisatieto = ""
@@ -327,12 +346,27 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
 
     elif nimi == "oma puhekanava":
         nimi_kanava = await kysy_kayttajalta(interaction, "Mikä on kanavasi nimi?")
+        vip_kategoria = discord.utils.get(interaction.guild.categories, name="⭐VIP kanavat")
+
         overwrites = {
             interaction.guild.default_role: discord.PermissionOverwrite(connect=False),
             interaction.user: discord.PermissionOverwrite(connect=True)
         }
-        kanava = await interaction.guild.create_voice_channel(name=nimi_kanava, overwrites=overwrites)
-        await interaction.followup.send(f"🎙️ Oma puhekanavasi **{kanava.name}** on luotu!", ephemeral=True)
+
+        kanava = await interaction.guild.create_voice_channel(
+            name=nimi_kanava,
+            overwrites=overwrites,
+            category=vip_kategoria
+        )
+
+        kanavat_kategoriassa = vip_kategoria.channels
+        alin_position = max([c.position for c in kanavat_kategoriassa], default=0)
+        await kanava.edit(position=alin_position + 1)
+
+        await interaction.followup.send(
+            f"🎙️ Oma puhekanavasi **{kanava.name}** luotiin ⭐VIP kanavat kategoriaan!",
+            ephemeral=True
+        )
 
     elif nimi == "valitse värisi":
         varit = {
@@ -350,10 +384,10 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
         vari = varit.get(varivalinta.lower())
 
         if vari:
-            rooli = await interaction.guild.create_role(name=f"{interaction.user.name}-{varivalinta}", colour=vari)
+            rooli = await interaction.guild.create_role(name=f"{interaction.user.name}-{varivalinta}", colour=vari, hoist=True)
 
             roolit = interaction.guild.roles
-            referenssi_rooli = discord.utils.get(roolit, name="24G")
+            referenssi_rooli = discord.utils.get(roolit, name="-- Osto roolit --")
             if referenssi_rooli:
                 uusi_position = referenssi_rooli.position + 1
                 await interaction.guild.edit_role_positions(positions={rooli: uusi_position})

@@ -52,7 +52,7 @@ class Store(commands.Cog):
 
     @app_commands.command(name="kauppa", description="Näytä kaupan tuotteet tai osta tuote")
     @app_commands.describe(
-        tuote="Tuotteen nimi ostamista varten (valinnainen)",
+        tuote="Tuotteen nimi ostamista varten, jos tarjoustuote: ``(tarjous!)`` mukaan (valinnainen)",
         kuponki="Alennuskoodi (valinnainen)"
     )
     @app_commands.checks.has_role("24G")
