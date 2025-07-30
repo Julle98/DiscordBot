@@ -592,7 +592,7 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
 
         lataus_embed = discord.Embed(
             title="⏳ Ladataan tietoja...",
-            description="• Haetaan komentostatistiikkaa\n• Analysoidaan viestilokit\n• Kootaan käytetyimmät komennot\n\n_... Tämä voi kestää hetken..._",
+            description="• Haetaan komentostatistiikkaa\n• Analysoidaan viestilokit\n• Kootaan käytetyimmät komennot\n\n_Tämä voi kestää hetken..._",
             color=discord.Color.orange()
         )
         msg = await interaction.followup.send(embed=lataus_embed, ephemeral=True)
@@ -634,15 +634,15 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
         except Exception as e:
             embed.add_field(name="⚠️ Virhe", value=f"Komentodatan lataus epäonnistui: {e}", inline=False)
 
-        embed.set_footer(text="✅ Lataus valmis • Voit sulkea lataus viestin.")
-        await msg.edit(embed=embed)
+        embed.set_footer(text="✅ Lataus valmis • Voit sulkea tämän viestin, kun olet valmis.")
+        await msg.edit(embed=embed, view=KategoriaView(user, "Komennot", alkuperäinen_käyttäjä=interaction.user))
 
     elif kategoria == "Toiminta":
         await interaction.response.defer(ephemeral=True)
 
         lataus_embed = discord.Embed(
             title="⏳ Ladataan analyysiä...",
-            description="• Kerätään viestihistoriaa\n• Lasketaan kanavaaktiivisuus\n• Selvitetään aktiivisin alusta\n\n_... Odota hetki..._",
+            description="• Kerätään viestihistoriaa\n• Lasketaan kanavaaktiivisuus\n• Selvitetään aktiivisin kanava\n\n_Tämä voi kestää hetken...._",
             color=discord.Color.orange()
         )
         msg = await interaction.followup.send(embed=lataus_embed, ephemeral=True)
@@ -670,13 +670,13 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
 
                 embed.add_field(name="📊 Analysoitu viestimäärä", value=f"{sum(analyysi.kanavamäärät.values())} viestiä", inline=False)
 
-            embed.set_footer(text="✅ Lataus valmis • Voit sulkea lataus viestin.")
-            await msg.edit(embed=embed)
+            embed.set_footer(text="✅ Lataus valmis • Voit sulkea tämän viestin, kun olet valmis.")
+            await msg.edit(embed=embed, view=KategoriaView(user, "Toiminta", alkuperäinen_käyttäjä=interaction.user))
 
         except Exception as e:
             virhe_embed = discord.Embed(title="📈 Toiminta-analyysi", color=discord.Color.red())
             virhe_embed.add_field(name="⚠️ Virhe", value=f"Aktiivisuusdatan lataus epäonnistui: {e}", inline=False)
-            await msg.edit(embed=virhe_embed)
+            await msg.edit(embed=virhe_embed, view=KategoriaView(user, "Toiminta", alkuperäinen_käyttäjä=interaction.user))
 
     else:
         embed.add_field(name="❓ Tuntematon kategoria", value="Ei sisältöä saatavilla.", inline=False)
