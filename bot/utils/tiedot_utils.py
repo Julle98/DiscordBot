@@ -20,6 +20,8 @@ JSON_DIRS = Path(os.getenv("JSON_DIRS"))
 XP_JSON_PATH = Path(os.getenv("XP_JSON_PATH"))
 MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID", 0))
 MODLOG_CHANNEL_ID = (int(os.getenv("MODLOG_CHANNEL_ID", 0)))
+HELP_CHANNEL_ID = (int(os.getenv("HELP_CHANNEL_ID", 0)))
+MUTE_CHANNEL_ID = (int(os.getenv("MUTE_CHANNEL_ID", 0)))
 SLOWMODE_CHANNEL_ID = (int(os.getenv("SLOWMODE_CHANNEL_ID", 0)))
 LOG_CHANNEL_ID = (int(os.getenv("LOG_CHANNEL_ID", 0)))
 BACKUP_JSON_PATH = Path(os.getenv("BACKUP_JSON_PATH", "backup"))
@@ -389,6 +391,7 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
 
                 if puhedata:
                     streak = puhedata.get("streak", 0)
+                    pisin = puhedata.get("pisin", streak)
                     pvm_str = puhedata.get("pvm")
 
                     try:
@@ -407,30 +410,10 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                             f"🔥 {streak} päivää\n"
                             f"📅 Alkoi: {alku_str}\n"
                             f"📅 Viimeisin päivä: {viimeisin_str}\n"
-                            f"🆔 ID: `{user.id}`"
+                            f"🏆 Pisin streak: {pisin} päivää\n"
                         ),
                         inline=False
                     )
-
-                    pisin_uid = None
-                    pisin_streak = 0
-                    for uid, tiedot in data.items():
-                        nykyinen = tiedot.get("streak", 0)
-                        if nykyinen > pisin_streak:
-                            pisin_streak = nykyinen
-                            pisin_uid = uid
-
-                    if pisin_uid:
-                        status = "👑 Olet kärjessä! 🔥" if str(user.id) == pisin_uid else "💪 Voit ohittaa kärkipaikan!"
-                        embed.add_field(
-                            name="🏆 Pisin puhe-streak",
-                            value=(
-                                f"{pisin_streak} päivää – käyttäjä <@{pisin_uid}>\n"
-                                f"{status}"
-                            ),
-                            inline=False
-                        )
-
                 else:
                     embed.add_field(
                         name="🎤 Puhe-streak",
@@ -506,49 +489,85 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                     "Tehtävistä arvioitu XP on suurempi kuin tallennettu. Voi viitata tallennusvirheeseen."
                 ), inline=False)
 
-    elif kategoria == "Moderointi":
+    if kategoria == "Moderointi":
         varoituskanava = bot.get_channel(int(os.getenv("MODLOG_CHANNEL_ID")))
-        mutekanava = bot.get_channel(int(os.getenv("MODLOG_CHANNEL_ID")))
+        mutekanava = bot.get_channel(int(os.getenv("MUTE_CHANNEL_ID")))
         helpkanava = bot.get_channel(int(os.getenv("HELP_CHANNEL_ID")))
-        
+
         varoitukset = []
         mute_tiedot = []
         helppyynto = []
 
         async for msg in varoituskanava.history(limit=1000):
             if f"ID: {user.id}" in msg.content:
-                sisältö = msg.content
-                syy = sisältö.split("Syy: ")[-1].split(" |")[0]
-                antaja = sisältö.split("Antaja: ")[-1].split("\n")[0]
-                aika = msg.created_at.strftime("%d.%m.%Y %H:%M")
+                try:
+                    syy = msg.content.split("Syy: ")[-1].split(" |")[0]
+                    antaja = msg.content.split("Antaja: ")[-1].split("\n")[0]
+                    aika = msg.created_at.strftime("%d.%m.%Y %H:%M")
+                    varoitukset.append({
+                        "syy": syy,
+                        "antaja": antaja,
+                        "aika": aika
+                    })
+                except Exception:
+                    continue
 
-                varoitukset.append({
-                    "syy": syy,
-                    "antaja": antaja,
-                    "aika": aika
-                })
+        async for msg in mutekanava.history(limit=1000):
+            if "🔇" in msg.content and "Jäähy" in msg.content:
+                try:
+                    rivit = msg.content.splitlines()
+                    käyttäjä_rivi = next((r for r in rivit if r.startswith("👤")), "")
 
-        if mutekanava:
-            async for msg in mutekanava.history(limit=1000):
-                if re.search(r"🔇 Jäähy asetettu(\s*\(automaattinen\))?", msg.content):
-                    if re.search(rf"Käyttäjä:\s*@?{re.escape(user.name)}", msg.content):
-                        rivit = msg.content.splitlines()
-                        kesto = next((r.split(": ", 1)[-1] for r in rivit if "⏱" in r), "Tuntematon")
-                        syy = next((r.split(": ", 1)[-1] for r in rivit if "📝" in r), "Tuntematon")
-                        asettaja = next((r.split(": ", 1)[-1] for r in rivit if "👮" in r), "Tuntematon")
-                        aika = msg.created_at.strftime("%d.%m.%Y %H:%M")
+                    if not any(x in käyttäjä_rivi for x in [user.mention, str(user.id), user.name]):
+                        continue
 
-                        mute_tiedot.append({
-                            "kesto": kesto,
-                            "syy": syy,
-                            "asettaja": asettaja,
-                            "aika": aika
-                        })
+                    tyyppi = "Automaattinen" if "(automaattinen)" in rivit[0] else "Manuaalinen"
 
-        if helpkanava:
-            async for msg in helpkanava.history(limit=500):
-                if msg.content.startswith("✅ Uusi pyyntö /help-komennolla") and msg.author.id == user.id:
+                    kesto_rivi = next((r for r in rivit if "⏱" in r), "")
+                    if "Kesto:" in kesto_rivi:
+                        kesto = kesto_rivi.split("Kesto: ", 1)[-1]
+                    elif ": " in kesto_rivi:
+                        kesto = kesto_rivi.split(": ", 1)[-1]
+                    else:
+                        kesto = kesto_rivi.replace("⏱", "").strip()
+
+                    syy_rivi = next((r for r in rivit if "📝" in r), "")
+                    if "Syy:" in syy_rivi:
+                        syy = syy_rivi.split("Syy: ", 1)[-1]
+                    elif ": " in syy_rivi:
+                        syy = syy_rivi.split(": ", 1)[-1]
+                    else:
+                        syy = syy_rivi.replace("📝", "").strip()
+
+                    asettaja_rivi = next((r for r in rivit if "👮" in r), "")
+                    if "Asetti:" in asettaja_rivi:
+                        asettaja = asettaja_rivi.split("Asetti: ", 1)[-1]
+                    elif ": " in asettaja_rivi:
+                        asettaja = asettaja_rivi.split(": ", 1)[-1]
+                    else:
+                        asettaja = asettaja_rivi.replace("👮", "").strip()
+
+                    aika = msg.created_at.strftime("%d.%m.%Y %H:%M")
+
+                    mute_tiedot.append({
+                        "kesto": kesto,
+                        "syy": syy,
+                        "asettaja": asettaja,
+                        "aika": aika,
+                        "tyyppi": tyyppi,
+                    })
+                except Exception as e:
+                    print(f"Virhe mute-viestissä: {e}")
+                    continue
+
+        async for msg in helpkanava.history(limit=500):
+            if msg.embeds:
+                embed_obj = msg.embeds[0]
+                footer = embed_obj.footer.text if embed_obj.footer else ""
+                if f"({user.id})" in footer:
                     helppyynto.append(msg)
+
+        embed = discord.Embed(title=f"📋 Käyttäjän {user.name} raportti", color=discord.Color.blue())
 
         if varoitukset:
             embed.add_field(name="⚠️ Varoitukset", value=f"{len(varoitukset)} kpl", inline=False)
@@ -566,33 +585,47 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
             for i, tiedot in enumerate(mute_tiedot[:2]):
                 embed.add_field(
                     name=f"🔒 Jäähy {i+1}",
-                    value=f"🕒 {tiedot['aika']}\n🕓 Kesto: {tiedot['kesto']}\n📝 Syy: {tiedot['syy']}\n👮 Asetti: {tiedot['asettaja']}",
+                    value=(
+                        f"🕒 {tiedot['aika']}\n"
+                        f"🕓 Kesto: {tiedot['kesto']}\n"
+                        f"📝 Syy: {tiedot['syy']}\n"
+                        f"👮 Asetti: {tiedot['asettaja']}\n"
+                        f"⚙️ Tyyppi: {tiedot['tyyppi']}\n"
+                    ),
                     inline=False
                 )
         else:
             embed.add_field(name="✅ Ei jäähyjä", value="Käyttäjällä ei ole jäähymerkintöjä.", inline=False)
 
         if helppyynto:
+            helppyynto.sort(key=lambda m: m.created_at, reverse=True)
             embed.add_field(name="🆘 Help-pyynnöt", value=f"Pyyntöjä: {len(helppyynto)}", inline=False)
             for viesti in helppyynto[:2]:
-                otsikko = viesti.content.split("\n")[1] if "\n" in viesti.content else "💁 Help-pyyntö"
-                kuvaus = "\n".join(viesti.content.split("\n")[2:])
-                aika = viesti.created_at.strftime("%d.%m.%Y %H:%M")
-                tila = "✅ Suljettu" if "• Suljettu" in viesti.content else "🕓 Avoin"
-                embed.add_field(
-                    name="📥 Pyyntö",
-                    value=f"**{otsikko}**\n{kuvaus}\n🕒 {aika}\n📌 Tila: {tila}",
-                    inline=False
-                )
+                try:
+                    embed_obj = viesti.embeds[0]
+                    kentat = embed_obj.fields
+                    otsikko = kentat[0].value if len(kentat) > 0 else "💁 Help-pyyntö"
+                    kuvaus = kentat[1].value if len(kentat) > 1 else "Ei kuvausta"
+                    kuvaus = (kuvaus[:300] + "...") if len(kuvaus) > 300 else kuvaus
+                    aika = viesti.created_at.strftime("%d.%m.%Y %H:%M")
+                    tila = "❌ Suljettu" if "• Suljettu" in embed_obj.footer.text else "✅ Vastattu"
+                    linkki = f"https://discord.com/channels/{viesti.guild.id}/{viesti.channel.id}/{viesti.id}"
+                    embed.add_field(
+                        name="📥 Pyyntö",
+                        value=f"**{otsikko}**\n{kuvaus}\n🕒 {aika}\n📌 Tila: {tila}",
+                        inline=False
+                    )
+                except Exception:
+                    continue
         else:
             embed.add_field(name="✅ Ei help-pyyntöjä", value="Käyttäjältä ei löytynyt pyyntöjä.", inline=False)
-    
+
     elif kategoria == "Komennot":
         await interaction.response.defer(ephemeral=True)
 
         lataus_embed = discord.Embed(
             title="⏳ Ladataan tietoja...",
-            description="• Haetaan komentostatistiikkaa\n• Analysoidaan viestilokit\n• Kootaan käytetyimmät komennot\n\n_Tämä voi kestää hetken..._",
+            description="• Haetaan komentostatistiikkaa\n• Analysoidaan viestilokit\n\n_Tämä voi kestää hetken..._",
             color=discord.Color.orange()
         )
         msg = await interaction.followup.send(embed=lataus_embed, ephemeral=True)
@@ -600,18 +633,6 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
         embed = discord.Embed(title="📊 Komentostatistiikka", color=discord.Color.blue())
 
         try:
-            yhteensä, komentolista = await hae_käyttäjän_komennot(user.id)
-            embed.add_field(name="💬 Komentoja käytetty", value=f"{yhteensä} kertaa", inline=True)
-
-            is_mestari = any(r.name == "Mestari" for r in getattr(interaction.user, "roles", []))
-
-            if is_mestari:
-                top_komennot = komentolista.most_common(5)
-                rivit = [f"- `{nimi}` ({määrä}×)" for nimi, määrä in top_komennot]
-                embed.add_field(name="📚 Eniten käytetyt komennot (globaalisti)", value="\n".join(rivit), inline=False)
-            else:
-                embed.add_field(name="📚 Eniten käytetyt komennot (globaalisti)", value="🔒 Näkyvissä vain Mestari-roolille.", inline=False)
-
             log_channel_id = int(os.getenv("LOG_CHANNEL_ID"))
             log_channel = bot.get_channel(log_channel_id)
             laskuri = Counter()
@@ -619,17 +640,20 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
             if log_channel:
                 async for msg_log in log_channel.history(limit=1000):
                     if f"({user.id})" in msg_log.content:
-                        if (match := re.search(r"Komento: `(.+?)`", msg_log.content)):
+                        match = re.search(r"Komento: `(.+?)`", msg_log.content)
+                        if match:
                             komento = match.group(1)
                             laskuri[komento] += 1
 
                 if laskuri:
+                    yhteensä = sum(laskuri.values())
                     rivit = [f"- `{komento}` ({määrä}×)" for komento, määrä in laskuri.most_common(5)]
-                    embed.add_field(name="📌 Omat käytetyimmät komennot", value="\n".join(rivit), inline=False)
+                    embed.add_field(name="💬 Komentoja käytetty", value=f"{yhteensä} kertaa", inline=True)
+                    embed.add_field(name="📌 Käytetyimmät komennot", value="\n".join(rivit), inline=False)
                 else:
-                    embed.add_field(name="📌 Omat käytetyimmät komennot", value="Et ole käyttänyt vielä komentoja.", inline=False)
+                    embed.add_field(name="📌 Käytetyimmät komennot", value="Et ole käyttänyt vielä komentoja.", inline=False)
             else:
-                embed.add_field(name="📌 Omat käytetyimmät komennot", value="Lokikanavaa ei löytynyt.", inline=False)
+                embed.add_field(name="📌 Käytetyimmät komennot", value="Lokikanavaa ei löytynyt.", inline=False)
 
         except Exception as e:
             embed.add_field(name="⚠️ Virhe", value=f"Komentodatan lataus epäonnistui: {e}", inline=False)
@@ -638,48 +662,48 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
         await msg.edit(embed=embed, view=KategoriaView(user, "Komennot", alkuperäinen_käyttäjä=interaction.user))
 
     elif kategoria == "Toiminta":
-        await interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
 
-        lataus_embed = discord.Embed(
-            title="⏳ Ladataan analyysiä...",
-            description="• Kerätään viestihistoriaa\n• Lasketaan kanavaaktiivisuus\n• Selvitetään aktiivisin kanava\n\n_Tämä voi kestää hetken...._",
-            color=discord.Color.orange()
-        )
-        msg = await interaction.followup.send(embed=lataus_embed, ephemeral=True)
+            lataus_embed = discord.Embed(
+                title="⏳ Ladataan analyysiä...",
+                description="• Kerätään viestihistoriaa\n• Lasketaan kanavaaktiivisuus\n• Selvitetään aktiivisin kanava\n\n_Tämä voi kestää hetken...._",
+                color=discord.Color.orange()
+            )
+            msg = await interaction.followup.send(embed=lataus_embed, ephemeral=True)
 
-        try:
-            analyysi = JäsenToimintaAnalyysi(user)
-            guild = interaction.guild
-            if not guild:
-                embed = discord.Embed(title="📈 Toiminta-analyysi", color=discord.Color.red())
-                embed.add_field(name="⚠️ Virhe", value="Guild-objektia ei voitu saada.", inline=False)
-            else:
-                await analyysi.analysoi(guild=guild, limit=1000)
-
-                embed = discord.Embed(
-                    title="📈 Toiminta-analyysi",
-                    description="Tässä tulokset jäsenen aktiivisuudesta.",
-                    color=discord.Color.blue()
-                )
-
-                aktiivisin, määrä = analyysi.aktiivisin()
-                if aktiivisin:
-                    embed.add_field(name="💬 Aktiivisin kanava", value=f"{aktiivisin.mention} ({määrä} viestiä)", inline=False)
+            try:
+                analyysi = JäsenToimintaAnalyysi(user)
+                guild = interaction.guild
+                if not guild:
+                    embed = discord.Embed(title="📈 Toiminta-analyysi", color=discord.Color.red())
+                    embed.add_field(name="⚠️ Virhe", value="Guild-objektia ei voitu saada.", inline=False)
                 else:
-                    embed.add_field(name="💬 Aktiivisin kanava", value="Ei lähetettyjä viestejä viimeaikaisesti.", inline=False)
+                    await analyysi.analysoi(guild=guild, limit=1000)
 
-                embed.add_field(name="📊 Analysoitu viestimäärä", value=f"{sum(analyysi.kanavamäärät.values())} viestiä", inline=False)
+                    embed = discord.Embed(
+                        title="📈 Toiminta-analyysi",
+                        description="Tässä tulokset jäsenen aktiivisuudesta.",
+                        color=discord.Color.blue()
+                    )
 
-            embed.set_footer(text="✅ Lataus valmis • Voit sulkea tämän viestin, kun olet valmis.")
-            await msg.edit(embed=embed, view=KategoriaView(user, "Toiminta", alkuperäinen_käyttäjä=interaction.user))
+                    aktiivisin, määrä = analyysi.aktiivisin()
+                    if aktiivisin:
+                        embed.add_field(name="💬 Aktiivisin kanava", value=f"{aktiivisin.mention} ({määrä} viestiä)", inline=False)
+                    else:
+                        embed.add_field(name="💬 Aktiivisin kanava", value="Ei lähetettyjä viestejä viimeaikaisesti.", inline=False)
 
-        except Exception as e:
-            virhe_embed = discord.Embed(title="📈 Toiminta-analyysi", color=discord.Color.red())
-            virhe_embed.add_field(name="⚠️ Virhe", value=f"Aktiivisuusdatan lataus epäonnistui: {e}", inline=False)
-            await msg.edit(embed=virhe_embed, view=KategoriaView(user, "Toiminta", alkuperäinen_käyttäjä=interaction.user))
+                    embed.add_field(name="📊 Analysoitu viestimäärä", value=f"{sum(analyysi.kanavamäärät.values())} viestiä", inline=False)
 
-    else:
-        embed.add_field(name="❓ Tuntematon kategoria", value="Ei sisältöä saatavilla.", inline=False)
+                embed.set_footer(text="✅ Lataus valmis • Voit sulkea tämän viestin, kun olet valmis.")
+                await msg.edit(embed=embed, view=KategoriaView(user, "Toiminta", alkuperäinen_käyttäjä=interaction.user))
+
+            except Exception as e:
+                virhe_embed = discord.Embed(title="📈 Toiminta-analyysi", color=discord.Color.red())
+                virhe_embed.add_field(name="⚠️ Virhe", value=f"Aktiivisuusdatan lataus epäonnistui: {e}", inline=False)
+                await msg.edit(embed=virhe_embed, view=KategoriaView(user, "Toiminta", alkuperäinen_käyttäjä=interaction.user))
+
+            else:
+                embed.add_field(name="❓ Tuntematon kategoria", value="Ei sisältöä saatavilla.", inline=False)
 
     try:
         avaimet = AVAIMET_KATEGORIALLE.get(kategoria)
@@ -759,7 +783,7 @@ AVAIMET_KATEGORIALLE = {
     "XP-data": ["xp", "level"],
     "XP-streakit": ["streak", "pvm"],
     "Streakit": ["streak"],
-    "Puhe-streak": ["streak", "pvm"],  
+    "Puhe-streak": ["streak", "pvm", "pisin"],  
 }
 
 class KategoriaView(ui.View):

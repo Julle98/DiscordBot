@@ -130,7 +130,11 @@ async def paivita_streak(user_id: int):
     nyt = datetime.now().date()
 
     if uid not in streaks or "pvm" not in streaks[uid]:
-        streaks[uid] = {"pvm": nyt.isoformat(), "streak": 1}
+        streaks[uid] = {
+            "pvm": nyt.isoformat(),
+            "streak": 1,
+            "pisin": 1  
+        }
     else:
         viime = datetime.fromisoformat(streaks[uid]["pvm"]).date()
         ero = (nyt - viime).days
@@ -139,6 +143,11 @@ async def paivita_streak(user_id: int):
         elif ero > 1:
             streaks[uid]["streak"] = 1
         streaks[uid]["pvm"] = nyt.isoformat()
+
+        nykyinen = streaks[uid]["streak"]
+        pisin = streaks[uid].get("pisin", nykyinen)
+        if nykyinen > pisin:
+            streaks[uid]["pisin"] = nykyinen
 
     save_streaks(streaks)
 
