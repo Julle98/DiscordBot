@@ -30,17 +30,17 @@ MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", 0))
 auto_react_users = {}  # user_id -> emoji
 
 kauppa_tuotteet = [
-    {"nimi": "Erikoisemoji", "kuvaus": "Käytä erikoisemojeita", "hinta": 1000, "kertakäyttöinen": True, "emoji": "😎"},
-    {"nimi": "Double XP -päivä", "kuvaus": "Saat tuplat XP:t 24h", "hinta": 2000, "kertakäyttöinen": True, "emoji": "⚡", "tarjousprosentti": 50},
+    {"nimi": "Erikoisemoji", "kuvaus": "Käytä erikoisemojeita 3 päiväksi", "hinta": 1000, "kertakäyttöinen": True, "emoji": "😎"},
+    {"nimi": "Double XP -päivä", "kuvaus": "Saat tuplat XP:t 24h ajan", "hinta": 2000, "kertakäyttöinen": True, "emoji": "⚡", "tarjousprosentti": 50},
     {"nimi": "Custom rooli", "kuvaus": "Saat oman roolin", "hinta": 5000, "kertakäyttöinen": True, "emoji": "🎨", "tarjousprosentti": 20},
-    {"nimi": "VIP-chat", "kuvaus": "Pääsy VIP-kanavalle", "hinta": 3000, "kertakäyttöinen": False, "emoji": "💎", "tarjousprosentti": 10},
-    {"nimi": "VIP-rooli (7 päivää)", "kuvaus": "Saat VIP-roolin viikoksi", "hinta": 2500, "kertakäyttöinen": True, "emoji": "👑", "tarjousprosentti": 10},
-    {"nimi": "Oma komento", "kuvaus": "Saat tehdä oman /komennon", "hinta": 6000, "kertakäyttöinen": True, "emoji": "🛠️", "tarjousprosentti": 25},
+    {"nimi": "VIP-chat", "kuvaus": "Pääsy VIP-kanavalle viikoksi", "hinta": 3000, "kertakäyttöinen": False, "emoji": "💎", "tarjousprosentti": 10},
+    {"nimi": "VIP-rooli", "kuvaus": "Saat VIP-roolin viikoksi", "hinta": 2500, "kertakäyttöinen": True, "emoji": "👑", "tarjousprosentti": 10},
+    {"nimi": "Oma komento", "kuvaus": "Saat tehdä oman idean /komennon", "hinta": 6000, "kertakäyttöinen": True, "emoji": "🛠️", "tarjousprosentti": 25},
     {"nimi": "Oma kanava", "kuvaus": "Saat oman tekstikanavan", "hinta": 7000, "kertakäyttöinen": True, "emoji": "📢", "tarjousprosentti": 25},
     {"nimi": "Oma puhekanava", "kuvaus": "Saat oman äänikanavan", "hinta": 7000, "kertakäyttöinen": True, "emoji": "🎙️", "tarjousprosentti": 25},
-    {"nimi": "Valitse värisi", "kuvaus": "Saat värillisen roolin (esim. sininen)", "hinta": 1500, "kertakäyttöinen": False, "emoji": "🧬", "tarjousprosentti": 30},
-    {"nimi": "Valitse emoji", "kuvaus": "Bot reagoi viesteihisi valitsemallasi emojilla 7 päivää", "hinta": 3500, "kertakäyttöinen": True, "emoji": "🤖", "tarjousprosentti": 30},
-    {"nimi": "Soundboard-oikeus", "kuvaus": "Käyttöoikeus puhekanavan soundboardiin 3 päivää", "hinta": 4000, "kertakäyttöinen": True, "emoji": "🔊", "tarjousprosentti": 10}
+    {"nimi": "Valitse värisi", "kuvaus": "Saat värillisen roolin (esim. sininen) 7 päiväksi", "hinta": 1500, "kertakäyttöinen": False, "emoji": "🧬", "tarjousprosentti": 30},
+    {"nimi": "Valitse emoji", "kuvaus": "Bot reagoi viesteihisi valitsemallasi emojilla 7 päivän ajan", "hinta": 3500, "kertakäyttöinen": True, "emoji": "🤖", "tarjousprosentti": 30},
+    {"nimi": "Soundboard-oikeus", "kuvaus": "Käyttöoikeus puhekanavan soundboardiin 3 päiväksi", "hinta": 4000, "kertakäyttöinen": True, "emoji": "🔊", "tarjousprosentti": 10}
 ]
 
 from discord.ext import tasks
@@ -354,6 +354,15 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             await interaction.user.add_roles(rooli)
         await interaction.followup.send("😎 Erikoisemoji on nyt käytössäsi!", ephemeral=True)
 
+        async def poista_erikoisemoji():
+            await asyncio.sleep(3 * 24 * 60 * 60)
+            try:
+                await interaction.user.remove_roles(rooli)
+                await interaction.user.send("⌛ Erikoisemoji-roolisi on vanhentunut.")
+            except:
+                pass
+        bot.loop.create_task(poista_erikoisemoji())
+
     elif nimi == "double xp -päivä":
         rooli = discord.utils.get(interaction.guild.roles, name="Double XP")
         if not rooli:
@@ -376,6 +385,15 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             rooli = await interaction.guild.create_role(name="VIP")
         await interaction.user.add_roles(rooli)
         await interaction.followup.send("💎 Sait pääsyn VIP-chattiin!", ephemeral=True)
+
+        async def poista_vip_chat():
+            await asyncio.sleep(7 * 24 * 60 * 60)
+            try:
+                await interaction.user.remove_roles(rooli)
+                await interaction.user.send("⌛ VIP-chat-oikeutesi on päättynyt.")
+            except:
+                pass
+        bot.loop.create_task(poista_vip_chat())
 
     elif nimi == "oma puhekanava":
         nimi_kanava = await kysy_kayttajalta(interaction, "Mikä on kanavasi nimi?")
@@ -430,6 +448,16 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             lisatieto = f" (väri: {varivalinta})"
         else:
             await interaction.followup.send("❌ Väriä ei tunnistettu. Toiminto peruutettu.", ephemeral=True)
+        
+        async def poista_varirooli():
+            await asyncio.sleep(7 * 24 * 60 * 60)
+            try:
+                await interaction.user.remove_roles(rooli)
+                await interaction.user.send(f"🎨 Väriroolisi **{rooli.name}** on poistettu.")
+                await rooli.delete()
+            except:
+                pass
+        bot.loop.create_task(poista_varirooli())
 
     elif nimi == "valitse emoji":
         emoji_valinta = await kysy_kayttajalta(interaction, "Millä emojilla botin tulisi reagoida viesteihisi?")
