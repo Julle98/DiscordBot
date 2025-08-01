@@ -79,8 +79,7 @@ async def paivita_tarjous_automatisoitu():
         try:
             with open(TARJOUS_TIEDOSTO, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                paivamaara = datetime.fromisoformat(data.get("paivamaara"))
-                edellinen = (paivamaara.date() - datetime(2025, 1, 1).date()).days // 4
+                edellinen = data.get("periodi")
                 if edellinen == nykyinen:
                     return  
         except:
@@ -95,14 +94,12 @@ JSON_DIR = Path(os.getenv("JSON_DIRS"))
 TARJOUS_TIEDOSTO = JSON_DIR / "tarjous.json"
 
 def hae_tai_paivita_tarjous():
-    nyt = datetime.now(timezone.utc).date()
     periodi = nykyinen_periodi()
 
     try:
         with open(TARJOUS_TIEDOSTO, "r", encoding="utf-8") as f:
             data = json.load(f)
-            paivamaara = datetime.fromisoformat(data.get("paivamaara"))
-            edellinen_periodi = (paivamaara.date() - datetime(2025, 1, 1).date()).days // 4
+            edellinen_periodi = data.get("periodi")
 
             if edellinen_periodi == periodi:
                 tuote = data.get("tuote")
@@ -134,7 +131,11 @@ def hae_tai_paivita_tarjous():
     }
 
     with open(TARJOUS_TIEDOSTO, "w", encoding="utf-8") as f:
-        json.dump({"paivamaara": datetime.now(timezone.utc).isoformat(), "tuote": tarjous}, f, ensure_ascii=False, indent=2)
+        json.dump({
+            "paivamaara": datetime.now(timezone.utc).isoformat(),
+            "periodi": periodi,
+            "tuote": tarjous
+        }, f, ensure_ascii=False, indent=2)
 
     return [tarjous]
 
