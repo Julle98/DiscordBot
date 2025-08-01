@@ -267,7 +267,7 @@ KOMENTOJEN_KUVAUKSET = {
     "help": "Mahdollista ilmoittaa asiasta, kysyä apua tai antaa palautetta",
     "giveaway": "Luo tai hallinnoi arvontoja",
     "sammutus": "Sammuttaa botin",
-    "vaihda_tilaviest": "Vaihtaa botin tilaviestin",
+    "vaihda_tilaviesti": "Vaihtaa botin tilaviestin",
     "vaihda_nimimerkki": "Vaihtaa käyttäjän nimimerkin",
     "uudelleenkaynnistys": "Käynnistää botin uudelleen",
     "ilmoitus": "Lähettää ilmoituksen haluamalle kanavalle",
