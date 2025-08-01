@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import discord
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.error_handler import CommandErrorHandler
+from bot.utils.bot_setup import bot
 
 from bot.utils.tasks_utils import (
     load_tasks,
@@ -17,6 +18,8 @@ from bot.utils.tasks_utils import (
     MONTHLY_TASKS,
     TASK_INSTRUCTIONS,
     StartTaskView,
+    TaskControlView,
+    active_listeners,
     load_streaks
 )
 
@@ -27,6 +30,8 @@ REWARD_THRESHOLDS = {
     "weekly": [4, 12],
     "monthly": [3, 6]
 }
+
+TASK_LOG_CHANNEL_ID = int(os.getenv("TASK_LOG_CHANNEL_ID", 0))
 
 class Tasks(commands.Cog):
     def __init__(self, bot):
@@ -48,6 +53,7 @@ class Tasks(commands.Cog):
             def __init__(self, task_name, user_done, user):
                 is_done = onko_tehtava_suoritettu_ajankohtaisesti(task_name, user_done)
                 style = discord.ButtonStyle.secondary if is_done else discord.ButtonStyle.primary
+
                 if task_name in DAILY_TASKS:
                     task_type = "📅 Päivittäinen"
                 elif task_name in WEEKLY_TASKS:
@@ -56,8 +62,10 @@ class Tasks(commands.Cog):
                     task_type = "🗓️ Kuukausittainen"
                 else:
                     task_type = "Tehtävä"
+
                 label = f"{task_type}" + (" ✅" if is_done else "")
                 super().__init__(label=label, style=style, disabled=is_done)
+
                 self.task_name = task_name
                 self.task_type = task_type
                 self.user_done = user_done
@@ -67,12 +75,31 @@ class Tasks(commands.Cog):
                 if interaction.user != self.user:
                     await interaction.response.send_message("Et voi painaa toisen käyttäjän nappia!", ephemeral=True)
                     return
+
                 if onko_tehtava_suoritettu_ajankohtaisesti(self.task_name, self.user_done):
                     await interaction.response.send_message(
                         f"Olet jo suorittanut tehtävän **{self.task_name}**. Odota seuraavaa tehtävää!",
                         ephemeral=True
                     )
                     return
+
+                uid = str(interaction.user.id)
+                if uid in active_listeners:
+                    view = TaskControlView(interaction.user, self.task_name)
+                    await interaction.response.send_message(
+                        f"🔄 Tehtävä **{self.task_name}** on jo käynnissä.\n"
+                        "Voit perua tehtävän tai ilmoittaa virheestä alla olevilla painikkeilla.",
+                        view=view,
+                        ephemeral=True
+                    )
+
+                    log_channel = bot.get_channel(TASK_LOG_CHANNEL_ID)
+                    if log_channel:
+                        await log_channel.send(
+                            f"🔁 {interaction.user.mention} yritti käynnistää jo aktiivisen tehtävän: **{self.task_name}**"
+                        )
+                    return
+
                 instruction = TASK_INSTRUCTIONS.get(self.task_name, "Seuraa ohjeita ja suorita tehtävä.")
                 view = StartTaskView(interaction.user, self.task_name, self.task_type)
                 await interaction.response.send_message(

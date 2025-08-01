@@ -8,7 +8,8 @@ from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.store_utils import (
     hae_tai_paivita_tarjous,
     nayta_kauppa_embed,
-    osta_command
+    osta_command,
+    hae_tarjous_vain
 )
 from functools import wraps
 from datetime import datetime, timedelta
@@ -61,7 +62,7 @@ class Store(commands.Cog):
             await kirjaa_komento_lokiin(self.bot, interaction, "/kauppa")
             await kirjaa_ga_event(self.bot, interaction.user.id, "kauppa_komento")
 
-            tarjoukset = await asyncio.to_thread(hae_tai_paivita_tarjous)
+            tarjoukset = await asyncio.to_thread(hae_tarjous_vain)
 
             if tuote is None:
                 embed = nayta_kauppa_embed(interaction, tarjoukset)
@@ -69,7 +70,8 @@ class Store(commands.Cog):
             else:
                 alennus = 0
                 if kuponki:
-                    alennus = tarkista_kuponki(kuponki, tuote)
+                    user_id = str(interaction.user.id)
+                    alennus = tarkista_kuponki(kuponki, tuote, user_id, interaction)
                     if alennus == 0:
                         await interaction.response.send_message("❌ Kuponki ei kelpaa tälle tuotteelle, vanhentunut tai käyttöraja täynnä. Osto peruutettu.", ephemeral=True)
                         return

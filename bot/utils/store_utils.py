@@ -20,6 +20,8 @@ import discord
 def start_store_loops():
     if not tarkista_ostojen_kuukausi.is_running():
         tarkista_ostojen_kuukausi.start()
+    if not paivita_tarjous_automatisoitu.is_running():
+        paivita_tarjous_automatisoitu.start()
 
 load_dotenv()
 OSTOSLOKI_KANAVA_ID = int(os.getenv("OSTOSLOKI_KANAVA_ID"))
@@ -70,6 +72,25 @@ async def tarkista_ostojen_kuukausi():
     except Exception as e:
         print(f"Ostojen tarkistus epäonnistui: {e}")
 
+@tasks.loop(hours=1)
+async def paivita_tarjous_automatisoitu():
+    try:
+        nykyinen = nykyinen_periodi()
+        try:
+            with open(TARJOUS_TIEDOSTO, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                paivamaara = datetime.fromisoformat(data.get("paivamaara"))
+                edellinen = (paivamaara.date() - datetime(2025, 1, 1).date()).days // 4
+                if edellinen == nykyinen:
+                    return  
+        except:
+            pass
+
+        hae_tai_paivita_tarjous()
+        print("✅ Tarjous päivitetty automaattisesti.")
+    except Exception as e:
+        print(f"Tarjouksen automaattinen päivitys epäonnistui: {e}")
+
 JSON_DIR = Path(os.getenv("JSON_DIRS"))
 TARJOUS_TIEDOSTO = JSON_DIR / "tarjous.json"
 
@@ -116,6 +137,18 @@ def hae_tai_paivita_tarjous():
         json.dump({"paivamaara": datetime.now(timezone.utc).isoformat(), "tuote": tarjous}, f, ensure_ascii=False, indent=2)
 
     return [tarjous]
+
+def hae_tarjous_vain():
+    try:
+        with open(TARJOUS_TIEDOSTO, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            tuote = data.get("tuote")
+            if isinstance(tuote, dict):
+                return [tuote]
+            elif isinstance(tuote, list) and all(isinstance(t, dict) for t in tuote):
+                return tuote
+    except (FileNotFoundError, json.JSONDecodeError, TypeError, ValueError):
+        return []
 
 def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: discord.Interaction) -> int:
     polku = Path(os.getenv("JSON_DIRS")) / "kuponki.json"
