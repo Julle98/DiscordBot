@@ -436,22 +436,39 @@ class Utils(commands.Cog):
     @app_commands.command(name="komennot", description="Näyttää kaikki käytettävissä olevat komennot ja niiden selitykset.")
     @app_commands.checks.has_role("24G")
     async def komennot(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/komennot")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "komennot_komento")
+        await interaction.response.defer(ephemeral=True)
 
-        user_roles = [role.name for role in interaction.user.roles]
-        viesti = "**Käytettävissä olevat komennot:**\n"
+        try:
+            if interaction.guild is None:
+                await interaction.followup.send("Tämä komento toimii vain palvelimella.", ephemeral=True)
+                return
 
-        for komento, roolivaatimus in KOMENTOJEN_ROOLIT.items():
-            vaatimukset = roolivaatimus if isinstance(roolivaatimus, list) else [roolivaatimus]
-            if roolivaatimus is None or any(rooli in user_roles for rooli in vaatimukset):
-                kuvaus = KOMENTOJEN_KUVAUKSET.get(komento, "Ei kuvausta.")
-                viesti += f"**/{komento}** – {kuvaus}\n"
+            await kirjaa_komento_lokiin(self.bot, interaction, "/komennot")
+            await kirjaa_ga_event(self.bot, interaction.user.id, "komennot_komento")
 
-        await interaction.response.send_message(
-            viesti if viesti.strip() else "Sinulla ei ole oikeuksia yhteenkään komentoon.",
-            ephemeral=True
-        )
+            member = interaction.user if isinstance(interaction.user, discord.Member) else interaction.guild.get_member(interaction.user.id)
+            if member is None:
+                await interaction.followup.send("Virhe: Käyttäjätietoja ei voitu hakea.", ephemeral=True)
+                return
+
+            user_roles = [role.name for role in member.roles]
+            viesti = "**Käytettävissä olevat komennot:**\n"
+
+            for komento, roolivaatimus in KOMENTOJEN_ROOLIT.items():
+                vaatimukset = roolivaatimus if isinstance(roolivaatimus, list) else [roolivaatimus]
+                if roolivaatimus is None or any(rooli in user_roles for rooli in vaatimukset):
+                    kuvaus = KOMENTOJEN_KUVAUKSET.get(komento, "Ei kuvausta.")
+                    viesti += f"**/{komento}** – {kuvaus}\n"
+
+            if viesti.strip() == "**Käytettävissä olevat komennot:**":
+                viesti = "Sinulla ei ole oikeuksia yhteenkään komentoon."
+
+            print(f"Viesti lähetetään: {viesti}")
+            await interaction.followup.send(viesti, ephemeral=True)
+
+        except Exception as e:
+            print(f"Virhe komennon suorittamisessa: {e}")
+            await interaction.followup.send(f"Virhe komennon suorittamisessa: {e}", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):

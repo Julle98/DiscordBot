@@ -281,38 +281,6 @@ class Misc(commands.Cog):
             except Exception as e:
                 await interaction.response.send_message(f"Virhe: {e}", ephemeral=True)
 
-    @app_commands.command(name="ruokailuvuorot", description="Näyttää uusimmat ruokailuvuorot.")
-    @app_commands.checks.has_role("24G")
-    async def ruokailuvuorot(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/ruokailuvuorot")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "ruokailuvuorot_komento")
-        await interaction.response.send_message("Tällä hetkellä ei ole ruokailuvuoro listoja.")
-
-
-    @app_commands.command(name="ruoka", description="Näyttää päivän ruoan.")
-    @app_commands.checks.has_role("24G")
-    async def ruoka(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/ruoka")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "ruoka_komento")
-        if datetime.now().weekday() >= 5:
-            await interaction.response.send_message("Ei ruokana tänään mitään.")
-            return
-        url = "https://aromimenu.cgisaas.fi/VantaaAromieMenus/FI/Default/Vantti/TikkurilaKO/Restaurant.aspx"
-        try:
-            response = requests.get(url)
-            soup = BeautifulSoup(response.text, "html.parser")
-            dish_tags = [
-                soup.find("span", id=f"MainContent_WeekdayListView_Meals_0_Meals_1_SecureLabelDish_{i}")
-                for i in range(3)
-            ]
-            dishes = [d.text.strip() for d in dish_tags if d]
-            if dishes:
-                await interaction.response.send_message(f"Ruokana tänään: {', '.join(dishes)}.")
-            else:
-                await interaction.response.send_message("Ruoan tietoja ei löytynyt. Tarkista [valikko](https://aromimenu.cgisaas.fi/VantaaAromieMenus/FI/Default/Vantti/TikkurilaKO/Restaurant.aspx).")
-        except Exception as e:
-            await interaction.response.send_message(f"Virhe haettaessa ruokalistaa: {e}", ephemeral=True)
-
     @app_commands.command(name="sano", description="Sano Sannamaijalle sanottavaa.")
     @app_commands.checks.has_role("24G")
     async def sano(self, interaction: discord.Interaction, viesti: str):

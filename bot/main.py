@@ -23,6 +23,7 @@ COGS = [
     "bot.cogs.levels",
     "bot.cogs.store",
     "bot.cogs.dmviesti",
+    "bot.cogs.ruoka",
     "bot.cogs.moderation",
     "bot.cogs.moderation_channels",
     "bot.cogs.moderation_kickban",
