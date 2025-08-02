@@ -6,6 +6,39 @@ from ..config import (
 )
 from ..utils.event_data_manager import EventDataManager, get_random_joke 
 
+class AnswerModal(discord.ui.Modal):
+    def __init__(self, bot, data_manager):
+        super().__init__(title="Lähetä vastauksesi")
+        self.bot = bot
+        self.data_manager = data_manager
+
+        self.answer = discord.ui.TextInput(
+            label="Vastauksesi",
+            style=discord.TextStyle.paragraph,
+            placeholder="Kirjoita vastauksesi tähän...",
+            required=True,
+            max_length=500
+        )
+        self.add_item(self.answer)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        user_id_str = str(interaction.user.id)
+
+        if not self.data_manager.is_round_active():
+            await interaction.response.send_message("Ei aktiivista kierrosta juuri nyt.", ephemeral=True)
+            return
+
+        if user_id_str in self.data_manager.get_submissions():
+            await interaction.response.send_message("Olet jo lähettänyt vastauksen tällä kierroksella.", ephemeral=True)
+            return
+
+        self.data_manager.add_submission(interaction.user.id, interaction.user.display_name, self.answer.value)
+        await interaction.response.send_message(f"Vastauksesi vastaanotettu: '{self.answer.value}'", ephemeral=True)
+
+        event_channel = self.bot.get_channel(EVENT_CHANNEL_ID)
+        if event_channel:
+            await event_channel.send(f"{interaction.user.mention} vastannut!")
+
 class EventCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -195,25 +228,14 @@ class EventCommands(commands.Cog):
         self.data_manager.reset_round()
         await self.event_channel.send("Event-tiedot nollattu seuraavaa kierrosta varten.")
 
-    @commands.dm_only() 
-    @commands.command(name='vastaus', help='Lähetä vastauksesi eventiin.')
-    async def submit_answer(self, ctx, *, submission_content: str):
+    @commands.command(name='vastaus', help='Avaa lomakkeen vastauksen lähettämistä varten.')
+    async def submit_answer(self, ctx):
         if not self.data_manager.is_round_active():
-            await ctx.author.send("Tällä hetkellä ei ole aktiivista event-kierrosta. Odota juontajan ilmoitusta.")
+            await ctx.send("Tällä hetkellä ei ole aktiivista event-kierrosta.")
             return
 
-        user_id_str = str(ctx.author.id)
-        if user_id_str in self.data_manager.get_submissions():
-            await ctx.author.send("Olet jo lähettänyt vastauksesi tällä kierroksella.")
-            return
-
-        self.data_manager.add_submission(ctx.author.id, ctx.author.display_name, submission_content)
-        await ctx.author.send(f"Vastauksesi '{submission_content}' on otettu vastaan. Kiitos!")
-        
-        if self.event_channel:
-            await self.event_channel.send(f"{ctx.author.mention} vastannut!")
-        else:
-            print(f"Varoitus: Ei voitu lähettää varmistusviestiä, koska event-kanavaa ei löytynyt. Käyttäjä {ctx.author.name} vastasi.")
+        await ctx.send("Avaan lomakkeen vastauksesi lähettämistä varten...", delete_after=5)
+        await ctx.send_modal(AnswerModal(self.bot, self.data_manager))
 
     @commands.command(name='vitsikone', help='Antaa sinulle vitsin (esim. harjoituskierrokselle).')
     async def joke_machine(self, ctx):
@@ -240,6 +262,36 @@ class EventCommands(commands.Cog):
 
         self.data_manager.add_vote(ctx.author.id, member.id)
         await ctx.send(f"Kiitos! Olet äänestänyt käyttäjää {member.display_name}.")
+
+    @commands.command(name='testi', help='Testaa koko event-prosessi botilla ja yhdellä testikäyttäjällä.')
+    @commands.has_permissions(manage_channels=True)
+    async def run_test(self, ctx):
+        await self.start_round(ctx)
+
+        class MockUser:
+            def __init__(self, id, name):
+                self.id = id
+                self.display_name = name
+                self.mention = f"<@{id}>"
+
+        test_user = MockUser(1234567890, "Testikäyttäjä")
+
+        self.data_manager.add_submission(test_user.id, test_user.display_name, "Tämä on testivastaus.")
+
+        await ctx.send(f"{test_user.mention} lähetti testivastauksen.")
+
+        await self.end_submission(ctx)
+
+        await self.start_presentation(ctx)
+
+        await self.start_voting(ctx)
+
+        self.data_manager.add_vote(ctx.author.id, test_user.id)
+        await ctx.send(f"{ctx.author.mention} äänesti käyttäjää {test_user.display_name}.")
+
+        await self.show_results(ctx)
+
+        await ctx.send("✅ Testi valmis! Kaikki vaiheet suoritettu.")
 
 async def setup(bot):
     await bot.add_cog(EventCommands(bot))

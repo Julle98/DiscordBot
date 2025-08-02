@@ -90,8 +90,8 @@ class EventDataManager:
 def get_random_joke():
     jokes = [
         "Miksi pörriäinen on aina myöhässä? Koska se pörrää!",
-        "Mitä vesi sanoi purolle? -En minä mikään pullo ole!",
-        "Mitä tiikeri sanoi pojalleen, kun se söi hänet? – Nyt sinulla on tiikeri vatsassasi."
+        "Mitä vesi sanoi purolle? En minä mikään pullo ole!",
+        "Mitä tiikeri sanoi pojalleen, kun se söi hänet? Nyt sinulla on tiikeri vatsassasi."
     ]
     import random
     return random.choice(jokes)
