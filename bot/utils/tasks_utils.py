@@ -217,19 +217,16 @@ async def update_streak(user: discord.Member, task_type: str):
             streak = 1
 
     elif task_type == "weekly":
-        already_completed = last_date and now.isocalendar()[1] == last_date.isocalendar()[1] and now.year == last_date.year
-        if last_date and (now - last_date).days in range(7, 15):
+        already_completed = last_date and (now - last_date).days < 7
+        if last_date and 7 <= (now - last_date).days <= 13:
             streak += 1
         elif not already_completed:
             was_reset = True
             streak = 1
 
     elif task_type == "monthly":
-        already_completed = last_date and now.month == last_date.month and now.year == last_date.year
-        if last_date and (
-            (last_date.month == 12 and now.month == 1 and now.year == last_date.year + 1) or
-            (now.year == last_date.year and now.month == last_date.month + 1)
-        ):
+        already_completed = last_date and (now - last_date).days < 28
+        if last_date and 28 <= (now - last_date).days <= 45:
             streak += 1
         elif not already_completed:
             was_reset = True
@@ -736,12 +733,12 @@ class StartTaskView(discord.ui.View):
 
         asyncio.create_task(wrapped_start())
 
-        instruction = TASK_INSTRUCTIONS.get(self.task_name, "Seuraa ohjeita ja suorita tehtävä.")
         view = TaskControlView(self.user, self.task_name)
 
         await interaction.response.send_message(
-            f"**{self.task_type} tehtävä aloitettu:** {self.task_name}\n📘 **Ohjeet:** {instruction}\n\n"
-            "Voit perua tehtävän tai ilmoittaa virheestä alla olevilla painikkeilla.",
+            f"**{self.task_type} tehtävä aloitettu:** {self.task_name}\n\n"
+            "Sinulla on 30 minuuttia aikaa suorittaa tehtävä.\n"
+            "Voit peruuttaa tehtävän tai ilmoittaa virheestä käyttämällä alla olevia painikkeita.",
             view=view,
             ephemeral=True
-    )
+        )
