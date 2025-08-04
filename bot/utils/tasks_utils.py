@@ -1,5 +1,5 @@
 from bot.utils.bot_setup import bot
-from bot.utils.xp_utils import parse_xp_content, calculate_level, make_xp_content
+from bot.utils.xp_utils import calculate_level, save_xp_data, load_xp_data
 
 import json, random, discord, os, asyncio
 from discord.ext import tasks
@@ -115,29 +115,24 @@ async def save_user_task(user_id, task):
         }, indent=2))
             
 async def add_xp(bot, user: discord.Member, amount: int):
+    user_id = str(user.id)
     xp_channel = bot.get_channel(XP_CHANNEL_ID)
     if not xp_channel:
         return
 
-    user_id = str(user.id)
+    xp_data = load_xp_data()
+    user_info = xp_data.get(user_id, {"xp": 0, "level": 0})
 
-    async for message in xp_channel.history(limit=1000):
-        if message.author == bot.user and message.content.startswith(f"{user_id}:"):
-            xp, level = parse_xp_content(message.content)
-            xp += amount
-            new_level = calculate_level(xp)
-            new_content = make_xp_content(user_id, xp)  
+    user_info["xp"] += amount
+    new_level = calculate_level(user_info["xp"])
 
-            if new_level > level:
-                await xp_channel.send(f"{user.mention} saavutti tason {new_level}! 🎉")
+    if new_level > user_info["level"]:
+        await xp_channel.send(f"{user.mention} saavutti tason {new_level}! 🎉")
 
-            await message.edit(content=new_content)
-            return
+    user_info["level"] = new_level
+    xp_data[user_id] = user_info
+    save_xp_data(xp_data)
 
-    xp = amount
-    new_level = calculate_level(xp)
-    new_content = make_xp_content(user_id, xp)  
-    await xp_channel.send(new_content)
 
 def give_role(user: discord.Member, role_id: int):
     role = user.guild.get_role(role_id)
@@ -534,6 +529,11 @@ class TaskListener(discord.ui.View):
 
         await self.complete_task()
 
+        uid = str(self.user.id)
+        if active_listeners.get(uid) == self:
+            active_listeners.pop(uid, None)
+            print(f"[INFO] Poistettiin käyttäjä {uid} aktiivisista tehtävistä.")
+
     async def complete_task(self):
         await complete_task(self.user, self.task_name, self.user.guild)
 
@@ -646,6 +646,10 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
             await add_xp(bot, user, xp_amount)
         except Exception as e:
             print(f"[ERROR] XP:n lisäys epäonnistui: {e}")
+
+    if active_listeners.get(uid):
+        active_listeners.pop(uid, None)
+        print(f"[INFO] Poistettiin käyttäjä {uid} aktiivisista tehtävistä (complete_task).")
                  
 TASK_INSTRUCTIONS = {
     "Lähetä viesti tiettyyn aikaan": "Lähetä viesti <#1339846062281588777> kanavalle klo 12–14 UTC välisenä aikana. Aikaa suoritukseen 30 min.",
@@ -715,10 +719,18 @@ class StartTaskView(discord.ui.View):
             await interaction.response.send_message("Et voi aloittaa toisen käyttäjän tehtävää!", ephemeral=True)
             return
 
+        uid = str(self.user.id)
+        if uid in active_listeners:
+            await interaction.response.send_message(
+                "Sinulla on jo aktiivinen tehtävä käynnissä. Suorita tai peru se ennen uuden aloittamista.",
+                ephemeral=True
+            )
+            return
+
         listener = TaskListener(self.user, interaction.channel, self.task_name)
 
         async def wrapped_start():
-            active_listeners[str(self.user.id)] = listener 
+            active_listeners[uid] = listener 
             await asyncio.sleep(1)
             await listener.start()
 
@@ -732,4 +744,4 @@ class StartTaskView(discord.ui.View):
             "Voit perua tehtävän tai ilmoittaa virheestä alla olevilla painikkeilla.",
             view=view,
             ephemeral=True
-        )
+    )

@@ -211,27 +211,29 @@ async def tarkkaile_kanavan_aktiivisuutta():
         await asyncio.sleep(30)
 
 async def anna_xp_komennosta(bot, interaction: discord.Interaction, xp_määrä: int = 10):
-    uid = interaction.user.id
-    msg = await get_user_xp_message(None, uid)  
-    xp, level = parse_xp_content(msg.content)
+    uid = str(interaction.user.id)
+    xp_data = load_xp_data()
+    user_info = xp_data.get(uid, {"xp": 0, "level": 0})
 
     if any(role.id in DOUBLE_XP_ROLES for role in interaction.user.roles):
         xp_määrä *= 2
 
-    xp += xp_määrä
-    new_level = calculate_level(xp)
+    user_info["xp"] += xp_määrä
+    new_level = calculate_level(user_info["xp"])
 
-    dummy_message = type("DummyMessage", (), {
-        "author": interaction.user,
-        "channel": interaction.channel,
-        "guild": interaction.guild
-    })()
+    if new_level > user_info["level"]:
+        dummy_message = type("DummyMessage", (), {
+            "author": interaction.user,
+            "channel": interaction.channel,
+            "guild": interaction.guild
+        })()
+        await tarkista_tasonousu(bot, dummy_message, user_info["level"], new_level)
 
-    if new_level > level:
-        await tarkista_tasonousu(bot, dummy_message, level, new_level)
+    user_info["level"] = new_level
+    xp_data[uid] = user_info
+    save_xp_data(xp_data)
 
-    make_xp_content(uid, xp)
-    await paivita_streak(uid)
+    await paivita_streak(int(uid))
 
 async def käsittele_viesti_xp(bot, message: discord.Message):
     if message.author.bot:
@@ -242,12 +244,12 @@ async def käsittele_viesti_xp(bot, message: discord.Message):
         return
 
     nyt = datetime.now(timezone.utc)
-    uid = message.author.id
+    uid = str(message.author.id)
 
-    viestihistoria[uid].append(nyt)
-    viestihistoria[uid] = [t for t in viestihistoria[uid] if nyt - t < timedelta(seconds=3)]
+    viestihistoria[int(uid)].append(nyt)
+    viestihistoria[int(uid)] = [t for t in viestihistoria[int(uid)] if nyt - t < timedelta(seconds=3)]
 
-    if len(viestihistoria[uid]) > 2:
+    if len(viestihistoria[int(uid)]) > 2:
         try:
             await message.author.timeout(timedelta(minutes=15), reason="Spam yritys")
             await message.author.send("Sinut asetettiin 15 minuutin jäähylle: **Spam yritys**.")
@@ -271,21 +273,24 @@ async def käsittele_viesti_xp(bot, message: discord.Message):
                 f"👮 Asetti: Sannamaija"
             )
 
-        viestihistoria[uid].clear()
+        viestihistoria[int(uid)].clear()
         return
 
-    msg = await get_user_xp_message(None, uid)
-    xp, level = parse_xp_content(msg.content)
+    xp_data = load_xp_data()
+    user_info = xp_data.get(uid, {"xp": 0, "level": 0})
 
     xp_gain = 10
     if any(role.id in DOUBLE_XP_ROLES for role in message.author.roles):
         xp_gain *= 2
 
-    xp += xp_gain
-    new_level = calculate_level(xp)
+    user_info["xp"] += xp_gain
+    new_level = calculate_level(user_info["xp"])
 
-    if new_level > level:
-        await tarkista_tasonousu(bot, message, level, new_level)
+    if new_level > user_info["level"]:
+        await tarkista_tasonousu(bot, message, user_info["level"], new_level)
 
-    make_xp_content(uid, xp)
-    await paivita_streak(uid)
+    user_info["level"] = new_level
+    xp_data[uid] = user_info
+    save_xp_data(xp_data)
+
+    await paivita_streak(int(uid))
