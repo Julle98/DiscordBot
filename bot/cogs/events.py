@@ -1,45 +1,16 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 import asyncio
+from collections import Counter
+import os
 from ..config import (
-    EVENT_CHANNEL_ID, PRESENTATION_CHANNEL_ID, VOICE_CHANNEL_ID, PREFIX
+    EVENT_CHANNEL_ID, PRESENTATION_CHANNEL_ID, VOICE_CHANNEL_ID,
+    EVENT_WINNER_ROLE_ID, EVENT_PARTICIPANT_ROLE_ID
 )
-from ..utils.event_data_manager import EventDataManager, get_random_joke 
+from ..utils.event_data_manager import EventDataManager, get_random_joke
 
-class AnswerModal(discord.ui.Modal):
-    def __init__(self, bot, data_manager):
-        super().__init__(title="Lähetä vastauksesi")
-        self.bot = bot
-        self.data_manager = data_manager
-
-        self.answer = discord.ui.TextInput(
-            label="Vastauksesi",
-            style=discord.TextStyle.paragraph,
-            placeholder="Kirjoita vastauksesi tähän...",
-            required=True,
-            max_length=500
-        )
-        self.add_item(self.answer)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        user_id_str = str(interaction.user.id)
-
-        if not self.data_manager.is_round_active():
-            await interaction.response.send_message("Ei aktiivista kierrosta juuri nyt.", ephemeral=True)
-            return
-
-        if user_id_str in self.data_manager.get_submissions():
-            await interaction.response.send_message("Olet jo lähettänyt vastauksen tällä kierroksella.", ephemeral=True)
-            return
-
-        self.data_manager.add_submission(interaction.user.id, interaction.user.display_name, self.answer.value)
-        await interaction.response.send_message(f"Vastauksesi vastaanotettu: '{self.answer.value}'", ephemeral=True)
-
-        event_channel = self.bot.get_channel(EVENT_CHANNEL_ID)
-        if event_channel:
-            await event_channel.send(f"{interaction.user.mention} vastannut!")
-
-class EventCommands(commands.Cog):
+class EventCommands(commands.GroupCog, name="event"):
     def __init__(self, bot):
         self.bot = bot
         self.data_manager = EventDataManager()
@@ -47,35 +18,28 @@ class EventCommands(commands.Cog):
         self.presentation_channel = None
         self.voice_channel = None
         self.round_topics = [
-            {"name": "Paras vitsi", "description": "Keksi paras vitsi !vitsikone-komennolla tai omasta päästäsi.", "example_cmd": "!vitsikone"},
-            {"name": "Uusin ja ihmeellisin fakta", "description": "Keksi uusin ja ihmeellisin fakta.", "example_cmd": "Ei erityistä komentoa."},
-            {"name": "Paras asia Discordissa", "description": "Mikä on mielestäsi paras asia Discordissa?", "example_cmd": "Ei erityistä komentoa."},
-            {"name": "Hauskin/hyödyllisin uusi bottikomento", "description": "Mikä olisi hauskin tai hyödyllisin uusi bottikomento?", "example_cmd": "Ei erityistä komentoa."}
+            {"name": "Paras vitsi", "description": "Keksi paras vitsi /event vitsikone -komennolla tai omasta päästäsi.", "example_cmd": "/event vitsikone"},
+            {"name": "Uusin ja ihmeellisin fakta", "description": "Keksi uusin ja ihmeellisin fakta.", "example_cmd": "-"},
+            {"name": "Paras asia Discordissa", "description": "Mikä on mielestäsi paras asia Discordissa?", "example_cmd": "-"},
+            {"name": "Hauskin/hyödyllisin uusi bottikomento", "description": "Mikä olisi hauskin tai hyödyllisin uusi bottikomento?", "example_cmd": "-"}
         ]
         self.current_topic = None
+        self.vote_history = Counter()
 
-    @commands.Cog.listener()
-    async def on_ready(self):
+    async def cog_load(self):
         self.event_channel = self.bot.get_channel(EVENT_CHANNEL_ID)
         self.presentation_channel = self.bot.get_channel(PRESENTATION_CHANNEL_ID)
         self.voice_channel = self.bot.get_channel(VOICE_CHANNEL_ID)
-        if not self.event_channel:
-            print(f"Varoitus: Event-kanavaa ID {EVENT_CHANNEL_ID} ei löytynyt!")
-        if not self.presentation_channel:
-            print(f"Varoitus: Esityskanavaa ID {PRESENTATION_CHANNEL_ID} ei löytynyt!")
-        if not self.voice_channel:
-            print(f"Varoitus: Puhekanavaa ID {VOICE_CHANNEL_ID} ei löytynyt!")
 
-
-    @commands.command(name='kierros', help='Aloittaa uuden event-kierroksen.')
-    @commands.has_permissions(manage_channels=True) 
-    async def start_round(self, ctx):
-        if ctx.channel.id != EVENT_CHANNEL_ID:
-            await ctx.send(f"Tämä komento toimii vain #{self.event_channel.name} kanavalla.")
+    @app_commands.command(name="kierros", description="Aloittaa uuden event-kierroksen.")
+    @app_commands.checks.has_role("Mestari")
+    async def kierros(self, interaction: discord.Interaction):
+        if interaction.channel_id != EVENT_CHANNEL_ID:
+            await interaction.response.send_message("Tämä komento toimii vain event-kanavalla.", ephemeral=True)
             return
 
         if self.data_manager.is_round_active() or self.data_manager.is_voting_active():
-            await ctx.send("Kierros on jo käynnissä tai äänestys on aktiivinen. Lopeta ensin aiempi kierros `!päätös` -komennolla.")
+            await interaction.response.send_message("Kierros on jo käynnissä tai äänestys aktiivinen.", ephemeral=True)
             return
 
         import random
@@ -84,214 +48,145 @@ class EventCommands(commands.Cog):
 
         embed = discord.Embed(
             title=f"Kierros alkaa: {self.current_topic['name']}",
-            description=f"{self.current_topic['description']}\n\nLähetä vastauksesi minulle **yksityisviestillä** komennolla `{PREFIX}vastaus [vastauksesi]`.",
+            description=f"{self.current_topic['description']}",
             color=discord.Color.blue()
         )
-        if self.current_topic['example_cmd'] != "Ei erityistä komentoa.":
+        if self.current_topic['example_cmd'] != "-":
             embed.add_field(name="Esimerkkikomento", value=f"Voit kokeilla esim. `{self.current_topic['example_cmd']}`", inline=False)
-        embed.set_footer(text="Aikaa vastauksen lähettämiseen on kunnes juontaja käyttää !päätös komentoa.")
-        await self.event_channel.send(embed=embed)
+        embed.set_footer(text="Aikaa vastauksen lähettämiseen on kunnes juontaja käyttää /event päätös komentoa.")
 
+        await interaction.response.send_message(embed=embed)
 
-    @commands.command(name='päätös', help='Lopettaa vastausten vastaanoton ja sulkee kirjoitusoikeuden.')
-    @commands.has_permissions(manage_channels=True)
-    async def end_submission(self, ctx):
-        if ctx.channel.id != EVENT_CHANNEL_ID:
-            await ctx.send(f"Tämä komento toimii vain #{self.event_channel.name} kanavalla.")
+    @app_commands.command(name="päätös", description="Lopettaa vastausten vastaanoton.")
+    @app_commands.checks.has_role("Mestari")
+    async def päätös(self, interaction: discord.Interaction):
+        if interaction.channel_id != EVENT_CHANNEL_ID:
+            await interaction.response.send_message("Tämä komento toimii vain event-kanavalla.", ephemeral=True)
             return
 
         if not self.data_manager.is_round_active():
-            await ctx.send("Ei aktiivista vastaustenkeräyskierrosta.")
+            await interaction.response.send_message("Ei aktiivista kierrosta.", ephemeral=True)
             return
 
         self.data_manager.end_round_submission()
-        await self.event_channel.send("Vastausaika päättynyt! Uusia vastauksia ei oteta vastaan.")
+        await interaction.channel.send("Vastausaika päättynyt! Uusia vastauksia ei oteta vastaan.")
 
-        await self.event_channel.set_permissions(ctx.guild.default_role, send_messages=False)
-        await ctx.send(f"Kirjoitusoikeudet poistettu #{self.event_channel.name} kanavalta.")
-
-
-    @commands.command(name='esitys', help='Aloittaa kerättyjen vastausten esityksen.')
-    @commands.has_permissions(manage_channels=True)
-    async def start_presentation(self, ctx):
-        if ctx.channel.id != EVENT_CHANNEL_ID:
-            await ctx.send(f"Tämä komento toimii vain #{self.event_channel.name} kanavalla.")
-            return
-
-        submissions = self.data_manager.get_submissions()
-        if not submissions:
-            await ctx.send("Ei vastauksia esitettäväksi.")
-            return
-
-        if not self.presentation_channel:
-            await ctx.send("Esityskanavaa ei ole määritelty tai löydetty. Tarkista config.py!")
-            return
-        
-        await self.event_channel.send(f"Siirrythän #{self.presentation_channel.name} kanavalle katsomaan ja kuuntelemaan vastauksia!")
-
-        if self.voice_channel and not self.bot.voice_clients: 
-            try:
-                await self.voice_channel.connect()
-                await ctx.send(f"Yhdistin puhekanavaan {self.voice_channel.name} TTS-esitystä varten.")
-            except discord.ClientException as e:
-                await ctx.send(f"Virhe yhdistäessä puhekanavaan: {e}")
-                self.voice_channel = None 
-
-        await asyncio.sleep(2) 
-
-        for user_id, submission_data in submissions.items():
-            username = submission_data["username"]
-            content = submission_data["content"]
-            message_content = f"**{username}** vastaus: {content}"
-            
-            await self.presentation_channel.send(message_content)
-
-            if self.bot.voice_clients and self.bot.voice_clients[0].channel.id == self.voice_channel.id:
-                try:
-                    
-                    await self.presentation_channel.send(message_content, tts=True)
-                    
-                    await asyncio.sleep(len(message_content) / 10 + 2) 
-                except discord.HTTPException as e:
-                    print(f"TTS virhe: {e}")
-                    
-            
-            await asyncio.sleep(5) 
-
-        await self.event_channel.send("Kaikki vastaukset esitetty! Voitte nyt siirtyä äänestämään.")
-
-        if self.bot.voice_clients:
-            await self.bot.voice_clients[0].disconnect()
-
-
-    @commands.command(name='voittaja', help='Aloittaa äänestyksen ja palauttaa kirjoitusoikeudet.')
-    @commands.has_permissions(manage_channels=True)
-    async def start_voting(self, ctx):
-        if ctx.channel.id != EVENT_CHANNEL_ID:
-            await ctx.send(f"Tämä komento toimii vain #{self.event_channel.name} kanavalla.")
-            return
-
-        if self.data_manager.is_voting_active():
-            await ctx.send("Äänestys on jo aktiivinen.")
-            return
-
-        self.data_manager.set_voting_active(True)
-        await self.event_channel.send("Äänestys alkaa! Palauta kirjoitusoikeudet. Äänestä suosikkiasi **@mentionilla** komennolla:\n`!äänestä @Käyttäjänimi`.")
-        
-        await self.event_channel.set_permissions(ctx.guild.default_role, send_messages=True)
-        await ctx.send(f"Kirjoitusoikeudet palautettu #{self.event_channel.name} kanavalle.")
-
-    @commands.command(name='tulokset', help='Näyttää äänestystulokset.')
-    @commands.has_permissions(manage_channels=True)
-    async def show_results(self, ctx):
-        if ctx.channel.id != EVENT_CHANNEL_ID:
-            await ctx.send(f"Tämä komento toimii vain #{self.event_channel.name} kanavalla.")
-            return
-            
-        if not self.data_manager.is_voting_active():
-            await ctx.send("Äänestys ei ole aktiivinen.")
-            return
-
-        vote_counts = self.data_manager.get_vote_counts()
-        if not vote_counts:
-            await ctx.send("Ääniä ei ole vielä annettu.")
-            return
-
-        results_msg = "Äänestystulokset:\n"
-        sorted_results = sorted(vote_counts.items(), key=lambda item: item[1], reverse=True)
-
-        winner_id = None
-        highest_votes = 0
-
-        for user_id_str, count in sorted_results:
-            user = self.bot.get_user(int(user_id_str))
-            username = user.display_name if user else f"Tuntematon käyttäjä (ID: {user_id_str})"
-            results_msg += f"- {username}: {count} ääntä\n"
-            
-            if count > highest_votes:
-                highest_votes = count
-                winner_id = user_id_str
-            elif count == highest_votes and winner_id is not None:
-                winner_id = "Tasa" 
-
-        await ctx.send(results_msg)
-
-        if winner_id == "Tasa":
-            await ctx.send("Kilpailu päättyi tasapeliin!")
-        elif winner_id:
-            winner_user = self.bot.get_user(int(winner_id))
-            if winner_user:
-                await ctx.send(f"Ja voittaja on... **{winner_user.display_name}**! Onnittelut!")
-            else:
-                await ctx.send(f"Ja voittaja on... käyttäjä ID:llä **{winner_id}**! Onnittelut!")
-
-        self.data_manager.reset_round()
-        await self.event_channel.send("Event-tiedot nollattu seuraavaa kierrosta varten.")
-
-    @commands.command(name='vastaus', help='Avaa lomakkeen vastauksen lähettämistä varten.')
-    async def submit_answer(self, ctx):
+    @app_commands.command(name="vastaus", description="Lähetä oma vastauksesi lomakkeella.")
+    @app_commands.checks.has_role("Event kesä ´25 osallistuja")
+    async def vastaus(self, interaction: discord.Interaction):
         if not self.data_manager.is_round_active():
-            await ctx.send("Tällä hetkellä ei ole aktiivista event-kierrosta.")
+            await interaction.response.send_message("Ei aktiivista kierrosta juuri nyt.", ephemeral=True)
             return
 
-        await ctx.send("Avaan lomakkeen vastauksesi lähettämistä varten...", delete_after=5)
-        await ctx.send_modal(AnswerModal(self.bot, self.data_manager))
+        class AnswerModal(discord.ui.Modal, title="Lähetä vastauksesi"):
+            vastaus_input = discord.ui.TextInput(label="Vastauksesi", style=discord.TextStyle.paragraph, max_length=500)
 
-    @commands.command(name='vitsikone', help='Antaa sinulle vitsin (esim. harjoituskierrokselle).')
-    async def joke_machine(self, ctx):
-        joke = get_random_joke()
-        await ctx.send(f"Tässä sinulle vitsi: {joke}")
-        
-    @commands.command(name='äänestä', help='Äänestä suosikkiasi @mentionilla.')
-    async def vote(self, ctx, member: discord.Member):
-        if not self.data_manager.is_voting_active():
-            await ctx.send("Äänestys ei ole tällä hetkellä käynnissä.")
+            async def on_submit(modal_self, modal_interaction: discord.Interaction):
+                uid = str(modal_interaction.user.id)
+                if uid in self.data_manager.get_submissions():
+                    await modal_interaction.response.send_message("Olet jo vastannut.", ephemeral=True)
+                    return
+
+                self.data_manager.add_submission(modal_interaction.user.id, modal_interaction.user.display_name, modal_self.vastaus_input.value)
+                await modal_interaction.response.send_message(f"Vastauksesi vastaanotettu: '{modal_self.vastaus_input.value}'", ephemeral=True)
+
+        await interaction.response.send_modal(AnswerModal())
+
+    @app_commands.command(name="vitsikone", description="Saat satunnaisen vitsin.")
+    @app_commands.checks.has_role("Event kesä ´25 osallistuja")
+    async def vitsikone(self, interaction: discord.Interaction):
+        await interaction.response.send_message(get_random_joke())
+
+    @app_commands.command(name="ohje", description="Näyttää ohjeet event-komennoille.")
+    @app_commands.checks.has_role("Event kesä ´25 osallistuja")
+    async def ohje(self, interaction: discord.Interaction):
+        embed = discord.Embed(title="Event-komennot", color=discord.Color.green())
+        embed.add_field(name="/event kierros", value="Aloita uusi kierros aiheen arvonnalla.", inline=False)
+        embed.add_field(name="/event vastaus", value="Lähetä oma vastauksesi lomakkeella.", inline=False)
+        embed.add_field(name="/event päätös", value="Lopeta vastausten vastaanotto.", inline=False)
+        embed.add_field(name="/event vitsikone", value="Saat satunnaisen vitsin.", inline=False)
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="läpikäynti", description="Käy läpi vastaukset yksitellen reagoimalla.")
+    @app_commands.checks.has_role("Mestari")
+    async def läpikäynti(self, interaction: discord.Interaction):
+        submissions = list(self.data_manager.get_submissions().items())
+        if not submissions:
+            await interaction.response.send_message("Ei vastauksia läpikäytäväksi.", ephemeral=True)
             return
-        
-        if member.bot:
-            await ctx.send("Et voi äänestää bottia.")
+
+        await interaction.response.send_message("Aloitetaan vastausten läpikäynti...", ephemeral=True)
+
+        for user_id, data in submissions:
+            user = self.bot.get_user(int(user_id))
+            content = data['content']
+            msg = await interaction.channel.send(f"**{user.display_name if user else 'Tuntematon'}**: {content}")
+            await msg.add_reaction("➡️")
+
+            def check(reaction, user_reactor):
+                return user_reactor == interaction.user and str(reaction.emoji) == "➡️" and reaction.message.id == msg.id
+
+            try:
+                await self.bot.wait_for("reaction_add", check=check, timeout=120)
+            except asyncio.TimeoutError:
+                await interaction.channel.send("Läpikäynti aikakatkaistiin.")
+                break
+
+    @app_commands.command(name="loppu", description="Päättää eventin ja näyttää top-3 osallistujaa.")
+    @app_commands.checks.has_role("Mestari")
+    async def loppu(self, interaction: discord.Interaction):
+        all_votes = self.data_manager.get_vote_counts()
+        if not all_votes:
+            await interaction.response.send_message("Ei ääniä koottu kierroksilta.", ephemeral=True)
             return
-        
-        if member.id == ctx.author.id:
-            await ctx.send("Et voi äänestää itseäsi!")
+
+        sorted_votes = sorted(all_votes.items(), key=lambda x: x[1], reverse=True)
+        top_three = sorted_votes[:3]
+        others = sorted_votes[3:]
+
+        top_lines = []
+        for i, (uid, count) in enumerate(top_three, 1):
+            user = interaction.guild.get_member(int(uid))
+            top_lines.append(f"{i}. {user.display_name if user else 'Tuntematon'} – {count} ääntä")
+            if i == 1 and user:
+                winner_role = interaction.guild.get_role(EVENT_WINNER_ROLE_ID)
+                if winner_role:
+                    await user.add_roles(winner_role, reason="Event-voittaja")
+
+        other_lines = []
+        for uid, count in others:
+            user = interaction.guild.get_member(int(uid))
+            other_lines.append(f"{user.display_name if user else 'Tuntematon'} – {count} ääntä")
+
+        msg = "🎉 **Event päättynyt, kiitos kaikille pelaajille!**\n\n"
+        msg += "**Top-3 tänään:**\n" + "\n".join(top_lines)
+        if other_lines:
+            msg += "\n\n**Loput osallistujat:**\n" + "\n".join(other_lines)
+
+        await interaction.response.send_message(msg)
+
+    @app_commands.command(name="lukitus", description="Antaa osallistujaroolin puhekanavalla oleville.")
+    @app_commands.checks.has_role("Mestari")
+    async def lukitus(self, interaction: discord.Interaction):
+        if not interaction.guild:
+            await interaction.response.send_message("Komento toimii vain palvelimella.", ephemeral=True)
             return
 
-        if str(member.id) not in self.data_manager.get_submissions():
-            await ctx.send("Voit äänestää vain niitä käyttäjiä, jotka ovat osallistuneet tällä kierroksella.")
+        voice_channel = interaction.guild.get_channel(VOICE_CHANNEL_ID)
+        if not voice_channel or not voice_channel.members:
+            await interaction.response.send_message("Puhekanava on tyhjä tai ei löytynyt.", ephemeral=True)
             return
 
-        self.data_manager.add_vote(ctx.author.id, member.id)
-        await ctx.send(f"Kiitos! Olet äänestänyt käyttäjää {member.display_name}.")
+        participant_role = interaction.guild.get_role(EVENT_PARTICIPANT_ROLE_ID)
+        if not participant_role:
+            await interaction.response.send_message("Osallistujaroolia ei löytynyt.", ephemeral=True)
+            return
 
-    @commands.command(name='testi', help='Testaa koko event-prosessi botilla ja yhdellä testikäyttäjällä.')
-    @commands.has_permissions(manage_channels=True)
-    async def run_test(self, ctx):
-        await self.start_round(ctx)
+        for member in voice_channel.members:
+            if not member.bot:
+                await member.add_roles(participant_role, reason="Event-lukitus")
 
-        class MockUser:
-            def __init__(self, id, name):
-                self.id = id
-                self.display_name = name
-                self.mention = f"<@{id}>"
-
-        test_user = MockUser(1234567890, "Testikäyttäjä")
-
-        self.data_manager.add_submission(test_user.id, test_user.display_name, "Tämä on testivastaus.")
-
-        await ctx.send(f"{test_user.mention} lähetti testivastauksen.")
-
-        await self.end_submission(ctx)
-
-        await self.start_presentation(ctx)
-
-        await self.start_voting(ctx)
-
-        self.data_manager.add_vote(ctx.author.id, test_user.id)
-        await ctx.send(f"{ctx.author.mention} äänesti käyttäjää {test_user.display_name}.")
-
-        await self.show_results(ctx)
-
-        await ctx.send("✅ Testi valmis! Kaikki vaiheet suoritettu.")
+        await interaction.response.send_message(f"Rooli **{participant_role.name}** lisätty {len(voice_channel.members)} osallistujalle.")
 
 async def setup(bot):
     await bot.add_cog(EventCommands(bot))
