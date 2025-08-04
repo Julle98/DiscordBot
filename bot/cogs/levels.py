@@ -32,17 +32,14 @@ import os
 
 @tasks.loop(seconds=60)
 async def tarkista_puhekanavat():
-    for guild in bot.guilds:
-        xp_channel_id = int(os.getenv("XP_CHANNEL_ID"))
-        xp_channel = guild.get_channel(xp_channel_id)
-        if not xp_channel:
-            continue
+    xp_data = load_xp_data()
 
+    for guild in bot.guilds:
         channels = await guild.fetch_channels()
         for vc in channels:
             if not isinstance(vc, discord.VoiceChannel):
                 continue
-            
+
             if vc.id == IGNORED_VOICE_CHANNEL_ID:
                 continue
 
@@ -51,15 +48,9 @@ async def tarkista_puhekanavat():
                     continue
 
                 user_id = str(member.id)
-
-                msg = None
-                async for m in xp_channel.history(limit=100):
-                    if m.author == bot.user and m.content.startswith(f"{user_id}:"):
-                        msg = m
-                        break
-
-                xp_str = msg.content if msg else f"{user_id}:0:0"
-                xp, level = parse_xp_content(xp_str)
+                user_info = xp_data.get(user_id, {"xp": 0, "level": 0})
+                xp = user_info["xp"]
+                level = user_info["level"]
 
                 xp_gain = 10
                 if any(role.id in DOUBLE_XP_ROLES for role in member.roles):
@@ -67,28 +58,20 @@ async def tarkista_puhekanavat():
 
                 xp += xp_gain
                 new_level = calculate_level(xp)
-                content = make_xp_content(user_id, xp, new_level)
 
-                if msg:
-                    await msg.edit(content=content)
-                else:
-                    await xp_channel.send(content)
+                xp_data[user_id] = {"xp": xp, "level": new_level}
 
-                if new_level > level:
-                    if new_level in LEVEL_MESSAGES:
-                        await xp_channel.send(LEVEL_MESSAGES[new_level].format(user=member.mention))
-                    else:
-                        await xp_channel.send(f"{member.mention} nousi tasolle {new_level}! 🎉")
+                if new_level > level and new_level in LEVEL_ROLES:
+                    uusi_rooli = guild.get_role(LEVEL_ROLES[new_level])
+                    if uusi_rooli:
+                        for lvl, role_id in LEVEL_ROLES.items():
+                            if lvl < new_level and any(r.id == role_id for r in member.roles):
+                                vanha = guild.get_role(role_id)
+                                if vanha:
+                                    await member.remove_roles(vanha)
+                        await member.add_roles(uusi_rooli)
 
-                    if new_level in LEVEL_ROLES:
-                        uusi_rooli = guild.get_role(LEVEL_ROLES[new_level])
-                        if uusi_rooli:
-                            for lvl, role_id in LEVEL_ROLES.items():
-                                if lvl < new_level and any(r.id == role_id for r in member.roles):
-                                    vanha = guild.get_role(role_id)
-                                    if vanha:
-                                        await member.remove_roles(vanha)
-                            await member.add_roles(uusi_rooli)
+    save_xp_data(xp_data)
 
 from discord import app_commands, Interaction
 from discord.ext import commands

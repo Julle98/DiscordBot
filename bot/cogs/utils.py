@@ -301,6 +301,28 @@ KOMENTOJEN_KUVAUKSET = {
     "kauppa": "Näytä kaupan tuotteet tai osta tuote",
 }
 
+def luo_embedit(user_roles):
+    embedit = []
+    nykyinen_embed = discord.Embed(title="Käytettävissä olevat komennot", color=discord.Color.blue())
+    kenttä_laskuri = 0
+
+    for komento, roolivaatimus in KOMENTOJEN_ROOLIT.items():
+        vaatimukset = roolivaatimus if isinstance(roolivaatimus, list) else [roolivaatimus]
+        if roolivaatimus is None or any(rooli in user_roles for rooli in vaatimukset):
+            kuvaus = KOMENTOJEN_KUVAUKSET.get(komento, "Ei kuvausta.")
+            nykyinen_embed.add_field(name=f"/{komento}", value=kuvaus, inline=False)
+            kenttä_laskuri += 1
+
+            if kenttä_laskuri == 25:
+                embedit.append(nykyinen_embed)
+                nykyinen_embed = discord.Embed(title="Käytettävissä olevat komennot (jatkuu)", color=discord.Color.blue())
+                kenttä_laskuri = 0
+
+    if kenttä_laskuri > 0:
+        embedit.append(nykyinen_embed)
+
+    return embedit
+
 class Utils(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -464,7 +486,13 @@ class Utils(commands.Cog):
                 viesti = "Sinulla ei ole oikeuksia yhteenkään komentoon."
 
             print(f"Viesti lähetetään: {viesti}")
-            await interaction.followup.send(viesti, ephemeral=True)
+            embedit = luo_embedit(user_roles)
+
+            if not embedit:
+                await interaction.followup.send("Sinulla ei ole oikeuksia yhteenkään komentoon.", ephemeral=True)
+            else:
+                for embed in embedit:
+                    await interaction.followup.send(embed=embed, ephemeral=True)
 
         except Exception as e:
             print(f"Virhe komennon suorittamisessa: {e}")
