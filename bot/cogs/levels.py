@@ -53,10 +53,18 @@ async def tarkista_puhekanavat():
                 level = user_info["level"]
 
                 xp_gain = 10
+
                 if any(role.id in DOUBLE_XP_ROLES for role in member.roles):
                     xp_gain *= 2
 
-                xp += xp_gain
+                voice_state = member.voice
+                if voice_state:
+                    if voice_state.self_mute or voice_state.mute:
+                        xp_gain *= 0.5
+                    if voice_state.self_stream:
+                        xp_gain *= 1.5
+
+                xp += int(xp_gain)
                 new_level = calculate_level(xp)
 
                 xp_data[user_id] = {"xp": xp, "level": new_level}
