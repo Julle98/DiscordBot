@@ -1,89 +1,18 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 from discord import app_commands, Interaction
-import asyncio
-import os
 from dotenv import load_dotenv
 
 from bot.utils.bot_setup import bot
 from bot.utils.xp_utils import (
-    get_user_xp_message,
-    parse_xp_content,
-    make_xp_content,
-    calculate_level,
-    LEVEL_ROLES,
-    DOUBLE_XP_ROLES,
-    LEVEL_MESSAGES
+    calculate_level
 )
+
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.xp_utils import load_xp_data, save_xp_data
 from bot.utils.error_handler import CommandErrorHandler
 from bot.utils.antinuke import XP_ALERT_THRESHOLD
 from bot.utils.antinuke import alert_xp_request
-
-load_dotenv()
-XP_CHANNEL_ID = int(os.getenv("XP_CHANNEL_ID", 0))
-IGNORED_VOICE_CHANNEL_ID = int(os.getenv("IGNORED_VOICE_CHANNEL_ID", 0))
-
-from discord.ext import tasks
-import discord
-
-import os
-
-@tasks.loop(seconds=60)
-async def tarkista_puhekanavat():
-    xp_data = load_xp_data()
-
-    for guild in bot.guilds:
-        channels = await guild.fetch_channels()
-        for vc in channels:
-            if not isinstance(vc, discord.VoiceChannel):
-                continue
-
-            if vc.id == IGNORED_VOICE_CHANNEL_ID:
-                continue
-
-            for member in vc.members:
-                if member.bot:
-                    continue
-
-                user_id = str(member.id)
-                user_info = xp_data.get(user_id, {"xp": 0, "level": 0})
-                xp = user_info["xp"]
-                level = user_info["level"]
-
-                xp_gain = 10
-
-                if any(role.id in DOUBLE_XP_ROLES for role in member.roles):
-                    xp_gain *= 2
-
-                voice_state = member.voice
-                if voice_state:
-                    if voice_state.self_mute or voice_state.mute:
-                        xp_gain *= 0.5
-                    if voice_state.self_stream:
-                        xp_gain *= 1.5
-
-                xp += int(xp_gain)
-                new_level = calculate_level(xp)
-
-                xp_data[user_id] = {"xp": xp, "level": new_level}
-
-                if new_level > level and new_level in LEVEL_ROLES:
-                    uusi_rooli = guild.get_role(LEVEL_ROLES[new_level])
-                    if uusi_rooli:
-                        for lvl, role_id in LEVEL_ROLES.items():
-                            if lvl < new_level and any(r.id == role_id for r in member.roles):
-                                vanha = guild.get_role(role_id)
-                                if vanha:
-                                    await member.remove_roles(vanha)
-                        await member.add_roles(uusi_rooli)
-
-    save_xp_data(xp_data)
-
-from discord import app_commands, Interaction
-from discord.ext import commands
-import discord
 
 määrä_or_negatiivinen: int = 0
 XP_ALERT_THRESHOLD = 150

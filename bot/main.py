@@ -7,7 +7,6 @@ from bot.utils.env_loader import load_env_and_validate
 from bot.utils.moderation_tasks import start_moderation_loops
 from bot.utils.store_utils import start_store_loops
 from bot.utils.tasks_utils import start_tasks_loops
-from bot.cogs.levels import tarkista_puhekanavat
 from bot.utils.antinuke import check_deletions
 from bot.utils.xp_utils import anna_xp_komennosta
 
@@ -25,6 +24,7 @@ COGS = [
     "bot.cogs.dmviesti",
     "bot.cogs.ruoka",
     "bot.cogs.polls",
+    "bot.cogs.xp_voice",
     "bot.cogs.moderation",
     "bot.cogs.moderation_channels",
     "bot.cogs.moderation_kickban",
@@ -95,7 +95,6 @@ async def on_ready():
         print(f"Virhe botin tilaviestin lähetyksessä: {e}")
 
     check_deletions.start()
-    tarkista_puhekanavat.start()
     start_moderation_loops()
     start_store_loops()
     start_tasks_loops()
