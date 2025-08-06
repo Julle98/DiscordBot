@@ -112,13 +112,13 @@ async def end_poll(bot: commands.Bot, message_id: int):
     with open(DB_PATH, "w") as f:
         json.dump(db, f, indent=2)
 
-class AanestysCog(commands.Cog):
+class Aanestys(commands.GroupCog, name="äänestys"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        super().__init__()
 
-    @app_commands.command(name="äänestys_uusi", description="Luo uusi äänestys")
-    async def äänestys_uusi(self, interaction: discord.Interaction):
-        await interaction.response.defer(thinking=True)
+    @app_commands.command(name="uusi", description="Luo uusi äänestys")
+    async def uusi(self, interaction: discord.Interaction):
         await interaction.response.send_modal(AanestysModal())
         try:
             await kirjaa_komento_lokiin(self.bot, interaction, "/äänestys uusi")
@@ -126,8 +126,8 @@ class AanestysCog(commands.Cog):
         except Exception as e:
             print(f"Task creation failed: {e}")
 
-    @app_commands.command(name="äänestys_tulokset", description="Näytä äänestyksen nykytilanne")
-    async def äänestys_tulokset(self, interaction: discord.Interaction, message_id: str):
+    @app_commands.command(name="tulokset", description="Näytä äänestyksen nykytilanne")
+    async def tulokset(self, interaction: discord.Interaction, message_id: str):
         await interaction.response.defer(thinking=True)
         await kirjaa_komento_lokiin(self.bot, interaction, "/äänestys tulokset")
         await kirjaa_ga_event(self.bot, interaction.user.id, "tulokset_äänestys_komento")
@@ -158,8 +158,8 @@ class AanestysCog(commands.Cog):
 
         await interaction.response.send_message(embed=result, ephemeral=True)
 
-    @app_commands.command(name="äänestys_lopetus", description="Lopeta äänestys ennen aikarajaa")
-    async def äänestys_lopetus(self, interaction: discord.Interaction, message_id: str):
+    @app_commands.command(name="lopetus", description="Lopeta äänestys ennen aikarajaa")
+    async def lopetus(self, interaction: discord.Interaction, message_id: str):
         await interaction.response.defer(thinking=True)
         await kirjaa_komento_lokiin(self.bot, interaction, "/äänestys lopetus")
         await kirjaa_ga_event(self.bot, interaction.user.id, "lopetus_äänestys_komento")
@@ -171,7 +171,7 @@ class AanestysCog(commands.Cog):
         await CommandErrorHandler(self.bot, interaction, error)
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(AanestysCog(bot))
+    await bot.add_cog(Aanestys(bot))
 
     @bot.event
     async def on_raw_reaction_add(payload):

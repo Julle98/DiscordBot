@@ -22,8 +22,6 @@ async def käsittele_xp_bonus(message: Message, user_id: int, nyt: datetime):
     viesti_pvm = nyt.date()
     ero = (viesti_pvm - viime_streak_pvm).days
 
-    print(f"[DEBUG] Käyttäjä: {message.author}, Viime streak: {viime_streak_pvm}, Nykyinen päivä: {viesti_pvm}, Ero: {ero}")
-
     if ero < 5:
         return  # Ei bonusta
 

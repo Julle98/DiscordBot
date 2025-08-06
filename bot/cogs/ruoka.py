@@ -21,7 +21,7 @@ class ruoka(commands.Cog):
     async def ruokailuvuorot(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ruokailuvuorot")
         await kirjaa_ga_event(self.bot, interaction.user.id, "ruokailuvuorot_komento")
-        await interaction.response.send_message("Tällä hetkellä ei ole ruokailuvuoro listoja.")
+        await interaction.response.send_message("https://drive.google.com/file/d/1GO1RoNwSxGwP9T8Ta5_zCfyUDmuPZT1r/view?usp=drivesdk")
 
     @app_commands.command(name="ruoka", description="Näyttää koulun ruokalistan.")
     @app_commands.checks.has_role("24G")
@@ -29,7 +29,7 @@ class ruoka(commands.Cog):
     async def ruoka(
         self,
         interaction: discord.Interaction,
-        valinta: str  
+        valinta: str
     ):
         await interaction.response.defer(ephemeral=True)
 
@@ -41,26 +41,33 @@ class ruoka(commands.Cog):
 
             if valinta == "päivän ruoka":
                 if datetime.now().weekday() >= 5:
-                    await interaction.followup.send("Ei ruokana tänään mitään.")
+                    await interaction.followup.send("Ei ruokana tänään mitään.")  
                     return
 
                 url = "https://aromimenu.cgisaas.fi/VantaaAromieMenus/FI/Default/Vantti/TikkurilaKO/Page/Restaurant"
                 try:
                     response = requests.get(url)
-                    soup = BeautifulSoup(response.text, "html.parser")
-                    dish_tags = [
-                        soup.find("span", id=f"MainContent_WeekdayListView_Meals_0_Meals_1_SecureLabelDish_{i}")
-                        for i in range(3)
-                    ]
-                    dishes = [d.text.strip() for d in dish_tags if d]
+                    soup = BeautifulSoup(response.text, 'html.parser')
+
+                    weekday = datetime.now().weekday()  
+                    base_id = f"MainContent_WeekdayListView_Meals_{weekday}_Meals_1_SecureLabelDish_"
+                    dish_ids = [base_id + str(i) for i in range(3)]  
+                    dishes = []
+
+                    for dish_id in dish_ids:
+                        span = soup.find("span", id=dish_id)
+                        if span:
+                            dishes.append(span.text.strip())
+
                     if dishes:
-                        await interaction.followup.send(f"Ruokana tänään: {', '.join(dishes)}.")
+                        menu_text = "**📆 Päivän ruoka:**\n" + "\n".join(f"• {dish}" for dish in dishes)
+                        await interaction.followup.send(menu_text)
                     else:
                         await interaction.followup.send(
-                            "Ruoan tietoja ei löytynyt. Tarkista tiedot [täältä](https://aromimenu.cgisaas.fi/VantaaAromieMenus/FI/Default/Vantti/TikkurilaKO/Page/Restaurant)."
+                            "Ruoan tietoja ei löytynyt. Tarkista asia [tästä linkistä](https://aromimenu.cgisaas.fi/VantaaAromieMenus/FI/Default/Vantti/TikkurilaKO/Restaurant.aspx) tai yritä uudelleen."
                         )
                 except Exception as e:
-                    await interaction.followup.send(f"Virhe haettaessa ruokalistaa: {e}", ephemeral=True)
+                    await interaction.followup.send(f"Virhe haettaessa ruokalistaa: {e}")
 
             elif valinta == "viikon ruoka":
                 await interaction.followup.send(

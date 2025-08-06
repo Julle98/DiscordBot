@@ -17,7 +17,7 @@ from bot.utils.xp_utils import (
 
 XP_CHANNEL_ID = int(os.getenv("XP_CHANNEL_ID", 0))
 IGNORED_VOICE_CHANNEL_ID = int(os.getenv("IGNORED_VOICE_CHANNEL_ID", 0))
-XP_JSON_PATH = Path(os.getenv("XP_JSON_PATH", "voice_activity.json"))
+XP_JSON_PATH = Path(os.getenv("XP_VOICE_DATA_FILE"))
 
 class XPVoice(commands.Cog):
     def __init__(self, bot):
@@ -103,7 +103,6 @@ class XPVoice(commands.Cog):
 
                     self.voice_states[user_id] = curr_state
 
-                    # XP-laskenta
                     user_info = xp_data.get(user_id, {"xp": 0, "level": 0})
                     xp = user_info["xp"]
                     prev_level = user_info["level"]
@@ -120,7 +119,6 @@ class XPVoice(commands.Cog):
                     new_level = calculate_level(xp)
                     make_xp_content(user_id, xp, new_level)
 
-                    # Tasonnousun tarkastus + roolien päivitys + ilmoitus
                     channel = guild.get_channel(XP_CHANNEL_ID)
                     if channel:
                         dummy_message = type("DummyMessage", (), {
