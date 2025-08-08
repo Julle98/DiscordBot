@@ -4,7 +4,6 @@ from discord import app_commands
 from datetime import datetime
 import pytz
 import requests
-from bs4 import BeautifulSoup
 import random
 from discord.ui import Modal
 import re

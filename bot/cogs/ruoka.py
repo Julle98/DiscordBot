@@ -2,91 +2,91 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from datetime import datetime
-import requests
-from bs4 import BeautifulSoup
+from datetime import datetime
+import aiohttp
+import json
+import os
+import calendar
+import re
+
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.error_handler import CommandErrorHandler
-from discord import app_commands
-from discord.ext import commands
-from datetime import datetime
-import requests
-from bs4 import BeautifulSoup
-import asyncio
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
 
-async def hae_ruoka(interaction, valinta="päivän ruoka", kasvisvaihtoehto=False):
+async def fetch_menu_data(url):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                return await response.json()
+            return None
+
+def viikonpäivä_nimi(pvm_str):
     try:
+        päivä, kuukausi = map(int, pvm_str.strip(".").split("."))
+        vuosi = datetime.now().year
+        pvm = datetime(vuosi, kuukausi, päivä)
+        return calendar.day_name[pvm.weekday()].capitalize()
+    except:
+        return ""
+
+def puhdista_nimi(nimi):
+    return re.sub(r"\s*\([^)]*\)", "", nimi).strip()
+
+async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", kasvisvaihtoehto=False, merkinnät=False):
+    try:
+        url_map = {
+            "päivän ruoka": "https://kouluruoka.fi/page-data/menu/vantaa_tikkurilanlukio/page-data.json",
+            "tämän viikon ruokalista": "https://kouluruoka.fi/page-data/menu/vantaa_tikkurilanlukio/page-data.json",
+            "seuraavan viikon ruokalista": "https://kouluruoka.fi/page-data/menu/vantaa_tikkurilanlukio/2/page-data.json"
+        }
+
+        if valinta not in url_map:
+            await interaction.followup.send(f"📅 Valinta '{valinta}' ei ole tuettu.")
+            return
+
+        data = await fetch_menu_data(url_map[valinta])
+        if not data:
+            await interaction.followup.send("📂 Ruokalistaa ei voitu hakea.")
+            return
+
+        days = data["result"]["pageContext"]["menu"]["Days"]
         if valinta == "päivän ruoka":
-            if datetime.now().weekday() >= 5:
-                await interaction.followup.send("Ei ruokana tänään mitään.")
+            tänään = datetime.now().strftime("%-d.%-m.")
+            päivän_ruoat = next((day for day in days if tänään in day["Date"]), None)
+            if not päivän_ruoat:
+                await interaction.followup.send("📅 Tälle päivälle ei löytynyt ruokalistaa.")
                 return
+            days = [päivän_ruoat]
 
-            url = "https://aromimenu.cgisaas.fi/VantaaAromieMenus/FI/Default/Vantti/TikkurilaKO/Page/Restaurant"
+        embed = discord.Embed(
+            title=f"📆 Tilun ruokalista ({valinta.capitalize()})",
+            description=f"📁 Päivitetty: {datetime.now().strftime('%d.%m.%Y')}\n🔗 Lähde: KOULURUOKA.fi",
+            color=discord.Color.orange()
+        )
 
-            options = Options()
-            options.add_argument("--headless")
-            options.add_argument("--disable-gpu")
-            options.add_argument("--no-sandbox")
+        for day in days:
+            päivä = day["Date"]
+            viikonpäivä = viikonpäivä_nimi(päivä) if valinta != "päivän ruoka" else ""
+            otsikko = f"{viikonpäivä} {päivä}" if viikonpäivä else päivä
 
-            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-            driver.get(url)
+            ateriat = []
+            for meal in day["Meals"]:
+                tyyppi = meal["MealType"].lower()
+                if tyyppi == "lounas" or (kasvisvaihtoehto and "kasvis" in tyyppi):
+                    emoji = "🍽️" if tyyppi == "lounas" else "🥦"
+                    puhdas_nimi = puhdista_nimi(meal["Name"])
+                    nimi = f"{emoji} **{meal['MealType']}**: {puhdas_nimi}"
+                    if merkinnät and meal.get("Labels"):
+                        lisätiedot = ", ".join(meal["Labels"])
+                        nimi += f" _(Merkinnät: {lisätiedot})_"
+                    ateriat.append(nimi)
 
-            await asyncio.sleep(3)
+            if ateriat:
+                embed.add_field(name=otsikko, value="\n".join(ateriat), inline=False)
 
-            labels = driver.find_elements(By.CSS_SELECTOR, "mat-label.labeltext")
-            texts = [label.text.strip() for label in labels]
-
-            driver.quit()
-
-            if len(texts) < 8:
-                await interaction.followup.send("Ruokalistaa ei löytynyt tai se on puutteellinen.")
-                return
-
-            kasvisruuat = [
-                f"{texts[0]}, {texts[1]}",
-                f"{texts[2]}, {texts[3]}"
-            ]
-
-            paivaruoka = [
-                f"{texts[4]}, {texts[5]}",
-                f"{texts[6]}, {texts[7]}"
-            ]
-
-            menu_text = "**📆 Päivän ruoka:**\n"
-            for dish in paivaruoka:
-                menu_text += f"• {dish}\n"
-
-            if kasvisvaihtoehto:
-                menu_text += "\n**🥕 Valinnainen kasvisvaihtoehto:**\n"
-                for dish in kasvisruuat:
-                    menu_text += f"• {dish}\n"
-
-            await interaction.followup.send(menu_text)
-
-        elif valinta == "viikon ruoka":
-            await interaction.followup.send(
-                "📅 Viikon ruokalista ei ole vielä saatavilla. Päivitämme sen, kun tiedot julkaistaan."
-            )
-
-        elif valinta == "seuraavan viikon ruoka":
-            await interaction.followup.send(
-                "📅 Seuraavan viikon ruokalista ei ole vielä saatavilla. Päivitämme sen, kun tiedot julkaistaan."
-            )
-
-        elif valinta == "kolmannen viikon ruoka":
-            await interaction.followup.send(
-                "📅 Kolmannen viikon ruokalista ei ole vielä saatavilla. Päivitämme sen, kun tiedot julkaistaan."
-            )
-
-        else:
-            await interaction.followup.send("❓ Valintaa ei tunnistettu.")
+        await interaction.followup.send(embed=embed)
 
     except Exception as e:
-        await interaction.followup.send(f"⚠️ Virhe komennon suorittamisessa: {e}", ephemeral=True)
+        await interaction.followup.send(f"⚠️ Virhe ruokalistan hakemisessa: {e}", ephemeral=True)
 
 class ruoka(commands.Cog):
     def __init__(self, bot):
@@ -103,16 +103,18 @@ class ruoka(commands.Cog):
     @app_commands.checks.has_role("24G")
     @app_commands.describe(
         valinta="Valitse ruokalistan tyyppi",
-        kasvisvaihtoehto="Näytä valinnainen kasvisvaihtoehto"
+        kasvisvaihtoehto="Näytä valinnainen kasvisvaihtoehto",
+        merkinnät="Näytä aterioiden merkinnät (esim. allergiat)"
     )
     async def ruoka(
         self,
         interaction: discord.Interaction,
         valinta: str,
-        kasvisvaihtoehto: bool = False
+        kasvisvaihtoehto: bool = False,
+        merkinnät: bool = False
     ):
         await interaction.response.defer()
-        await hae_ruoka(interaction, valinta=valinta.lower(), kasvisvaihtoehto=kasvisvaihtoehto)
+        await hae_ruoka(interaction, valinta=valinta.lower(), kasvisvaihtoehto=kasvisvaihtoehto, merkinnät=merkinnät)
 
     @ruoka.autocomplete("valinta")
     async def ruoka_autocomplete(
@@ -122,9 +124,8 @@ class ruoka(commands.Cog):
     ) -> list[app_commands.Choice[str]]:
         vaihtoehdot = [
             "päivän ruoka",
-            "viikon ruoka",
-            "seuraavan viikon ruoka",
-            "kolmannen viikon ruoka"
+            "tämän viikon ruokalista",
+            "seuraavan viikon ruokalista",
         ]
         return [
             app_commands.Choice(name=v, value=v)

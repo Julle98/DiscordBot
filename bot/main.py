@@ -36,7 +36,6 @@ COGS = [
     "bot.cogs.misc",
     "bot.cogs.xp_system",
     "bot.utils.welcomecog",
-    "bot.utils.xptracker",
     "bot.utils.antinuke",
     "bot.utils.error_handler",
     "bot.utils.logger",
