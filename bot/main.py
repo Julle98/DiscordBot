@@ -9,7 +9,7 @@ from bot.utils.store_utils import start_store_loops
 from bot.utils.tasks_utils import start_tasks_loops
 from bot.utils.antinuke import check_deletions
 from bot.utils.xp_utils import anna_xp_komennosta
-from bot.utils.ruokailuvuorot_utils import paivita_ruokailuvuorot_json
+from bot.utils.ruokailuvuorot_utils import paivita_ruokailuvuorot
 
 load_env_and_validate()
 load_dotenv()
@@ -98,7 +98,7 @@ async def on_ready():
     start_moderation_loops()
     start_store_loops()
     start_tasks_loops()
-    paivita_ruokailuvuorot_json()
+    paivita_ruokailuvuorot()
 
     try:
         xp_path = os.getenv("XP_JSON_PATH")

@@ -31,10 +31,17 @@ class AanestysModal(ui.Modal, title="📊 Luo uusi äänestys"):
             placeholder="Esim. 5",
             max_length=5
         )
+        self.rooli_id = ui.TextInput(
+            label="Roolin ID (tägättävä)",
+            placeholder="Esim. 123456789012345678",
+            required=False,
+            max_length=20
+        )
 
         self.add_item(self.kysymys)
         self.add_item(self.vaihtoehdot)
         self.add_item(self.aikaraja)
+        self.add_item(self.rooli_id)
 
     async def on_submit(self, interaction: Interaction):
         try:
@@ -60,11 +67,20 @@ class AanestysModal(ui.Modal, title="📊 Luo uusi äänestys"):
         for emoji in emojis[:len(options)]:
             await poll_msg.add_reaction(emoji)
 
-        role = discord.utils.get(interaction.guild.roles, name="Mr. Vastaaja")
-        if role and role.mentionable:
-            await interaction.channel.send(f"{role.mention} aika äänestää!")
-        else:
-            await interaction.channel.send("@Mr. Vastaaja aika äänestää!")
+        role_id_str = self.rooli_id.value.strip()
+        role = None
+        if role_id_str.isdigit():
+            role_id = int(role_id_str)
+            role = interaction.guild.get_role(role_id)
+
+        if role_id_str:
+            if role and role.mentionable:
+                await interaction.channel.send(f"{role.mention} aika äänestää!")
+            elif role:
+                await interaction.channel.send(f"<@&{role.id}> aika äänestää!")
+            else:
+                await interaction.response.send_message("⚠️ Roolia ei löytynyt tai sitä ei voi tägätä.", ephemeral=True)
+                return
 
         await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
 

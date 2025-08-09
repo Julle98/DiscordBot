@@ -9,6 +9,7 @@ import os
 import calendar
 import re
 
+from bot.utils.ruokailuvuorot_utils import parse_schedule
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.error_handler import CommandErrorHandler
 
@@ -93,23 +94,25 @@ class ruoka(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="ruokailuvuorot", description="Näyttää uusimmat ruokailuvuorot.")
-    @app_commands.describe(luokkakoodi="Luokan tunnus, esim. ENA05.13 tai MAB04.13")
+    @app_commands.describe(luokkakoodi="(BETA OMINAISUUS) Luokan tunnus, esim. ENA05.13 tai MAB04.13")
     @app_commands.checks.has_role("24G")
     async def ruokailuvuorot(self, interaction: discord.Interaction, luokkakoodi: str = None):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ruokailuvuorot")
         await kirjaa_ga_event(self.bot, interaction.user.id, "ruokailuvuorot_komento")
 
-        json_path = os.getenv("SCHEDULE_JSON_PATH", "./data/ruokailuvuorot.json")
+        raw_path = os.getenv("RAW_SCHEDULE_PATH")
         drive_link = os.getenv("RUOKAILU_DRIVE_LINK")
 
         if luokkakoodi:
             try:
-                with open(json_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                with open(raw_path, "r", encoding="utf-8") as f:
+                    text = f.read()
 
-                if luokkakoodi in data:
-                    entry = data[luokkakoodi]
-                    message = f"{entry['vuoro']}\n{entry['ruokailu']}\n{entry['oppitunti']}"
+                schedule = parse_schedule(text)
+
+                if luokkakoodi in schedule:
+                    entry = schedule[luokkakoodi]
+                    message = f"**{luokkakoodi}**\n{entry['vuoro']}\nRuokailu: {entry['ruokailu']}\nOppitunti: {entry['oppitunti']}"
                 else:
                     message = f"Tuntikoodia **{luokkakoodi}** ei löytynyt."
             except Exception as e:

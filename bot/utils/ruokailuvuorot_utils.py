@@ -1,16 +1,58 @@
 import re
 import json
-import requests
 import os
+import gdown
+import hashlib
 
-LINK_ID_FILE = "./data/drive_link_id.txt"
-
-def get_drive_file_id(url: str) -> str:
-    match = re.search(r"/d/([a-zA-Z0-9_-]+)", url)
+def get_drive_file_id(url_or_id: str) -> str:
+    if re.fullmatch(r"[a-zA-Z0-9_-]{20,}", url_or_id):
+        return url_or_id
+    match = re.search(r"/d/([a-zA-Z0-9_-]+)", url_or_id)
     return match.group(1) if match else None
 
-def paivita_ruokailuvuorot_json():
+def laske_tiedoston_hash(polku: str) -> str:
+    try:
+        with open(polku, "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()
+    except:
+        return None
+
+def parse_schedule(text: str) -> dict:
+    schedule = {}
+    lines = text.strip().split("\n")
+
+    current_vuoro = None
+    current_ruokailu = None
+    current_oppitunti = None
+
+    for line in lines:
+        line = line.strip()
+
+        if re.match(r"^\d+\. VUORO$", line):
+            current_vuoro = line
+
+        elif "Ruokailu" in line and "Oppitunti" in line:
+            match = re.search(r"(\d{1,2}\.\d{2} - \d{1,2}\.\d{2}) Ruokailu (\d{1,2}\.\d{2} - \d{1,2}\.\d{2}) Oppitunti", line)
+            if match:
+                current_ruokailu = match.group(1)
+                current_oppitunti = match.group(2)
+
+        elif re.match(r"\b[A-ZÄÖ]{2,}[0-9]{2,}(?:\+[A-Z0-9.]+)?(?:\.[0-9]+)?\b", line):
+            codes = re.findall(r"\b[A-ZÄÖ]{2,}[0-9]{2,}(?:\+[A-Z0-9.]+)?(?:\.[0-9]+)?\b", line)
+            for code in codes:
+                schedule[code] = {
+                    "vuoro": current_vuoro,
+                    "ruokailu": current_ruokailu,
+                    "oppitunti": current_oppitunti
+                }
+
+    return schedule
+
+def paivita_ruokailuvuorot():
     drive_url = os.getenv("RUOKAILU_DRIVE_LINK")
+    raw_path = os.getenv("RAW_SCHEDULE_PATH")
+    hash_path = os.getenv("LINK_ID_FILE")
+
     if not drive_url:
         print("Drive-linkkiä ei löytynyt .env-tiedostosta.")
         return
@@ -20,48 +62,36 @@ def paivita_ruokailuvuorot_json():
         print("Virheellinen Drive-linkki.")
         return
 
-    previous_id = None
-    if os.path.exists(LINK_ID_FILE):
-        with open(LINK_ID_FILE, "r") as f:
-            previous_id = f.read().strip()
+    download_url = f"https://drive.google.com/uc?id={file_id}"
 
-    if previous_id == file_id:
-        print("Drive-linkki ei ole muuttunut. Ei päivitetä.")
-        return
-
-    download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
     try:
-        response = requests.get(download_url)
-        response.raise_for_status()
-        text = response.text
+        gdown.download(url=download_url, output=raw_path, quiet=False, use_cookies=False)
     except Exception as e:
         print(f"Virhe ladattaessa tiedostoa: {e}")
         return
 
-    vuoro_pattern = re.compile(r"(\d\. VUORO)\n([\d:. -]+ Ruokailu)\n([\d:. -]+ Oppitunti)", re.MULTILINE)
-    code_pattern = re.compile(r"\b[A-ZÄÖ]{2,}[0-9]{2,}(?:\+[A-Z0-9.]+)?(?:\.[0-9]+)?\b")
+    new_hash = laske_tiedoston_hash(raw_path)
+    previous_hash = None
+    if os.path.exists(hash_path):
+        with open(hash_path, "r") as f:
+            previous_hash = f.read().strip()
 
-    vuorot = [(m.group(1), m.group(2), m.group(3), m.end()) for m in vuoro_pattern.finditer(text)]
-    schedule = {}
+    if previous_hash == new_hash:
+        print("Tiedosto ei ole muuttunut. Ei päivitetä.")
+        return
 
-    for i, (vuoro, ruokailu, oppitunti, end_pos) in enumerate(vuorot):
-        next_start = vuorot[i + 1][3] if i + 1 < len(vuorot) else len(text)
-        block_text = text[end_pos:next_start]
-        codes = code_pattern.findall(block_text)
-
-        for code in codes:
-            schedule[code] = {
-                "vuoro": vuoro,
-                "ruokailu": ruokailu,
-                "oppitunti": oppitunti
-            }
-
-    json_path = os.getenv("SCHEDULE_JSON_PATH", "./data/ruokailuvuorot.json")
     try:
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(schedule, f, ensure_ascii=False, indent=2)
-        with open(LINK_ID_FILE, "w") as f:
-            f.write(file_id)
-        print(f"Päivitetty {len(schedule)} tuntikoodia tiedostoon.")
+        with open(raw_path, "r", encoding="utf-8") as f:
+            text = f.read()
+        print("Tiedosto ladattu ja päivitetty.")
+        print(f"Tiedoston koko: {len(text)} merkkiä")
     except Exception as e:
-        print(f"Virhe tallennettaessa tiedostoa: {e}")
+        print(f"Virhe luettaessa ladattua tiedostoa: {e}")
+        return
+
+    try:
+        with open(hash_path, "w") as f:
+            f.write(new_hash)
+        print("Hash tallennettu.")
+    except Exception as e:
+        print(f"Virhe tallennettaessa hashia: {e}")
