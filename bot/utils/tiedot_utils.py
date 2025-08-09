@@ -859,7 +859,7 @@ class PalaaNappi(ui.Button):
 
 class LataaNappi(ui.Button):
     def __init__(self, nimi, user, avaimet=None):
-        super().__init__(label="Lataa tiedosto", style=discord.ButtonStyle.success)
+        super().__init__(label="Lataa tiedot", style=discord.ButtonStyle.success)
         self.nimi = nimi
         self.user = user
         self.avaimet = avaimet or []

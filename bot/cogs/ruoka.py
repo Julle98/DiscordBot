@@ -93,24 +93,25 @@ class ruoka(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="ruokailuvuorot", description="Näyttää uusimmat ruokailuvuorot.")
+    @app_commands.describe(luokkakoodi="Luokan tunnus, esim. ENA05.13 tai MAB04.13")
     @app_commands.checks.has_role("24G")
-    async def ruokailuvuorot(self, interaction: discord.Interaction, class_code: str = None):
+    async def ruokailuvuorot(self, interaction: discord.Interaction, luokkakoodi: str = None):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ruokailuvuorot")
         await kirjaa_ga_event(self.bot, interaction.user.id, "ruokailuvuorot_komento")
 
         json_path = os.getenv("SCHEDULE_JSON_PATH", "./data/ruokailuvuorot.json")
         drive_link = os.getenv("RUOKAILU_DRIVE_LINK")
 
-        if class_code:
+        if luokkakoodi:
             try:
                 with open(json_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
-                if class_code in data:
-                    entry = data[class_code]
+                if luokkakoodi in data:
+                    entry = data[luokkakoodi]
                     message = f"{entry['vuoro']}\n{entry['ruokailu']}\n{entry['oppitunti']}"
                 else:
-                    message = f"Tuntikoodia **{class_code}** ei löytynyt."
+                    message = f"Tuntikoodia **{luokkakoodi}** ei löytynyt."
             except Exception as e:
                 message = f"Virhe luettaessa tiedostoa: {e}"
         else:
