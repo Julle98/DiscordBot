@@ -94,10 +94,29 @@ class ruoka(commands.Cog):
 
     @app_commands.command(name="ruokailuvuorot", description="Näyttää uusimmat ruokailuvuorot.")
     @app_commands.checks.has_role("24G")
-    async def ruokailuvuorot(self, interaction: discord.Interaction):
+    async def ruokailuvuorot(self, interaction: discord.Interaction, class_code: str = None):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ruokailuvuorot")
         await kirjaa_ga_event(self.bot, interaction.user.id, "ruokailuvuorot_komento")
-        await interaction.response.send_message("https://drive.google.com/file/d/1GO1RoNwSxGwP9T8Ta5_zCfyUDmuPZT1r/view?usp=drivesdk")
+
+        json_path = os.getenv("SCHEDULE_JSON_PATH", "./data/ruokailuvuorot.json")
+        drive_link = os.getenv("RUOKAILU_DRIVE_LINK")
+
+        if class_code:
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+                if class_code in data:
+                    entry = data[class_code]
+                    message = f"{entry['vuoro']}\n{entry['ruokailu']}\n{entry['oppitunti']}"
+                else:
+                    message = f"Tuntikoodia **{class_code}** ei löytynyt."
+            except Exception as e:
+                message = f"Virhe luettaessa tiedostoa: {e}"
+        else:
+            message = drive_link or "Linkkiä ei löytynyt."
+
+        await interaction.response.send_message(message)
 
     @app_commands.command(name="ruoka", description="Näyttää Tilun ruokalistan.")
     @app_commands.checks.has_role("24G")
@@ -113,6 +132,8 @@ class ruoka(commands.Cog):
         kasvisvaihtoehto: bool = False,
         merkinnät: bool = False
     ):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/ruoka")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "ruoka_komento")
         await interaction.response.defer()
         await hae_ruoka(interaction, valinta=valinta.lower(), kasvisvaihtoehto=kasvisvaihtoehto, merkinnät=merkinnät)
 
