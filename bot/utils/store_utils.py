@@ -5,10 +5,9 @@ import json
 import random
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-from discord import app_commands
+from discord.ui import Button, View
 from discord.ext import tasks, commands
 from bot.utils.bot_setup import bot
-from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.xp_utils import load_xp_data
 from pathlib import Path
 from datetime import datetime
@@ -210,6 +209,29 @@ def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: 
         pass
 
     return kuponki.get("prosentti", 0)
+
+def tallenna_kuponkitapahtuma(user_id: str, kuponki: str, tuote: str):
+    path = Path(os.getenv("JSON_DIRS")) / "kuponkitapahtumat.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {}
+
+        tapahtuma = {
+            "kuponki": kuponki,
+            "tuote": tuote,
+            "aika": datetime.utcnow().isoformat()
+        }
+
+        data.setdefault(user_id, []).append(tapahtuma)
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Kuponkitapahtuman tallennus epäonnistui: {e}")
 
 def nykyinen_periodi():
     alku = datetime(2025, 1, 1, tzinfo=timezone.utc)
@@ -556,6 +578,7 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
 
     if kuponki:
         alennus_prosentti = tarkista_kuponki(kuponki, tuote["nimi"], user_id)
+        tallenna_kuponkitapahtuma(str(interaction.user.id), kuponki, tuote["nimi"])
         if alennus_prosentti == 0:
             await interaction.response.send_message("❌ Kuponki ei kelpaa tälle tuotteelle, vanhentunut tai käyttöraja täynnä. Osto peruutettu.", ephemeral=True)
             return
@@ -589,8 +612,82 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
         kanava_id = int(os.getenv("OSTOSLOKI_KANAVA_ID"))
         lokikanava = bot.get_channel(kanava_id)
         if lokikanava:
+            view = PeruOstosView(interaction.user, tuote["nimi"])
             await lokikanava.send(
-                f"🧾 {interaction.user.mention} osti tuotteen **{tuote['nimi']}** ({hinta_alennettu} XP){lisatieto}" + (f"\n📄 Kuponki: **{kuponki}** (-{alennus_prosentti}%)" if kuponki else "")
+                f"🧾 {interaction.user.mention} osti tuotteen **{tuote['nimi']}** ({hinta_alennettu} XP){lisatieto}" +
+                (f"\n📄 Kuponki: **{kuponki}** (-{alennus_prosentti}%)" if kuponki else ""),
+                view=view
             )
     except Exception as e:
         print(f"Lokitus epäonnistui: {e}")
+
+class PeruOstosView(View):
+    def __init__(self, user: discord.Member, tuotteen_nimi: str):
+        super().__init__(timeout=None)
+        self.user = user
+        self.tuotteen_nimi = tuotteen_nimi
+
+    @discord.ui.button(label="Peru ostos", style=discord.ButtonStyle.danger, emoji="❌")
+    async def peru_ostos_button(self, interaction: discord.Interaction, button: Button):
+        sallitut_roolit = os.getenv("OSTOS_PERU_ROOLIT", "")
+        sallitut_rooli_idt = [int(rid.strip()) for rid in sallitut_roolit.split(",") if rid.strip().isdigit()]
+
+        kayttajan_roolit = [r.id for r in interaction.user.roles]
+        if not any(rid in kayttajan_roolit for rid in sallitut_rooli_idt):
+            await interaction.response.send_message("❌ Sinulla ei ole oikeutta perua ostoksia.", ephemeral=True)
+            return
+
+        await peru_ostos(interaction, self.user, self.tuotteen_nimi)
+        self.stop()
+
+async def peru_ostos(interaction: discord.Interaction, user: discord.Member, tuotteen_nimi: str):
+    user_id = str(user.id)
+    ostot = lue_ostokset()
+    tuotteen_nimi_puhdistettu = puhdista_tuotteen_nimi(tuotteen_nimi)
+
+    alkuperaiset = ostot.get(user_id, [])
+    ostot[user_id] = [o for o in alkuperaiset if puhdista_tuotteen_nimi(o.get("nimi", "")) != tuotteen_nimi_puhdistettu]
+    tallenna_ostokset(ostot)
+
+    try:
+        if tuotteen_nimi_puhdistettu == "erikoisemoji":
+            rooli = discord.utils.get(user.guild.roles, name="Erikoisemoji")
+            if rooli:
+                await user.remove_roles(rooli)
+
+        elif tuotteen_nimi_puhdistettu == "double xp -päivä":
+            rooli = discord.utils.get(user.guild.roles, name="Double XP")
+            if rooli:
+                await user.remove_roles(rooli)
+
+        elif tuotteen_nimi_puhdistettu == "vip-chat" or tuotteen_nimi_puhdistettu == "vip-rooli":
+            rooli = discord.utils.get(user.guild.roles, name="VIP")
+            if rooli:
+                await user.remove_roles(rooli)
+
+        elif tuotteen_nimi_puhdistettu == "soundboard-oikeus":
+            rooli = discord.utils.get(user.guild.roles, name="SoundboardAccess")
+            if rooli:
+                await user.remove_roles(rooli)
+
+        elif tuotteen_nimi_puhdistettu == "valitse emoji":
+            auto_react_users.pop(user_id, None)
+
+        elif tuotteen_nimi_puhdistettu.startswith(f"{user.name}-"):
+            rooli = discord.utils.get(user.guild.roles, name__startswith=f"{user.name}-")
+            if rooli:
+                await user.remove_roles(rooli)
+                await rooli.delete()
+
+    except Exception as e:
+        print(f"Oikeuksien poisto epäonnistui: {e}")
+
+    try:
+        kanava_id = int(os.getenv("OSTOSLOKI_KANAVA_ID"))
+        lokikanava = bot.get_channel(kanava_id)
+        if lokikanava:
+            await lokikanava.send(f"❌ {user.mention} perui ostoksen **{tuotteen_nimi}**. Oikeudet poistettu.")
+    except Exception as e:
+        print(f"Peruutuslokitus epäonnistui: {e}")
+
+    await interaction.response.send_message(f"✅ Ostos **{tuotteen_nimi}** peruttu ja oikeudet poistettu käyttäjältä {user.mention}.", ephemeral=True)

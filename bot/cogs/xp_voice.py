@@ -92,7 +92,9 @@ class XPVoice(commands.Cog):
                                     total = self.voice_activity_data["total_voice_usage"].get(user_id, 0)
                                     self.voice_activity_data["total_voice_usage"][user_id] = total + duration
 
-                                self.voice_activity_data["temporary_flags"].pop(state_key, None)
+                                    channel_usage = self.voice_activity_data.setdefault("voice_channels", {}).setdefault(user_id, {})
+                                    channel_id_str = str(vc.id)
+                                    channel_usage[channel_id_str] = channel_usage.get(channel_id_str, 0) + duration
                             else:
                                 continue
 
