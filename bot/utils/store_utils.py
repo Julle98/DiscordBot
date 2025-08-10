@@ -158,26 +158,31 @@ def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: 
     try:
         with open(polku, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except Exception:
+    except Exception as e:
+        print(f"❌ Kuponkidatan lataus epäonnistui: {e}")
         return 0
 
     kuponki = data.get(koodi)
     if not kuponki:
+        print(f"❌ Kuponkia {koodi} ei löytynyt.")
         return 0
 
     try:
         vanhentuu = datetime.fromisoformat(kuponki["vanhentuu"])
         if datetime.now() > vanhentuu:
+            print(f"⏰ Kuponki {koodi} on vanhentunut.")
             return 0
-    except Exception:
+    except Exception as e:
+        print(f"❌ Vanhentumispäivän käsittely epäonnistui: {e}")
         return 0
 
-    maxkayttoja = kuponki.get("maxkayttoja", -1)
-    if maxkayttoja != -1 and kuponki.get("kayttoja", 0) >= maxkayttoja:
+    if kuponki.get("maxkayttoja", -1) != -1 and kuponki.get("kayttoja", 0) >= kuponki["maxkayttoja"]:
+        print(f"🚫 Kuponki {koodi} on käytetty maksimimäärän verran.")
         return 0
 
     sallitut_tuotteet = [t.strip().lower() for t in kuponki.get("tuotteet", [])]
     if sallitut_tuotteet and tuotteen_nimi not in sallitut_tuotteet:
+        print(f"🚫 Tuote '{tuotteen_nimi}' ei ole sallittu kupongille {koodi}.")
         return 0
 
     sallitut_kayttajat_raw = kuponki.get("kayttajat", [])
@@ -185,17 +190,19 @@ def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: 
         kayttaja_ids = [v for v in sallitut_kayttajat_raw if not v.startswith("rooli:")]
         rooli_ids = [v.replace("rooli:", "") for v in sallitut_kayttajat_raw if v.startswith("rooli:")]
 
-        kuuluu_rooliin = any(discord.utils.get(interaction.user.roles, id=int(rid)) for rid in rooli_ids)
+        member = interaction.guild.get_member(interaction.user.id)
+        kuuluu_rooliin = member and any(discord.utils.get(member.roles, id=int(rid)) for rid in rooli_ids)
         on_hyvaksytty_kayttaja = str(user_id) in kayttaja_ids
 
         if not on_hyvaksytty_kayttaja and not kuuluu_rooliin:
+            print(f"🚫 Käyttäjä {user_id} ei ole sallittu kupongille {koodi}.")
             return 0
 
-    kayttaja_key = f"user:{user_id}"
+    kayttaja_key = str(user_id)  
     kayttaja_kayttoja = kuponki.setdefault("kayttajat_dict", {}).get(kayttaja_key, 0)
 
-    maxkayttoja_per_jasen = kuponki.get("maxkayttoja_per_jasen", -1)
-    if maxkayttoja_per_jasen != -1 and kayttaja_kayttoja >= maxkayttoja_per_jasen:
+    if kuponki.get("maxkayttoja_per_jasen", -1) != -1 and kayttaja_kayttoja >= kuponki["maxkayttoja_per_jasen"]:
+        print(f"🚫 Käyttäjä {user_id} on käyttänyt kupongin {koodi} jo maksimimäärän verran.")
         return 0
 
     kuponki["kayttoja"] = kuponki.get("kayttoja", 0) + 1
@@ -205,33 +212,11 @@ def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: 
     try:
         with open(polku, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-    except Exception:
-        pass
-
-    return kuponki.get("prosentti", 0)
-
-def tallenna_kuponkitapahtuma(user_id: str, kuponki: str, tuote: str):
-    path = Path(os.getenv("JSON_DIRS")) / "kuponkitapahtumat.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        if path.exists():
-            with open(path, encoding="utf-8") as f:
-                data = json.load(f)
-        else:
-            data = {}
-
-        tapahtuma = {
-            "kuponki": kuponki,
-            "tuote": tuote,
-            "aika": datetime.utcnow().isoformat()
-        }
-
-        data.setdefault(user_id, []).append(tapahtuma)
-
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"Kuponkitapahtuman tallennus epäonnistui: {e}")
+        print(f"❌ Kuponkidatan tallennus epäonnistui: {e}")
+
+    print(f"✅ Kuponki {koodi} hyväksytty. Alennus: {kuponki.get('prosentti', 0)}%")
+    return kuponki.get("prosentti", 0)
 
 def nykyinen_periodi():
     alku = datetime(2025, 1, 1, tzinfo=timezone.utc)
@@ -578,7 +563,6 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
 
     if kuponki:
         alennus_prosentti = tarkista_kuponki(kuponki, tuote["nimi"], user_id)
-        tallenna_kuponkitapahtuma(str(interaction.user.id), kuponki, tuote["nimi"])
         if alennus_prosentti == 0:
             await interaction.response.send_message("❌ Kuponki ei kelpaa tälle tuotteelle, vanhentunut tai käyttöraja täynnä. Osto peruutettu.", ephemeral=True)
             return

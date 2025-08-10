@@ -33,7 +33,7 @@ TIEDOSTOT = {
     "Tarjous": JSON_DIRS / "tarjous.json",
     "XP-data": XP_JSON_PATH / "users_xp.json",
     "Puhe-streak": XP_JSON_PATH / "users_streak.json",
-    "Kuponki": JSON_DIRS / "kuponkitapahtumat.json",
+    "Kuponki": JSON_DIRS / "kuponki.json",
 }
 
 KATEGORIAT = list(TIEDOSTOT.keys()) + ["Moderointi", "Toiminta", "Komennot"]
@@ -396,61 +396,72 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
         
         elif kategoria == "Kuponki":
             try:
-                with open(TIEDOSTOT["Kuponki"], encoding="utf-8") as f:
-                    data = json.load(f)
-                tapahtumat = data.get(uid, [])
-                if tapahtumat:
-                    laskuri = Counter()
-                    tuotteet = {}
+                uid = str(uid)  
 
-                    try:
-                        with open(JSON_DIRS / "kuponkitapahtumat.json", encoding="utf-8") as f:
-                            kuponki_data = json.load(f)
-                    except Exception as e:
-                        kuponki_data = {}
-                        print(f"Kuponkidatan lataus epäonnistui: {e}")
+                try:
+                    with open(TIEDOSTOT["Kuponki"], encoding="utf-8") as f:
+                        tapahtumat_data = json.load(f)
+                    tapahtumat = tapahtumat_data.get(uid, [])
+                except Exception as e:
+                    tapahtumat = []
+                    print(f"Kuponkitapahtumien lataus epäonnistui: {e}")
 
-                    from bot.utils.store_utils import kauppa_tuotteet
+                try:
+                    with open(JSON_DIRS / "kuponki.json", encoding="utf-8") as f:
+                        kuponki_data = json.load(f)
+                except Exception as e:
+                    kuponki_data = {}
+                    print(f"Kuponkidatan lataus epäonnistui: {e}")
 
-                    def hae_tuotteen_hinta(nimi: str) -> int:
-                        for tuote in kauppa_tuotteet:
-                            if tuote.get("nimi") == nimi:
-                                return int(tuote.get("hinta", 0))
-                        return 0
+                from bot.utils.store_utils import kauppa_tuotteet
 
-                    säästö_yhteensä = 0
-                    for tapahtuma in tapahtumat:
-                        kuponki = tapahtuma.get("kuponki", "Tuntematon")
-                        tuote = tapahtuma.get("tuote", "Tuntematon tuote")
-                        aika = tapahtuma.get("aika", "?")
-                        laskuri[kuponki] += 1
-                        tuotteet.setdefault(kuponki, []).append((tuote, aika))
+                def hae_tuotteen_hinta(nimi: str) -> int:
+                    for tuote in kauppa_tuotteet:
+                        if tuote.get("nimi") == nimi:
+                            return int(tuote.get("hinta", 0))
+                    return 0
 
-                        prosentti = kuponki_data.get(kuponki, {}).get("prosentti", 0)
-                        hinta = hae_tuotteen_hinta(tuote)
-                        if hinta and prosentti:
-                            säästö = hinta * (prosentti / 100)
-                            säästö_yhteensä += säästö
+                laskuri = Counter()
+                tuotteet = {}
+                säästö_yhteensä = 0
 
-                    embed.add_field(name="📊 Käytetyt kupongit", value=f"{len(tapahtumat)} kertaa", inline=True)
+                for tapahtuma in tapahtumat:
+                    kuponki = tapahtuma.get("kuponki", "Tuntematon")
+                    tuote = tapahtuma.get("tuote", "Tuntematon tuote")
+                    aika = tapahtuma.get("aika", "?")
+                    laskuri[kuponki] += 1
+                    tuotteet.setdefault(kuponki, []).append((tuote, aika))
 
-                    for kuponki, määrä in laskuri.items():
-                        rivit = [f"• {tuote} ({aika[:10]})" for tuote, aika in tuotteet[kuponki][:3]]
-                        embed.add_field(
-                            name=f"🎟️ {kuponki} ({määrä}×)",
-                            value="\n".join(rivit),
-                            inline=False
-                        )
+                    prosentti = kuponki_data.get(kuponki, {}).get("prosentti", 0)
+                    hinta = hae_tuotteen_hinta(tuote)
+                    if hinta and prosentti:
+                        säästö = hinta * (prosentti / 100)
+                        säästö_yhteensä += säästö
+
+                embed.add_field(name="📊 Käytetyt kupongit", value=f"{len(tapahtumat)} kertaa", inline=True)
+
+                for kuponki, määrä in laskuri.items():
+                    rivit = [f"• {tuote} ({aika[:10]})" for tuote, aika in tuotteet[kuponki][:3]]
+
+                    kuponki_info = kuponki_data.get(kuponki, {})
+                    kayttajat_dict = kuponki_info.get("kayttajat_dict", {})
+                    kayttoja = kayttajat_dict.get(uid, 0)
+                    max_per = kuponki_info.get("maxkayttoja_per_jasen", "∞")
 
                     embed.add_field(
-                        name="💸 Arvioitu XP-säästö",
-                        value=f"{int(säästö_yhteensä)} XP",
+                        name=f"🎟️ {kuponki} ({määrä}×, käytetty {kayttoja}/{max_per})",
+                        value="\n".join(rivit),
                         inline=False
                     )
-                else:
-                    embed.add_field(name="🎟️ Kuponki", value="Ei käytettyjä kuponkeja.", inline=False)
+
+                embed.add_field(
+                    name="💸 Arvioitu XP-säästö",
+                    value=f"{int(säästö_yhteensä)} XP",
+                    inline=False
+                )
+
             except Exception as e:
-                embed.add_field(name="⚠️ Virhe", value=f"Kuponkidatan lataus epäonnistui: {e}", inline=False)
+                embed.add_field(name="⚠️ Virhe", value=f"Kuponkidatan käsittely epäonnistui: {e}", inline=False)
 
         elif kategoria == "Puhe-streak":
             try:
