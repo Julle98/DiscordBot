@@ -68,11 +68,13 @@ def save_xp_data(data):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 def make_xp_content(user_id, xp, _level=None):
-    level = calculate_level(xp) if _level is None else _level
     data = load_xp_data()
-    data[str(user_id)] = {"xp": xp, "level": level}
+    user_info = data.get(str(user_id), {"xp": 0, "level": 0})
+    user_info["xp"] += xp
+    user_info["level"] = calculate_level(user_info["xp"]) if _level is None else _level
+    data[str(user_id)] = user_info
     save_xp_data(data)
-    return f"{user_id}:{xp}:{level}"
+    return f"{user_id}:{user_info['xp']}:{user_info['level']}"
 
 def calculate_level(xp):
     level = 0

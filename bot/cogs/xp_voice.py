@@ -1,115 +1,97 @@
-import discord
-from discord.ext import tasks, commands
-import os, json
+import os
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
+import discord
+from discord.ext import commands, tasks
+from bot.utils.XPstorage import XPStorage
 
 from bot.utils.xp_utils import (
-    make_xp_content,
-    calculate_level,
     load_xp_data,
     save_xp_data,
-    LEVEL_ROLES,
-    LEVEL_MESSAGES,
-    DOUBLE_XP_ROLES,
-    tarkista_tasonousu
+    calculate_level,
+    tarkista_tasonousu,
+    paivita_streak,
+    DOUBLE_XP_ROLES
 )
 
 XP_CHANNEL_ID = int(os.getenv("XP_CHANNEL_ID", 0))
 IGNORED_VOICE_CHANNEL_ID = int(os.getenv("IGNORED_VOICE_CHANNEL_ID", 0))
-XP_JSON_PATH = Path(os.getenv("XP_VOICE_DATA_FILE"))
+XP_JSON_PATH = Path(os.getenv("XP_JSON_PATH"))
+XP_VOICE_DATA_PATH = Path(os.getenv("XP_VOICE_DATA_PATH"))
+
+xp_storage = XPStorage(XP_JSON_PATH, XP_VOICE_DATA_PATH)
 
 class XPVoice(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.voice_activity_data = self.load_voice_activity()
+        self.voice_activity_data = xp_storage.load_voice_activity()
         self.voice_states = {}
         self.xp_voice_loop.start()
-        self.cleanup_flags.start()
 
     def cog_unload(self):
         self.xp_voice_loop.cancel()
-        self.cleanup_flags.cancel()
 
-    def load_voice_activity(self):
-        if XP_JSON_PATH.exists():
-            with open(XP_JSON_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
-        return {"total_voice_usage": {}, "temporary_flags": {}}
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        if member.bot:
+            return
 
-    def save_voice_activity(self, data):
-        XP_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(XP_JSON_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        user_id = str(member.id)
+        timestamp_now = datetime.utcnow().timestamp()
+        guild = member.guild
+        channel = guild.get_channel(XP_CHANNEL_ID)
+
+        def handle_flag(flag_name, activity_start, activity_end):
+            state_key = f"{user_id}_{flag_name}"
+            before_val = getattr(before, flag_name)
+            after_val = getattr(after, flag_name)
+
+            if after_val and not before_val:
+                self.voice_activity_data["temporary_flags"][state_key] = timestamp_now
+                return f"@{member.display_name} {activity_start}"
+
+            elif not after_val and before_val:
+                start_time = self.voice_activity_data["temporary_flags"].get(state_key)
+                if start_time:
+                    duration = int(timestamp_now - start_time)
+                    return f"@{member.display_name} {activity_end}. Kokonaisaika {str(timedelta(seconds=duration))}"
+            return None
+
+        msg = handle_flag("self_mute", "mykisti itsensä", "lopetti mykistyksen")
+        if not msg:
+            msg = handle_flag("self_stream", "aloitti näytön jaon", "lopetti näytön jaon")
+
+        if after.channel == guild.afk_channel and before.channel != guild.afk_channel:
+            msg = f"@{member.display_name} siirtyi AFK-tilaan 😴"
+        elif before.channel == guild.afk_channel and after.channel != guild.afk_channel:
+            msg = f"@{member.display_name} palasi aktiiviseksi 🎉"
+
+        if msg and channel:
+            await channel.send(msg)
 
     @tasks.loop(seconds=60)
     async def xp_voice_loop(self):
         xp_data = load_xp_data()
 
         for guild in self.bot.guilds:
-            channels = await guild.fetch_channels()
-            for vc in channels:
-                if not isinstance(vc, discord.VoiceChannel) or vc.id == IGNORED_VOICE_CHANNEL_ID:
-                    continue
+            for vc in guild.voice_channels:
+                if vc.id == IGNORED_VOICE_CHANNEL_ID or vc == guild.afk_channel:
+                    continue  
 
                 for member in vc.members:
-                    if member.bot:
+                    if member.bot or not member.voice:
                         continue
 
                     user_id = str(member.id)
-                    prev_state = self.voice_states.get(user_id, {})
                     curr_state = {
                         "muted": member.voice.self_mute or member.voice.mute,
-                        "streaming": member.voice.self_stream,
-                        "speaking": not (member.voice.self_mute or member.voice.mute)
+                        "streaming": member.voice.self_stream
                     }
 
-                    for key, status in curr_state.items():
-                        state_key = f"{user_id}_{key}"
-                        timestamp_now = datetime.utcnow().timestamp()
-
-                        if status and not prev_state.get(key):
-                            self.voice_activity_data["temporary_flags"][state_key] = timestamp_now
-                            activity = {
-                                "muted": "mykisti itsensä",
-                                "streaming": "aloitti näytön jaon",
-                                "speaking": "aloitti keskustelun"
-                            }[key]
-                            msg = f"@{member.display_name} {activity} #{vc.name} kanavalla."
-
-                        elif not status and prev_state.get(key):
-                            start_time = self.voice_activity_data["temporary_flags"].get(state_key)
-                            if start_time:
-                                duration = int(timestamp_now - start_time)
-                                activity = {
-                                    "muted": "lopetti mykistyksen",
-                                    "streaming": "lopetti näytön jaon",
-                                    "speaking": "lopetti puhumisen"
-                                }[key]
-                                msg = f"@{member.display_name} {activity} #{vc.name} kanavalla. Kokonaisaika {str(timedelta(seconds=duration))}"
-
-                                if key == "speaking":
-                                    total = self.voice_activity_data["total_voice_usage"].get(user_id, 0)
-                                    self.voice_activity_data["total_voice_usage"][user_id] = total + duration
-
-                                    channel_usage = self.voice_activity_data.setdefault("voice_channels", {}).setdefault(user_id, {})
-                                    channel_id_str = str(vc.id)
-                                    channel_usage[channel_id_str] = channel_usage.get(channel_id_str, 0) + duration
-                            else:
-                                continue
-
-                        channel = guild.get_channel(XP_CHANNEL_ID)
-                        if channel and "msg" in locals():
-                            await channel.send(msg)
-                            msg = None
-
-                    self.voice_states[user_id] = curr_state
-
                     user_info = xp_data.get(user_id, {"xp": 0, "level": 0})
-                    xp = user_info["xp"]
-                    prev_level = user_info["level"]
-
                     xp_gain = 10
+
                     if any(role.id in DOUBLE_XP_ROLES for role in member.roles):
                         xp_gain *= 2
                     if curr_state["muted"]:
@@ -117,26 +99,25 @@ class XPVoice(commands.Cog):
                     if curr_state["streaming"]:
                         xp_gain *= 1.5
 
-                    xp += int(xp_gain)
-                    new_level = calculate_level(xp)
-                    make_xp_content(user_id, xp, new_level)
+                    user_info["xp"] += int(xp_gain)
+                    new_level = calculate_level(user_info["xp"])
 
-                    channel = guild.get_channel(XP_CHANNEL_ID)
-                    if channel:
-                        dummy_message = type("DummyMessage", (), {
-                            "author": member,
-                            "guild": guild,
-                            "channel": channel
-                        })()
-                        await tarkista_tasonousu(self.bot, dummy_message, prev_level, new_level)
+                    if new_level > user_info["level"]:
+                        channel = guild.get_channel(XP_CHANNEL_ID)
+                        if channel:
+                            dummy_message = type("DummyMessage", (), {
+                                "author": member,
+                                "guild": guild,
+                                "channel": channel
+                            })()
+                            await tarkista_tasonousu(self.bot, dummy_message, user_info["level"], new_level)
 
-        self.save_voice_activity(self.voice_activity_data)
+                    user_info["level"] = new_level
+                    xp_data[user_id] = user_info
+                    await paivita_streak(int(user_id))
 
-    @tasks.loop(hours=24)
-    async def cleanup_flags(self):
-        self.voice_activity_data["temporary_flags"] = {}
-        self.save_voice_activity(self.voice_activity_data)
-        print("✅ Tilapäiset puhetilatiedot tyhjennetty")
+        xp_storage.save_voice_activity(self.voice_activity_data)
+        save_xp_data(xp_data)
 
 async def setup(bot):
     await bot.add_cog(XPVoice(bot))
