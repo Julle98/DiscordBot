@@ -25,6 +25,7 @@ COGS = [
     "bot.cogs.dmviesti",
     "bot.cogs.ruoka",
     "bot.cogs.polls",
+    "bot.cogs.vip",
     "bot.cogs.xp_voice",
     "bot.cogs.moderation",
     "bot.cogs.moderation_channels",

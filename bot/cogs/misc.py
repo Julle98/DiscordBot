@@ -44,39 +44,6 @@ UTC_CITIES = {
     14: "Kiritimati"
 }
 
-class MielipideModal(Modal):
-    def __init__(self):
-        super().__init__(title="Anna mielipide")
-        self.kohde = discord.ui.TextInput(
-            label="Mielipiteen kohde",
-            placeholder="Kirjoita kohde, josta haluat mielipiteen",
-            required=True,
-            style=discord.TextStyle.short
-        )
-        self.add_item(self.kohde)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        kohde = self.kohde.value
-        vastaukset = [
-            ("W", 50),
-            ("L", 42),
-            ("Ehdottomasti", 3),
-            ("En usko", 2),
-            ("Vaikea sanoa", 1),
-            ("Mahdollisesti", 1),
-            ("Ei todellakaan", 1)
-        ]
-
-        valinta = random.choices(
-            population=[v[0] for v in vastaukset],
-            weights=[v[1] for v in vastaukset],
-            k=1
-        )[0]
-
-        await interaction.response.send_message(
-            f"Mielipiteeni kohteesta **{kohde}** on **{valinta}**"
-        )
-
 class AikaModal(discord.ui.Modal, title="Aikakysely"):
     kysymys = discord.ui.TextInput(label="UTC aika? (Esim. 2, -5, 0, 3)", placeholder="Kirjoita UTC aika", required=True)
 
@@ -244,6 +211,7 @@ class Misc(commands.Cog):
         view.add_item(Button(label="📜 Käyttöehdot", url="https://sites.google.com/view/sannamaijadiscordbot/t%C3%A4rke%C3%A4%C3%A4/k%C3%A4ytt%C3%B6ehdot?authuser=0", style=ButtonStyle.link))
         view.add_item(Button(label="🔒 Tietosuojakäytäntö", url="https://sites.google.com/view/sannamaijadiscordbot/t%C3%A4rke%C3%A4%C3%A4/tietosuojak%C3%A4yt%C3%A4nt%C3%B6?authuser=0", style=ButtonStyle.link))
         view.add_item(Button(label="📘 Säännöt", url="https://sites.google.com/view/sannamaijadiscordbot/t%C3%A4rke%C3%A4%C3%A4/s%C3%A4%C3%A4nn%C3%B6t?authuser=0", style=ButtonStyle.link))
+        view.add_item(Button(label="🛠️ Kehitysprosessi", url="https://trello.com/b/hVY1U881", style=ButtonStyle.link))
 
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
@@ -260,9 +228,9 @@ class Misc(commands.Cog):
         await kirjaa_komento_lokiin(self.bot, interaction, "/nofal")
         await kirjaa_ga_event(self.bot, interaction.user.id, "nofal_komento")
         if mielipide.value == "positiivinen":
-            teksti = "Minun lempioppilaani..."
+            teksti = "Minun lempioppilaani. Hän on aina ystävällinen ja auttaa muita. Nofal on loistava esimerkki siitä, miten oppilas voi olla aktiivinen ja positiivinen jäsen yhteisössä!"
         else:
-            teksti = "En ole ihan varma Nofalista..."
+            teksti = "En ole ihan varma Nofalista. Hän on joskus hieman epäkohtelias ja voisi parantaa käytöstään. Toivon, että hän oppii olemaan ystävällisempi muille oppilaille."
         await interaction.response.send_message(teksti)
 
     @app_commands.command(name="kutsumalinkki", description="Luo kutsulinkin tai anna valmis.")
@@ -279,31 +247,6 @@ class Misc(commands.Cog):
                 await interaction.response.send_message(f"Kutsulinkki ({käyttökerrat}x): {invite.url}", ephemeral=True)
             except Exception as e:
                 await interaction.response.send_message(f"Virhe: {e}", ephemeral=True)
-
-    @app_commands.command(name="sano", description="Sano Sannamaijalle sanottavaa.")
-    @app_commands.checks.has_role("24G")
-    async def sano(self, interaction: discord.Interaction, viesti: str):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/sano")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "sano_komento")
-        kielletyt_sanat = ["nigger", "nigga", "nig", "ni", "nigg", "nigge", "nekru", "nekrut", "ammun", "tapan", "tappaa", "tapan sinut", "peppu", "perse", "pillu", "kikkeli", "penis"]
-
-        if any(re.search(rf"\b{kielletty}\b", viesti, re.IGNORECASE) for kielletty in kielletyt_sanat):
-            await interaction.response.send_message("Viestisi sisältää kiellettyjä sanoja, eikä sitä lähetetty.", ephemeral=True)
-        else:
-            try:
-                await interaction.response.send_message(viesti)
-            except discord.Forbidden:
-                await interaction.response.send_message("Minulla ei ole oikeuksia lähettää viestejä tähän kanavaan.", ephemeral=True)
-            except discord.HTTPException:
-                await interaction.response.send_message("Viestin lähetys epäonnistui.", ephemeral=True)
-
-    @app_commands.command(name="mielipide", description="Kysy mielipide Sannamaijalta.")
-    @app_commands.checks.has_role("24G")
-    async def mielipide(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/mielipide")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "mielipide_komento")
-        await interaction.response.send_modal(MielipideModal())
-
 
     @app_commands.command(name="arvosanalaskuri", description="Laskee arvosanan pisteistä.")
     @app_commands.describe(pisteet="Saadut pisteet", maksimi="Maksimipisteet", lapipääsyprosentti="Läpipääsy %")
@@ -343,34 +286,6 @@ class Misc(commands.Cog):
             await interaction.response.send_message("Lasku kesti liian kauan. Yritä lyhyemmissä osissa.", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"Virhe laskussa: {str(e)}", ephemeral=True)
-
-
-    @app_commands.command(name="ajastin", description="Aseta ajastin ja saat ilmoituksen Sannamaijalta.")
-    @app_commands.describe(aika="Aika muodossa esim. 2m30s, 1m, 45s")
-    @app_commands.checks.has_role("24G")
-    async def ajastin(self, interaction: discord.Interaction, aika: str):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/ajastin")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "ajastin_komento")
-        aika = aika.lower().replace(" ", "")
-        pattern = r'(?:(\d+)m)?(?:(\d+)s)?'
-        match = re.fullmatch(pattern, aika)
-
-        if not match:
-            await interaction.response.send_message("Anna aika muodossa esim. `2m30s`, `15m`, `45s`.", ephemeral=True)
-            return
-
-        minuutit = int(match.group(1)) if match.group(1) else 0
-        sekunnit = int(match.group(2)) if match.group(2) else 0
-        kokonais = minuutit * 60 + sekunnit
-
-        if kokonais == 0:
-            await interaction.response.send_message("Ajan täytyy olla yli 0 sekuntia!", ephemeral=True)
-            return
-
-        await interaction.response.send_message(f"Ajastin asetettu **{kokonais} sekunnille**!")
-        task = asyncio.create_task(ajastin_odotus(interaction, kokonais))
-        self.ajastin_aktiiviset[interaction.user.id] = task
-
 
     @app_commands.command(name="kulppi", description="Laskee kuinka monta kulppia annetusta ajasta.")
     @app_commands.describe(aika="Aika muodossa esim. 1h2m30s, 2m, 45s")
