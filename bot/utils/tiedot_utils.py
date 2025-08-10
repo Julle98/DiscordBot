@@ -33,7 +33,7 @@ TIEDOSTOT = {
     "Tarjous": JSON_DIRS / "tarjous.json",
     "XP-data": XP_JSON_PATH / "users_xp.json",
     "Puhe-streak": XP_JSON_PATH / "users_streak.json",
-    "Kuponkitapahtumat": JSON_DIRS / "kuponkitapahtumat.json",
+    "Kuponki": JSON_DIRS / "kuponkitapahtumat.json",
 }
 
 KATEGORIAT = list(TIEDOSTOT.keys()) + ["Moderointi", "Toiminta", "Komennot"]
@@ -396,7 +396,7 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
         
         elif kategoria == "Kuponki":
             try:
-                with open(TIEDOSTOT["Kuponkitapahtumat"], encoding="utf-8") as f:
+                with open(TIEDOSTOT["Kuponki"], encoding="utf-8") as f:
                     data = json.load(f)
                 tapahtumat = data.get(uid, [])
                 if tapahtumat:
