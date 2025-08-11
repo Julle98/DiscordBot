@@ -23,7 +23,7 @@ class TiedotCog(commands.Cog):
         target = käyttäjä or interaction.user
 
         await interaction.followup.send(
-            content="📁 Valitse kategoria, jonka tiedot haluat nähdä:\n-# (Jos haluat kaikki tiedot ladata/poistaa, ota yhteyttä erikseen viestillä!)",
+            content="📁 Valitse kategoria, jonka tiedot haluat nähdä:\n-# (Jos haluat kaikki tiedot ladata/poistaa, ota yhteyttä erikseen /help!)",
             view=KategoriaView(target, valittu=None, alkuperäinen_käyttäjä=interaction.user),
             ephemeral=True
         )

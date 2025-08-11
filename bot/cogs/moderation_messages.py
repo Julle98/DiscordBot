@@ -21,6 +21,11 @@ class ClearModal(discord.ui.Modal, title="Vahvista poisto"):
         super().__init__()
         self.selected_channel = selected_channel
 
+        self.member_id = discord.ui.TextInput(
+            label="Jäsenen ID (valinnainen)",
+            placeholder="Syötä käyttäjän ID, jos haluat poistaa vain hänen viestejä",
+            required=False
+        )
         self.amount = discord.ui.TextInput(
             label="Viestien määrä (1–100, valinnainen)",
             placeholder="Jätä tyhjäksi poistaaksesi kaiken (max 100)",
@@ -31,6 +36,7 @@ class ClearModal(discord.ui.Modal, title="Vahvista poisto"):
             placeholder="KYLLÄ"
         )
 
+        self.add_item(self.member_id)
         self.add_item(self.amount)
         self.add_item(self.confirmation)
 
@@ -51,8 +57,20 @@ class ClearModal(discord.ui.Modal, title="Vahvista poisto"):
             await interaction.followup.send("Viestimäärän pitää olla välillä 1–100.", ephemeral=True)
             return
 
+        member_id = self.member_id.value.strip()
+        member = None
+        if member_id:
+            try:
+                member = await interaction.guild.fetch_member(int(member_id))
+            except (discord.NotFound, discord.HTTPException, ValueError):
+                await interaction.followup.send("Virheellinen jäsenen ID.", ephemeral=True)
+                return
+
+        def check(msg):
+            return (not member or msg.author.id == member.id)
+
         try:
-            poistettu = await self.selected_channel.purge(limit=määrä)
+            poistettu = await self.selected_channel.purge(limit=määrä, check=check)
             määrä_poistettu = len(poistettu)
 
             await interaction.followup.send(
@@ -66,7 +84,8 @@ class ClearModal(discord.ui.Modal, title="Vahvista poisto"):
                 log_channel = interaction.guild.get_channel(int(mod_log_id))
                 if log_channel:
                     await log_channel.send(
-                        f"🧹 **{interaction.user}** poisti {määrä_poistettu} viestiä kanavasta {self.selected_channel.mention}."
+                        f"🧹 **{interaction.user}** poisti {määrä_poistettu} viestiä kanavasta {self.selected_channel.mention}"
+                        + (f" käyttäjältä {member.mention}." if member else ".")
                     )
 
         except discord.Forbidden:
@@ -282,7 +301,6 @@ class Moderation_messages(commands.Cog):
             await interaction.followup.send(f"Aloitettiin viestiseuranta päivälle {paiva}.")
             return
 
-        # Näytä 24h ajalta
         alku = datetime.now(timezone.utc) - timedelta(days=1)
         viestimäärät = defaultdict(int)
         kanavat = [c for c in interaction.guild.text_channels if c.permissions_for(interaction.guild.me).read_messages]

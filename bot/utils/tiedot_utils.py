@@ -765,9 +765,17 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                     aika = viesti.created_at.strftime("%d.%m.%Y %H:%M")
                     tila = "❌ Suljettu" if "• Suljettu" in embed_obj.footer.text else "✅ Vastattu"
                     linkki = f"https://discord.com/channels/{viesti.guild.id}/{viesti.channel.id}/{viesti.id}"
+                    otsikko_embedissä = embed_obj.title or ""
+                    id_match = otsikko_embedissä.split("ID:")[-1].strip() if "ID:" in otsikko_embedissä else "tuntematon"
                     embed.add_field(
                         name="📥 Pyyntö",
-                        value=f"**{otsikko}**\n{kuvaus}\n🕒 {aika}\n📌 Tila: {tila}",
+                        value=(
+                            f"**{otsikko}**\n"
+                            f"{kuvaus}\n"
+                            f"🕒 {aika}\n"
+                            f"📌 Tila: {tila}\n"
+                            f"🆔 ID: `{id_match}`\n"
+                        ),
                         inline=False
                     )
                 except Exception:

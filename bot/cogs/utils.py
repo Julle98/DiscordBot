@@ -9,11 +9,34 @@ from datetime import datetime
 from discord import Interaction
 from discord.ui import Modal, View
 import re
+import uuid
 from bot.utils.error_handler import CommandErrorHandler
 from bot.utils.antinuke import cooldown
+import json
 
 from dotenv import load_dotenv
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
+
+HELP_DATA_FILE = os.getenv("HELP_DATA_FILE")
+
+def tallenna_pyyntö(pyyntö_id, käyttäjä_id, aihe, kuvaus, timestamp):
+    data = {}
+    if os.path.exists(HELP_DATA_FILE):
+        with open(HELP_DATA_FILE, "r", encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                data = {}
+
+    data[pyyntö_id] = {
+        "käyttäjä_id": käyttäjä_id,
+        "aihe": aihe,
+        "kuvaus": kuvaus,
+        "timestamp": timestamp
+    }
+
+    with open(HELP_DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 class HelpResponseModal(discord.ui.Modal, title="Kirjoita palaute käyttäjälle"):
     def __init__(self, toiminto, alkuperainen_embed, alkuperainen_viesti, vastaanottaja):
@@ -32,8 +55,10 @@ class HelpResponseModal(discord.ui.Modal, title="Kirjoita palaute käyttäjälle
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
+            alkuperäinen_id = self.embed.title.split("ID:")[-1].strip() if "ID:" in self.embed.title else "tuntematon"
+
             await self.vastaanottaja.send(
-                f"**Vastaus pyyntöösi ({self.toiminto}):**\n{self.palaute.value}",
+                f"**Vastaus pyyntöösi ({self.toiminto}) – ID: `{alkuperäinen_id}`**\n{self.palaute.value}",
                 embed=self.embed
             )
         except discord.Forbidden:
@@ -54,7 +79,7 @@ class HelpResponseModal(discord.ui.Modal, title="Kirjoita palaute käyttäjälle
         )
 
         await self.viesti.edit(embed=uusi_embed, view=None)
-        await interaction.response.send_message(f"Pyyntö on {self.toiminto}.", ephemeral=True)
+        await interaction.response.send_message(f"Pyyntö on {self.toiminto}. (ID: `{alkuperäinen_id}`)", ephemeral=True)
 
 class HelpButtons(discord.ui.View):
     def __init__(self, user, embed):
@@ -89,18 +114,26 @@ class HelpModal(discord.ui.Modal, title="Lähetä lisätietoa"):
             required=False,
             placeholder="https://... (jos haluat)"
         )
+        self.pyyntö_id = discord.ui.TextInput(
+            label="(Valinnainen) Pyynnön ID",
+            required=False,
+            placeholder="Jos viittaat aiempaan pyyntöön"
+        )
 
         self.add_item(self.kuvaus)
         self.add_item(self.kuva_linkki)
+        self.add_item(self.pyyntö_id)
 
     async def on_submit(self, interaction: discord.Interaction):
+        uusi_id = str(uuid.uuid4())[:8]
+        käytetty_id = self.pyyntö_id.value.strip() if self.pyyntö_id.value.strip() else uusi_id
+
         embed = discord.Embed(
-            title="Uusi pyyntö /help-komennolla",
+            title=f"Uusi pyyntö /help-komennolla • ID: {käytetty_id}",
             color=discord.Color.blue(),
         )
 
-        value_text = f"{self.valinta.label}"
-        embed.add_field(name="Valinta", value=value_text, inline=False)
+        embed.add_field(name="Valinta", value=self.valinta.label, inline=False)
         embed.add_field(name="Kuvaus", value=self.kuvaus.value, inline=False)
 
         if self.kuva_linkki.value:
@@ -111,10 +144,21 @@ class HelpModal(discord.ui.Modal, title="Lähetä lisätietoa"):
             icon_url=interaction.user.display_avatar.url
         )
 
-        self.user = interaction.user  
+        tallenna_pyyntö(
+            pyyntö_id=käytetty_id,
+            käyttäjä_id=interaction.user.id,
+            aihe=self.valinta.label,
+            kuvaus=self.kuvaus.value,
+            timestamp=datetime.utcnow().isoformat()
+        )
+
+        self.user = interaction.user
         await self.target_channel.send(embed=embed, view=HelpButtons(self.user, embed))
 
-        await interaction.response.send_message("Pyyntösi on lähetetty! Kiitos!", ephemeral=True)
+        await interaction.response.send_message(
+            f"Pyyntösi on lähetetty! Kiitos!\nTunnisteesi: `{käytetty_id}` – käytä tätä, jos haluat viitata pyyntöön myöhemmin.",
+            ephemeral=True
+        )
 
 class HelpDropdown(discord.ui.View):
     def __init__(self, channel):
@@ -125,6 +169,7 @@ class HelpDropdown(discord.ui.View):
             discord.SelectOption(label="⚒️ Ongelma", value="ongelma", description="Tekninen ongelma tai bugi."),
             discord.SelectOption(label="❓ Report", value="report", description="Ilmoitus jostain asiattomasta."),
             discord.SelectOption(label="💁 Jokin muu", value="muu", description="Yleinen kysymys, idea tai ehdotus."),
+            discord.SelectOption(label="📢 Valitus", value="valitus", description="Virallinen valitus tai palaute.")
         ]
 
         self.select = discord.ui.Select(placeholder="Valitse aihealue", options=self.options)
