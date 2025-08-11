@@ -1,7 +1,9 @@
 import os, asyncio, logging, discord
 from discord.ext import commands
 from dotenv import load_dotenv
-import random
+import datetime
+from datetime import datetime, timedelta
+from collections import defaultdict
 from bot.utils.bot_setup import bot
 from bot.utils.env_loader import load_env_and_validate
 from bot.utils.moderation_tasks import start_moderation_loops
@@ -14,7 +16,18 @@ from bot.utils.ruokailuvuorot_utils import paivita_ruokailuvuorot
 load_env_and_validate()
 load_dotenv()
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-TEST_GUILD_ID = int(os.getenv("TEST_GUILD_ID", 0))   
+TEST_GUILD_ID = int(os.getenv("TEST_GUILD_ID", 0))
+MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID"))   
+
+VALINNAISET_KOMENNOT = {
+    "kauppa": lambda interaction: interaction.namespace.get("tuote") is not None or interaction.namespace.get("kuponki") is not None,
+    "laskin": lambda interaction: interaction.namespace.get("selitys") is not None,
+    "tiedot": lambda interaction: interaction.namespace.get("käyttäjä") is not None
+}
+
+komento_ajastukset = defaultdict(dict)
+
+NOPEA_ROOLIT = {"Mestari", "Admin", "Moderaattori", "VIP"}
 
 COGS = [
     "bot.cogs.utils",
@@ -130,9 +143,42 @@ async def on_ready():
 @bot.event
 async def on_app_command_completion(interaction: discord.Interaction, command: discord.app_commands.Command):
     try:
-        await anna_xp_komennosta(bot, interaction)
+        komento_nimi = command.name
+        user_id = interaction.user.id
+        nyt = datetime.now()
+
+        viimeinen = komento_ajastukset[user_id].get(komento_nimi)
+        member = interaction.guild.get_member(user_id)
+        nopea = any(role.name in NOPEA_ROOLIT for role in member.roles) if member else False
+        raja = timedelta(seconds=5 if nopea else 10)
+
+        if viimeinen and nyt - viimeinen < raja:
+            erotus = int((raja - (nyt - viimeinen)).total_seconds())
+            await interaction.response.send_message(
+                f"⏳ Odota {erotus} sekuntia ennen kuin käytät komentoa uudelleen.",
+                ephemeral=True
+            )
+
+            parametrit = ", ".join(
+                f"{k}={v}" for k, v in interaction.namespace.items() if v is not None
+            ) or "ei parametreja"
+
+            logikanava = bot.get_channel(MOD_LOG_CHANNEL_ID)
+            if logikanava:
+                await logikanava.send(
+                    f"⚠️ Käyttäjä {interaction.user.mention} käytti komentoa **/{komento_nimi}** liian nopeasti ({erotus}s jäljellä).\n"
+                    f"📦 Parametrit: `{parametrit}`"
+                )
+            return
+
+        komento_ajastukset[user_id][komento_nimi] = nyt
+
+        xp_ehto = VALINNAISET_KOMENNOT.get(komento_nimi)
+        if xp_ehto is None or xp_ehto(interaction):
+            await anna_xp_komennosta(bot, interaction)
+
     except Exception as e:
-        print(f"XP:n antaminen epäonnistui: {e}")
+        print(f"Komennon käsittely epäonnistui: {e}")
 
 async def _main():
     await load_cogs()

@@ -120,7 +120,13 @@ lomapaivat = {
     datetime(2025, 11, 1): "Pyhäinpäivä",
     datetime(2025, 12, 6): "Itsenäisyyspäivä",
     datetime(2025, 12, 25): "Joulupäivä",
-    datetime(2025, 12, 26): "Tapaninpäivä"
+    datetime(2025, 12, 26): "Tapaninpäivä",
+    datetime(2025, 10, 13): "Syysloma alkaa",
+    datetime(2025, 10, 17): "Syysloma päättyy",
+    datetime(2025, 12, 22): "Joululoma alkaa",
+    datetime(2026, 1, 6): "Joululoma päättyy",
+    datetime(2026, 2, 16): "Talviloma alkaa",
+    datetime(2026, 2, 20): "Talviloma päättyy"
 }
 
 meme_urls = [
