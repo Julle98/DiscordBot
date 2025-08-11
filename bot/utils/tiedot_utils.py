@@ -396,7 +396,7 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
         
         elif kategoria == "Kuponki":
             try:
-                uid = str(uid)  
+                uid = str(uid)
 
                 try:
                     with open(TIEDOSTOT["Kuponki"], encoding="utf-8") as f:
@@ -413,12 +413,31 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                     kuponki_data = {}
                     print(f"Kuponkidatan lataus epäonnistui: {e}")
 
-                from bot.utils.store_utils import kauppa_tuotteet
+                try:
+                    with open(JSON_DIRS / "tuotteet.json", encoding="utf-8") as f:
+                        tuotteet_lista = json.load(f)
+                except Exception as e:
+                    tuotteet_lista = []
+                    print(f"Tuotedatan lataus epäonnistui: {e}")
+
+                try:
+                    with open(JSON_DIRS / "ostot.json", encoding="utf-8") as f:
+                        ostot_data = json.load(f)
+                    ostot = ostot_data.get(uid, [])
+                except Exception as e:
+                    ostot = []
+                    print(f"Ostotiedoston lataus epäonnistui: {e}")
 
                 def hae_tuotteen_hinta(nimi: str) -> int:
-                    for tuote in kauppa_tuotteet:
+                    for tuote in tuotteet_lista:
                         if tuote.get("nimi") == nimi:
                             return int(tuote.get("hinta", 0))
+                    return 0
+
+                def hae_tarjousprosentti(nimi: str) -> int:
+                    for tuote in tuotteet_lista:
+                        if tuote.get("nimi") == nimi:
+                            return int(tuote.get("tarjousprosentti", 0))
                     return 0
 
                 laskuri = Counter()
@@ -434,11 +453,51 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
 
                     prosentti = kuponki_data.get(kuponki, {}).get("prosentti", 0)
                     hinta = hae_tuotteen_hinta(tuote)
-                    if hinta and prosentti:
-                        säästö = hinta * (prosentti / 100)
+                    tuote_prosentti = hae_tarjousprosentti(tuote)
+
+                    kokonaisprosentti = prosentti + tuote_prosentti
+                    if hinta and kokonaisprosentti:
+                        säästö = hinta * (kokonaisprosentti / 100)
                         säästö_yhteensä += säästö
 
-                embed.add_field(name="📊 Käytetyt kupongit", value=f"{len(tapahtumat)} kertaa", inline=True)
+                if not tapahtumat:
+                    for kuponki_nimi, kuponki_info in kuponki_data.items():
+                        kayttajat_dict = kuponki_info.get("kayttajat_dict", {})
+                        kayttoja = kayttajat_dict.get(uid, 0)
+                        if kayttoja > 0:
+                            laskuri[kuponki_nimi] = kayttoja
+                            tuotteet[kuponki_nimi] = [("?", "?")] * kayttoja
+                            prosentti = kuponki_info.get("prosentti", 0)
+                            hinta = 1000  
+                            säästö_yhteensä += kayttoja * hinta * (prosentti / 100)
+
+                for ostos in ostot:
+                    nimi_raw = ostos.get("nimi", "")
+                    nimi = nimi_raw.replace(" (Tarjous!)", "").strip()
+
+                    normihinta = hae_tuotteen_hinta(nimi)
+                    ostohinta = None
+
+                    for kuponki_nimi, kuponki_info in kuponki_data.items():
+                        if kuponki_nimi in nimi_raw:
+                            prosentti = kuponki_info.get("prosentti", 0)
+                            ostohinta = int(normihinta * (1 - prosentti / 100))
+                            säästö = normihinta - ostohinta
+                            if säästö > 0:
+                                säästö_yhteensä += säästö
+                            break
+
+                    if ostohinta is None and "Tarjous" in nimi_raw:
+                        for tuote in tuotteet_lista:
+                            if tuote.get("nimi") == nimi:
+                                tarjous_prosentti = tuote.get("tarjousprosentti", 0)
+                                ostohinta = int(normihinta * (1 - tarjous_prosentti / 100))
+                                säästö = normihinta - ostohinta
+                                if säästö > 0:
+                                    säästö_yhteensä += säästö
+                                break
+
+                embed.add_field(name="📊 Käytetyt kupongit", value=f"{sum(laskuri.values())} kertaa", inline=True)
 
                 for kuponki, määrä in laskuri.items():
                     rivit = [f"• {tuote} ({aika[:10]})" for tuote, aika in tuotteet[kuponki][:3]]
@@ -454,9 +513,24 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                         inline=False
                     )
 
+                if ostot:
+                    rivit = [f"• {ostos['nimi']} ({ostos['pvm'][:10]})" for ostos in ostot[:5]]
+                    embed.add_field(
+                        name="🛒 Ostetut tuotteet",
+                        value="\n".join(rivit),
+                        inline=False
+                    )
+
                 embed.add_field(
                     name="💸 Arvioitu XP-säästö",
                     value=f"{int(säästö_yhteensä)} XP",
+                    inline=False
+                )
+
+                if not laskuri and not ostot:
+                    embed.add_field(
+                    name="🎟️ Kuponkiaktiivisuus",
+                    value="Ei kuponkien käyttöä tai ostoksia tallennettuna.",
                     inline=False
                 )
 

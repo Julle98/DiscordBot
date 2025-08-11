@@ -25,6 +25,8 @@ def start_store_loops():
 load_dotenv()
 OSTOSLOKI_KANAVA_ID = int(os.getenv("OSTOSLOKI_KANAVA_ID"))
 MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", 0))
+JSON_DIRS = Path(os.getenv("JSON_DIRS"))
+tuotteet_polku = JSON_DIRS / "tuotteet.json"
 
 auto_react_users = {}  # user_id -> emoji
 
@@ -41,6 +43,13 @@ kauppa_tuotteet = [
     {"nimi": "Valitse emoji", "kuvaus": "Bot reagoi viesteihisi valitsemallasi emojilla 7 päivän ajan", "hinta": 3500, "kertakäyttöinen": True, "emoji": "🤖", "tarjousprosentti": 30},
     {"nimi": "Soundboard-oikeus", "kuvaus": "Käyttöoikeus puhekanavan soundboardiin 3 päiväksi", "hinta": 4000, "kertakäyttöinen": True, "emoji": "🔊", "tarjousprosentti": 10}
 ]
+
+if not tuotteet_polku.exists():
+    with open(tuotteet_polku, "w", encoding="utf-8") as f:
+        json.dump(kauppa_tuotteet, f, ensure_ascii=False, indent=2)
+    print("✅ tuotteet.json luotu.")
+else:
+    print("ℹ️ tuotteet.json on jo olemassa. Ei ylikirjoitettu.")
 
 from discord.ext import tasks
 

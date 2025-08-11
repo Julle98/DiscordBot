@@ -57,7 +57,7 @@ def parse_xp_content(content):
         return 0, 0
 
 def load_xp_data():
-    if XP_FILE.exists():
+    if XP_FILE.exists() and XP_FILE.is_file():
         with open(XP_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
