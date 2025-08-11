@@ -822,7 +822,7 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
             embed.add_field(name="⚠️ Virhe", value=f"Komentodatan lataus epäonnistui: {e}", inline=False)
 
         embed.set_footer(text="✅ Lataus valmis • Voit sulkea tämän viestin, kun olet valmis.")
-        await msg.edit(embed=embed, view=KategoriaView(user, "Komennot", alkuperäinen_käyttäjä=interaction.user))
+        await msg.edit(embed=embed, view=KategoriaView(user, "Komennot", alkuperäinen_käyttäjä=interaction.user, erillinen_viesti=True))
 
     elif kategoria == "Toiminta":
         await interaction.response.defer(ephemeral=True)
@@ -885,12 +885,11 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                     embed.add_field(name="⚠️ Virhe puheaktiivisuudessa", value=f"Tietojen lataus epäonnistui: {e}", inline=False)
 
                 embed.set_footer(text="✅ Lataus valmis • Voit sulkea tämän viestin, kun olet valmis.")
-                await msg.edit(embed=embed, view=KategoriaView(user, "Toiminta", alkuperäinen_käyttäjä=interaction.user))
+                await msg.edit(embed=embed, view=KategoriaView(user, "Toiminta", alkuperäinen_käyttäjä=interaction.user, erillinen_viesti=True))
 
         except Exception as e:
             virhe_embed = discord.Embed(title="📈 Toiminta-analyysi", color=discord.Color.red())
             virhe_embed.add_field(name="⚠️ Virhe", value=f"Aktiivisuusdatan lataus epäonnistui: {e}", inline=False)
-            await msg.edit(embed=virhe_embed, view=KategoriaView(user, "Toiminta", alkuperäinen_käyttäjä=interaction.user))
 
     try:
         avaimet = AVAIMET_KATEGORIALLE.get(kategoria)
@@ -974,7 +973,7 @@ AVAIMET_KATEGORIALLE = {
 }
 
 class KategoriaView(ui.View):
-    def __init__(self, user, valittu=None, alkuperäinen_käyttäjä=None):
+    def __init__(self, user, valittu=None, alkuperäinen_käyttäjä=None, erillinen_viesti=False):
         super().__init__(timeout=None)
         self.user = user
         self.kategoria = valittu
@@ -984,7 +983,9 @@ class KategoriaView(ui.View):
             for nimi in KATEGORIAT:
                 self.add_item(KategoriaNappi(nimi, user, alkuperäinen_käyttäjä=self.alkuperäinen_käyttäjä))
         else:
-            self.add_item(PalaaNappi(user))
+            if not erillinen_viesti or valittu not in ["Moderointi", "Komennot"]:
+                self.add_item(PalaaNappi(user))
+
             self.add_item(LataaNappi(valittu, user, AVAIMET_KATEGORIALLE.get(valittu, [])))
 
             if valittu != "Moderointi":
