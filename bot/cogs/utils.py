@@ -11,7 +11,6 @@ from discord.ui import Modal, View
 import re
 import uuid
 from bot.utils.error_handler import CommandErrorHandler
-from bot.utils.antinuke import cooldown
 import json
 
 from dotenv import load_dotenv

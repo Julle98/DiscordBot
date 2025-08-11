@@ -18,33 +18,6 @@ from bot.utils.error_handler import CommandErrorHandler
 from typing import Optional
 from bot.utils.store_utils import tarkista_kuponki
 
-komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
-
-def cooldown(komento_nimi: str):
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(interaction: discord.Interaction, *args, **kwargs):
-            nyt = datetime.now()
-            user_id = interaction.user.id
-            viimeinen = komento_ajastukset[user_id].get(komento_nimi)
-
-            nopea_roolit = ["Mestari", "Admin", "Moderaattori"]
-            nopea = any(r.name in nopea_roolit for r in interaction.user.roles)
-            raja = timedelta(seconds=5 if nopea else 10)
-
-            if viimeinen and nyt - viimeinen < raja:
-                erotus = int((raja - (nyt - viimeinen)).total_seconds())
-                await interaction.response.send_message(
-                    f"Odota {erotus} sekuntia ennen kuin käytät komentoa uudelleen.",
-                    ephemeral=True
-                )
-                return
-
-            komento_ajastukset[user_id][komento_nimi] = nyt
-            return await func(interaction, *args, **kwargs)
-        return wrapper
-    return decorator
-
 load_dotenv()
 
 class Store(commands.Cog):

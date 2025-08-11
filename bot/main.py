@@ -25,9 +25,12 @@ VALINNAISET_KOMENNOT = {
     "tiedot": lambda interaction: interaction.namespace.get("käyttäjä") is not None
 }
 
-komento_ajastukset = defaultdict(dict)
+DEFAULT_COOLDOWN = 10
+NOPEA_COOLDOWN = 5
 
-NOPEA_ROOLIT = {"Mestari", "Admin", "Moderaattori", "VIP"}
+NOPEA_ROOLIT = ["VIP", "Mestari", "Moderaattori", "Admin", "Sannamaija tester"]
+
+komento_ajastukset: dict[int, dict[str, datetime]] = defaultdict(dict)
 
 COGS = [
     "bot.cogs.utils",
@@ -143,42 +146,20 @@ async def on_ready():
 @bot.event
 async def on_app_command_completion(interaction: discord.Interaction, command: discord.app_commands.Command):
     try:
-        komento_nimi = command.name
-        user_id = interaction.user.id
-        nyt = datetime.now()
-
-        viimeinen = komento_ajastukset[user_id].get(komento_nimi)
-        member = interaction.guild.get_member(user_id)
-        nopea = any(role.name in NOPEA_ROOLIT for role in member.roles) if member else False
-        raja = timedelta(seconds=5 if nopea else 10)
-
-        if viimeinen and nyt - viimeinen < raja:
-            erotus = int((raja - (nyt - viimeinen)).total_seconds())
-            await interaction.response.send_message(
-                f"⏳ Odota {erotus} sekuntia ennen kuin käytät komentoa uudelleen.",
-                ephemeral=True
-            )
-
-            parametrit = ", ".join(
-                f"{k}={v}" for k, v in interaction.namespace.items() if v is not None
-            ) or "ei parametreja"
-
-            logikanava = bot.get_channel(MOD_LOG_CHANNEL_ID)
-            if logikanava:
-                await logikanava.send(
-                    f"⚠️ Käyttäjä {interaction.user.mention} käytti komentoa **/{komento_nimi}** liian nopeasti ({erotus}s jäljellä).\n"
-                    f"📦 Parametrit: `{parametrit}`"
-                )
+        if interaction.extras.get("cooldown_skip"):
             return
 
-        komento_ajastukset[user_id][komento_nimi] = nyt
+        komento_nimi = command.name
 
-        xp_ehto = VALINNAISET_KOMENNOT.get(komento_nimi)
-        if xp_ehto is None or xp_ehto(interaction):
-            await anna_xp_komennosta(bot, interaction)
+        if komento_nimi in VALINNAISET_KOMENNOT:
+            ehto = VALINNAISET_KOMENNOT[komento_nimi]
+            if not ehto(interaction):
+                return  
+
+        await anna_xp_komennosta(bot, interaction)
 
     except Exception as e:
-        print(f"Komennon käsittely epäonnistui: {e}")
+        print(f"XP:n antaminen epäonnistui: {e}")
 
 async def _main():
     await load_cogs()

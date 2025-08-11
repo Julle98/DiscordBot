@@ -129,6 +129,8 @@ class Vip(commands.Cog):
     @app_commands.describe(aika="Esim. 2m30s", viesti="Mitä haluat muistaa?")
     @app_commands.checks.has_role("24G")
     async def muistuta(self, interaction: discord.Interaction, aika: str, viesti: str):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/muistuta")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "muistuta_komento")
         pattern = r'(?:(\d+)m)?(?:(\d+)s)?'
         match = re.fullmatch(pattern, aika.lower().replace(" ", ""))
         if not match:
@@ -158,6 +160,8 @@ class Vip(commands.Cog):
     @app_commands.describe(salasana="Salasana holviin", sisalto="Tallennettava sisältö")
     @app_commands.checks.has_role("24G")
     async def holvi_tallenna(self, interaction: discord.Interaction, salasana: str, sisalto: str):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/holvi_tallenna")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "holvi_tallenna_komento")
         self.holvi[salasana] = {
             "sisalto": sisalto,
             "kayttaja": interaction.user.id
@@ -169,6 +173,8 @@ class Vip(commands.Cog):
     @app_commands.describe(salasana="Salasana holviin")
     @app_commands.checks.has_role("24G")
     async def holvi_hae(self, interaction: discord.Interaction, salasana: str):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/holvi_hae")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "holvi_hae_komento")
         entry = self.holvi.get(salasana)
         if not entry:
             await interaction.response.send_message("❌ Salasana ei vastaa mitään tallennettua sisältöä.", ephemeral=True)
@@ -183,6 +189,8 @@ class Vip(commands.Cog):
     @app_commands.command(name="ennustus", description="Saat mystisen ennustuksen.")
     @app_commands.checks.has_role("24G")
     async def ennustus(self, interaction: discord.Interaction):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/ennustus")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "ennustus_komento")
         ennustukset = [
             "Tähtien mukaan sinua odottaa yllätys.",
             "Varjoista nousee uusi mahdollisuus.",
