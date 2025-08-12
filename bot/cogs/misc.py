@@ -228,6 +228,7 @@ class Misc(commands.Cog):
         mielipide=[
             app_commands.Choice(name="Myönteinen", value="positiivinen"),
             app_commands.Choice(name="Kielteinen", value="negatiivinen"),
+            app_commands.Choice(name="Nofal itse", value="nofal")
         ]
     )
     async def nofal(self, interaction: discord.Interaction, mielipide: app_commands.Choice[str]):
@@ -235,8 +236,10 @@ class Misc(commands.Cog):
         await kirjaa_ga_event(self.bot, interaction.user.id, "nofal_komento")
         if mielipide.value == "positiivinen":
             teksti = "Minun lempioppilaani. Hän on aina ystävällinen ja auttaa muita. Nofal on loistava esimerkki siitä, miten oppilas voi olla aktiivinen ja positiivinen jäsen yhteisössä!"
-        else:
+        elif mielipide.value == "negatiivinen":
             teksti = "En ole ihan varma Nofalista. Hän on joskus hieman epäkohtelias ja voisi parantaa käytöstään. Toivon, että hän oppii olemaan ystävällisempi muille oppilaille."
+        elif mielipide.value == "nofal":
+            teksti = "Nofal on kuningas. T. Nofal itse."
         await interaction.response.send_message(teksti)
 
     @app_commands.command(name="kutsumalinkki", description="Luo kutsulinkin tai anna valmis.")
