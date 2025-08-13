@@ -30,12 +30,27 @@ def parse_schedule(text: str) -> dict:
 
         if re.match(r"^\d+\. VUORO$", line):
             current_vuoro = line
+            current_ruokailu = None
+            current_oppitunti = None
 
-        elif "Ruokailu" in line and "Oppitunti" in line:
+        elif "Ruokailu" in line:
+            match = re.search(r"(\d{1,2}\.\d{2} - \d{1,2}\.\d{2}) Oppitunti (\d{1,2}\.\d{2} - \d{1,2}\.\d{2}) Ruokailu", line)
+            if match:
+                current_oppitunti = match.group(1)
+                current_ruokailu = match.group(2)
+                continue
+
+            match = re.search(r"(\d{1,2}\.\d{2} -) Ruokailu", line)
+            if match:
+                current_ruokailu = match.group(1).strip()
+                current_oppitunti = None
+                continue
+
             match = re.search(r"(\d{1,2}\.\d{2} - \d{1,2}\.\d{2}) Ruokailu (\d{1,2}\.\d{2} - \d{1,2}\.\d{2}) Oppitunti", line)
             if match:
                 current_ruokailu = match.group(1)
                 current_oppitunti = match.group(2)
+                continue
 
         elif re.match(r"\b[A-ZÄÖ]{2,}[0-9]{2,}(?:\+[A-Z0-9.]+)?(?:\.[0-9]+)?\b", line):
             codes = re.findall(r"\b[A-ZÄÖ]{2,}[0-9]{2,}(?:\+[A-Z0-9.]+)?(?:\.[0-9]+)?\b", line)
