@@ -266,10 +266,10 @@ KOMENTOJEN_ROOLIT = {
     "clear": "Mestari",
     "lukitse": "Mestari",
     "ping": "24G",
-    "tag": ["Taso 25", "Taso 50", "Mestari"],
-    "vaihda_tag": ["Taso 25", "Taso 50", "Mestari"],
-    "remove_tag": ["Taso 25", "Taso 50", "Mestari"],
-    "stats": ["Taso 15", "Taso 25", "Taso 50", "Mestari"],
+    "tag": ["taso 15", "Taso 25", "Taso 50", "Mestari"],
+    "vaihda_tag": ["taso 15", "Taso 25", "Taso 50", "Mestari"],
+    "remove_tag": ["taso 15", "Taso 25", "Taso 50", "Mestari"],
+    "stats": ["Taso 50", "Mestari"],
     "taso": "24G",
     "lisää_xp": "Mestari",
     "vähennä_xp": "Mestari",
@@ -288,9 +288,13 @@ KOMENTOJEN_ROOLIT = {
     "reagoi": "Mestari",
     "tehtävät": "24G",
     "kauppa": "24G",
-    "lähetädm": "24G",
+    "lähetädm": "Mestari",
     "tiedot": "24G",
-    "komennot": "24G"
+    "komennot": "24G",
+    "muistuta": ["VIP", "Mestari"],
+    "holvi_tallenna": ["VIP", "Mestari"],
+    "holvi_hae": ["VIP", "Mestari"],
+    "ennustus": ["VIP", "Mestari"],
 }
 
 KOMENTOJEN_KUVAUKSET = {
@@ -343,6 +347,10 @@ KOMENTOJEN_KUVAUKSET = {
     "tehtävät": "Näytä ja suorita päivittäisiä-, viikottaisia- tai kuukauttaisia tehtäviä",
     "komennot": "Näyttää kaikki käytettävissä olevat komennot ja niiden selitykset",
     "kauppa": "Näytä kaupan tuotteet tai osta tuote",
+    "muistuta": "Aseta muistutus itsellesi.",
+    "holvi_hae": "Hae sisältö holvista salasanalla.",
+    "holvi_tallenna": "Tallenna sisältö holviin salasanalla.",
+    "ennustus": "Saat mystisen ennustuksen Sannamaijalta.",
 }
 
 def luo_embedit(user_roles):
