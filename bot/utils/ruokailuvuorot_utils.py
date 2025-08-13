@@ -21,6 +21,8 @@ def parse_schedule(text: str) -> dict:
     schedule = {}
     lines = text.strip().split("\n")
 
+    weekdays = ["MAANANTAI", "TIISTAI", "KESKIVIIKKO", "TORSTAI", "PERJANTAI"]
+    current_weekday = None
     current_vuoro = None
     current_ruokailu = None
     current_oppitunti = None
@@ -28,34 +30,58 @@ def parse_schedule(text: str) -> dict:
     for line in lines:
         line = line.strip()
 
+        if line in weekdays:
+            current_weekday = line
+            continue
+
         if re.match(r"^\d+\. VUORO$", line):
             current_vuoro = line
             current_ruokailu = None
             current_oppitunti = None
+            continue
 
-        elif "Ruokailu" in line:
-            match = re.search(r"(\d{1,2}\.\d{2} - \d{1,2}\.\d{2}) Oppitunti (\d{1,2}\.\d{2} - \d{1,2}\.\d{2}) Ruokailu", line)
-            if match:
-                current_oppitunti = match.group(1)
-                current_ruokailu = match.group(2)
+        if "Ruokailu" in line:
+            m3 = re.search(
+                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Oppitunti\s*"
+                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Ruokailu\s*"
+                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Oppitunti", line, re.I)
+            if m3:
+                current_oppitunti = f"{m3.group(1)}, {m3.group(3)}"
+                current_ruokailu = m3.group(2)
                 continue
 
-            match = re.search(r"(\d{1,2}\.\d{2} -) Ruokailu", line)
-            if match:
-                current_ruokailu = match.group(1).strip()
+            m1 = re.search(
+                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Oppitunti\s*"
+                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Ruokailu", line, re.I)
+            if m1:
+                current_oppitunti = m1.group(1)
+                current_ruokailu = m1.group(2)
+                continue
+
+            m2 = re.search(
+                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Ruokailu\s*"
+                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Oppitunti", line, re.I)
+            if m2:
+                current_ruokailu = m2.group(1)
+                current_oppitunti = m2.group(2)
+                continue
+
+            m4 = re.search(r"(\d{1,2}\.\d{2}\s*-\s*)\s*Ruokailu", line, re.I)
+            if m4:
+                current_ruokailu = m4.group(1).strip()
                 current_oppitunti = None
                 continue
 
-            match = re.search(r"(\d{1,2}\.\d{2} - \d{1,2}\.\d{2}) Ruokailu (\d{1,2}\.\d{2} - \d{1,2}\.\d{2}) Oppitunti", line)
-            if match:
-                current_ruokailu = match.group(1)
-                current_oppitunti = match.group(2)
-                continue
-
-        elif re.match(r"\b[A-ZÄÖ]{2,}[0-9]{2,}(?:\+[A-Z0-9.]+)?(?:\.[0-9]+)?\b", line):
-            codes = re.findall(r"\b[A-ZÄÖ]{2,}[0-9]{2,}(?:\+[A-Z0-9.]+)?(?:\.[0-9]+)?\b", line)
+        codes = re.findall(
+            r"\b[A-ZÅÄÖ]{2,}[A-ZÅÄÖ]*\d*(?:\+[A-ZÅÄÖ0-9.]+)?(?:\.\d+)?(?:\+[A-ZÅÄÖ0-9.]+)?\b",
+            line
+        )
+        if codes and current_vuoro:
             for code in codes:
-                schedule[code] = {
+                if code not in schedule:
+                    schedule[code] = {}
+                day = current_weekday if current_weekday else "PERJANTAI"
+                schedule[code][day] = {
                     "vuoro": current_vuoro,
                     "ruokailu": current_ruokailu,
                     "oppitunti": current_oppitunti

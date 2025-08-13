@@ -33,36 +33,13 @@ def viikonpäivä_nimi(pvm_str):
 def puhdista_nimi(nimi):
     return re.sub(r"\s*\([^)]*\)", "", nimi).strip()
 
-async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", kasvisvaihtoehto=False, merkinnät=False, milloin_viimeksi=None):
+async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", kasvisvaihtoehto=False, merkinnät=False, milloin_viimeksi=False):
     try:
         url_map = {
             "päivän ruoka": "https://kouluruoka.fi/page-data/menu/vantaa_tikkurilanlukio/page-data.json",
             "tämän viikon ruokalista": "https://kouluruoka.fi/page-data/menu/vantaa_tikkurilanlukio/page-data.json",
             "seuraavan viikon ruokalista": "https://kouluruoka.fi/page-data/menu/vantaa_tikkurilanlukio/2/page-data.json"
         }
-
-        food_data_file = os.getenv("FOOD_DATA_FILE")
-
-        if milloin_viimeksi:
-            kaikki_ruoat = []
-            for url in url_map.values():
-                data = await fetch_menu_data(url)
-                if not data:
-                    continue
-                for day in data["result"]["pageContext"]["menu"]["Days"]:
-                    päivä = day["Date"]
-                    for meal in day["Meals"]:
-                        nimi = puhdista_nimi(meal["Name"]).lower()
-                        if milloin_viimeksi.lower() in nimi:
-                            kaikki_ruoat.append((nimi, päivä))
-
-            if kaikki_ruoat:
-                viimeisin = sorted(kaikki_ruoat, key=lambda x: datetime.strptime(x[1], "%-d.%-m."))[-1]
-                viesti = f"🍽️ **{milloin_viimeksi}** on viimeksi ollut tarjolla **{viimeisin[1]}**."
-                await interaction.followup.send(viesti)
-            else:
-                await interaction.followup.send(f"🔍 Ruokaa **{milloin_viimeksi}** ei löytynyt viimeaikaisista listoista.")
-            return
 
         data = await fetch_menu_data(url_map[valinta])
         if not data:
@@ -79,10 +56,10 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
             days = [päivän_ruoat]
 
         try:
-            with open(food_data_file, "w", encoding="utf-8") as f:
-                json.dump(days, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"⚠️ Ruokalistan tallennus epäonnistui: {e}")
+            with open("ruoka_historia.json", "r", encoding="utf-8") as f:
+                ruoka_historia = json.load(f)
+        except:
+            ruoka_historia = {}
 
         embed = discord.Embed(
             title=f"📆 Tilun ruokalista ({valinta.capitalize()})",
@@ -96,27 +73,43 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
             otsikko = f"{viikonpäivä} {päivä}" if viikonpäivä else päivä
 
             ateriat = []
-            löytyi_viimeksi = False
-
             for meal in day["Meals"]:
                 tyyppi = meal["MealType"].lower()
                 puhdas_nimi = puhdista_nimi(meal["Name"])
+                nimi_key = puhdas_nimi.lower()
+
+                if nimi_key not in ruoka_historia:
+                    ruoka_historia[nimi_key] = []
+                if päivä not in ruoka_historia[nimi_key]:
+                    ruoka_historia[nimi_key].append(päivä)
+
                 if tyyppi == "lounas" or (kasvisvaihtoehto and "kasvis" in tyyppi):
                     emoji = "🍽️" if tyyppi == "lounas" else "🥦"
                     nimi = f"{emoji} **{meal['MealType']}**: {puhdas_nimi}"
                     if merkinnät and meal.get("Labels"):
                         lisätiedot = ", ".join(meal["Labels"])
                         nimi += f" _(Merkinnät: {lisätiedot})_"
-                    ateriat.append(nimi)
 
-                    if milloin_viimeksi and milloin_viimeksi.lower() in puhdas_nimi.lower():
-                        löytyi_viimeksi = True
+                    if milloin_viimeksi:
+                        try:
+                            viimeisin_pvm = sorted(
+                                ruoka_historia[nimi_key],
+                                key=lambda x: datetime.strptime(x, "%-d.%-m.")
+                            )[-1]
+                            viimeisin_dt = datetime.strptime(viimeisin_pvm, "%-d.%-m.")
+                            erotus = (datetime.now() - viimeisin_dt).days
+                            nimi += f"\n> _Viimeksi tarjolla: {viimeisin_pvm} – {erotus} päivää sitten_"
+                        except:
+                            nimi += "\n> _(Viimeisin tarjoilupäivä ei saatavilla)_"
+
+                    ateriat.append(nimi)
 
             if ateriat:
                 sisältö = "\n".join(ateriat)
-                if milloin_viimeksi and löytyi_viimeksi:
-                    sisältö += f"\n📌 **{milloin_viimeksi}** tarjolla viimeksi {päivä}"
                 embed.add_field(name=otsikko, value=sisältö, inline=False)
+
+        with open("ruoka_historia.json", "w", encoding="utf-8") as f:
+            json.dump(ruoka_historia, f, ensure_ascii=False, indent=2)
 
         await interaction.followup.send(embed=embed)
 
@@ -131,34 +124,30 @@ class ruoka(commands.Cog):
 
     @app_commands.command(name="ruokailuvuorot", description="Näyttää uusimmat ruokailuvuorot.")
     @app_commands.describe(
-        luokkakoodi="(BETA OMINAISUUS) Luokan tunnus, esim. ENA05.13 tai MAB04.13",
-        viikonpaiva="(Valinnainen) Viikonpäivä, esim. maanantai, tiistai..."
+        luokkakoodi="(BETA OMINAISUUS) Luokan tunnus, esim. ENA05.13 tai MAB04.13"
     )
     @app_commands.checks.has_role("24G")
-    async def ruokailuvuorot(self, interaction: discord.Interaction, luokkakoodi: str = None, viikonpaiva: str = None):
+    async def ruokailuvuorot(self, interaction: discord.Interaction, luokkakoodi: str = None):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ruokailuvuorot")
         await kirjaa_ga_event(self.bot, interaction.user.id, "ruokailuvuorot_komento")
 
         raw_path = os.getenv("RAW_SCHEDULE_PATH")
         drive_link = os.getenv("RUOKAILU_DRIVE_LINK")
 
-        def get_weekday_name(name=None):
+        def get_weekday_name():
             weekday_map = {
-                "maanantai": "MAANANTAI",
-                "tiistai": "TIISTAI",
-                "keskiviikko": "KESKIVIIKKO",
-                "torstai": "TORSTAI",
-                "perjantai": "PERJANTAI"
+                0: "MAANANTAI",
+                1: "TIISTAI",
+                2: "KESKIVIIKKO",
+                3: "TORSTAI",
+                4: "PERJANTAI"
             }
-            if name:
-                return weekday_map.get(name.lower())
             today = datetime.today().weekday()
-            return list(weekday_map.values())[today] if today < 5 else None
+            return weekday_map.get(today)
 
-        weekday = get_weekday_name(viikonpaiva)
-
+        weekday = get_weekday_name()
         if not weekday:
-            await interaction.response.send_message("Viikonpäivä ei kelpaa tai ei ole arkipäivä.")
+            await interaction.response.send_message("Tänään ei ole arkipäivä, joten ruokailuvuoroja ei näytetä.")
             return
 
         if luokkakoodi:
@@ -170,6 +159,10 @@ class ruoka(commands.Cog):
 
                 if luokkakoodi in schedule:
                     entry = schedule[luokkakoodi].get(weekday)
+                    if not entry:
+                        any_entry = next(iter(schedule[luokkakoodi].values()), None)
+                        entry = any_entry
+
                     if entry:
                         message = (
                             f"**{luokkakoodi}** ({weekday})\n"
@@ -178,7 +171,7 @@ class ruoka(commands.Cog):
                             f"Oppitunti: {entry['oppitunti']}"
                         )
                     else:
-                        message = f"Luokkakoodille **{luokkakoodi}** ei löytynyt tietoja päivälle **{weekday}**."
+                        message = f"Luokkakoodille **{luokkakoodi}** ei löytynyt tietoja."
                 else:
                     message = f"Tuntikoodia **{luokkakoodi}** ei löytynyt."
             except Exception as e:
@@ -194,7 +187,7 @@ class ruoka(commands.Cog):
         valinta="Valitse ruokalistan tyyppi",
         kasvisvaihtoehto="Näytä valinnainen kasvisvaihtoehto",
         merkinnät="Näytä aterioiden merkinnät (esim. allergiat)",
-        milloin_viimeksi="Näytä milloin jokin ruoka on viimeksi ollut tarjolla"
+        milloin_viimeksi="Näytä milloin ruoka on viimeksi ollut tarjolla"
     )
     async def ruoka(
         self,
@@ -202,7 +195,7 @@ class ruoka(commands.Cog):
         valinta: str,
         kasvisvaihtoehto: bool = False,
         merkinnät: bool = False,
-        milloin_viimeksi: Optional[str] = None
+        milloin_viimeksi: bool = False
     ):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ruoka")
         await kirjaa_ga_event(self.bot, interaction.user.id, "ruoka_komento")
@@ -212,7 +205,7 @@ class ruoka(commands.Cog):
             valinta=valinta.lower(),
             kasvisvaihtoehto=kasvisvaihtoehto,
             merkinnät=merkinnät,
-            milloin_viimeksi=milloin_viimeksi  
+            milloin_viimeksi=milloin_viimeksi
         )
 
     @ruoka.autocomplete("valinta")
