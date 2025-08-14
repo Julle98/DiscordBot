@@ -292,3 +292,4 @@ class SpamWatcher(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(DeletionWatcher(bot))
+    await bot.add_cog(SpamWatcher(bot))
