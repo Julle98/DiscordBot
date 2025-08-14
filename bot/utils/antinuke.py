@@ -22,11 +22,17 @@ from datetime import datetime, timedelta
 from functools import wraps
 import os
 
-def start_moderation_loops():
-    asyncio.create_task(check_deletion())
+def start_antinuke_loops():
+    try:
+        if not check_deletions.is_running():
+            check_deletions.start()
+            print("Antinuke-loop käynnistetty")
+    except Exception as e:
+        print(f"Virhe antinuke-loopissa: {e}") 
 
 load_dotenv()
 NUKE_CHANNEL_ID = int(os.getenv("NUKE_CHANNEL_ID", 0))
+MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", 0))
 
 EXEMPT_USER_IDS = [600623884198215681]
 
@@ -218,6 +224,71 @@ class DeletionWatcher(commands.Cog):
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel):
         await check_deletion(channel.guild, 'channels')
-    
+
+class SpamWatcher(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.user_message_times = defaultdict(list)
+        self.SPAM_LIMIT = 4
+        self.TIME_WINDOW = 5  
+        self.NIGHT_HOUR = 23
+        self.DEFAULT_TIMEOUT = 10  
+        self.NIGHT_TIMEOUT = 120  
+        self.MODERATOR_NAME = "Sannamaija"
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot or not message.guild:
+            return
+
+        now = datetime.utcnow()
+        user_id = message.author.id
+
+        self.user_message_times[user_id].append((message.id, now))
+
+        recent_messages = [
+            (msg_id, timestamp) for msg_id, timestamp in self.user_message_times[user_id]
+            if (now - timestamp).total_seconds() <= self.TIME_WINDOW
+        ]
+        self.user_message_times[user_id] = recent_messages
+
+        if len(recent_messages) > self.SPAM_LIMIT:
+            local_hour = (now.hour + 3) % 24  
+            duration = self.NIGHT_TIMEOUT if local_hour >= self.NIGHT_HOUR else self.DEFAULT_TIMEOUT
+
+            try:
+                for msg_id, _ in recent_messages:
+                    msg = await message.channel.fetch_message(msg_id)
+                    await msg.delete()
+            except Exception as e:
+                print(f"⚠️ Viestien poistaminen epäonnistui: {e}")
+
+            try:
+                await message.author.timeout(
+                    until=now + timedelta(minutes=duration),
+                    reason="Spam yritys"
+                )
+            except Exception as e:
+                print(f"⚠️ Jäähyn asettaminen epäonnistui: {e}")
+                return
+
+            try:
+                await message.author.send(
+                    f"Sinulle on asetettu {duration} minuutin jäähy spammista kanavalla **{message.channel.name}**."
+                )
+            except Exception:
+                pass  
+
+            modlog_channel = self.bot.get_channel(MODLOG_CHANNEL_ID)
+            if modlog_channel:
+                embed = Embed(title="🔇 Jäähy asetettu (automaattinen)", color=discord.Color.red())
+                embed.add_field(name="👤 Käyttäjä", value=message.author.mention, inline=False)
+                embed.add_field(name="⏱ Kesto", value=f"{duration} minuuttia", inline=False)
+                embed.add_field(name="📝 Syy", value="Spam yritys", inline=False)
+                embed.add_field(name="👮 Asetti", value=self.MODERATOR_NAME, inline=False)
+                await modlog_channel.send(embed=embed)
+
+            self.user_message_times[user_id].clear()
+
 async def setup(bot):
     await bot.add_cog(DeletionWatcher(bot))

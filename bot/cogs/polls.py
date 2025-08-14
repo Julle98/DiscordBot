@@ -37,11 +37,25 @@ class AanestysModal(ui.Modal, title="📊 Luo uusi äänestys"):
             required=False,
             max_length=20
         )
+        self.sallitut_jasenet = ui.TextInput(
+            label="Sallitut jäsen-ID:t (pilkulla eroteltuna)",
+            placeholder="Esim. 111111111111111111, 222222222222222222",
+            required=False,
+            max_length=200
+        )
+        self.kielletyt_jasenet = ui.TextInput(
+            label="Kielletyt jäsen-ID:t (pilkulla eroteltuna)",
+            placeholder="Esim. 333333333333333333, 444444444444444444",
+            required=False,
+            max_length=200
+        )
 
         self.add_item(self.kysymys)
         self.add_item(self.vaihtoehdot)
         self.add_item(self.aikaraja)
         self.add_item(self.rooli_id)
+        self.add_item(self.sallitut_jasenet)
+        self.add_item(self.kielletyt_jasenet)
 
     async def on_submit(self, interaction: Interaction):
         try:
@@ -84,13 +98,18 @@ class AanestysModal(ui.Modal, title="📊 Luo uusi äänestys"):
 
         await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
 
+        allowed_members = [int(i.strip()) for i in self.sallitut_jasenet.value.split(",") if i.strip().isdigit()]
+        denied_members = [int(i.strip()) for i in self.kielletyt_jasenet.value.split(",") if i.strip().isdigit()]
+
         poll_data = {
             "message_id": poll_msg.id,
             "channel_id": poll_msg.channel.id,
             "question": self.kysymys.value,
             "options": options,
             "emojis": emojis[:len(options)],
-            "active": True
+            "active": True,
+            "allowed_members": allowed_members,
+            "denied_members": denied_members
         }
 
         try:
@@ -142,6 +161,14 @@ async def end_poll(bot: commands.Bot, message_id: int):
     with open(DB_PATH, "w") as f:
         json.dump(db, f, indent=2)
 
+class VarmistusView(ui.View):
+    def __init__(self):
+        super().__init__()
+
+    @ui.button(label="✅ Jatka ja luo äänestys", style=discord.ButtonStyle.green)
+    async def jatka(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.send_modal(AanestysModal())
+
 class Aanestys(commands.GroupCog, name="äänestys"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -149,8 +176,12 @@ class Aanestys(commands.GroupCog, name="äänestys"):
 
     @app_commands.command(name="uusi", description="Luo uusi äänestys")
     async def uusi(self, interaction: Interaction):
-        await interaction.response.send_modal(AanestysModal())
-
+        await interaction.response.send_message(
+            "⚠️ Varmista, että kaikki ID:t on kopioitu oikein ennen jatkamista.\n"
+            "- Roolin ID\n- Sallitut jäsen-ID:t\n- Kielletyt jäsen-ID:t",
+            view=VarmistusView(),
+            ephemeral=True
+        )
         asyncio.create_task(kirjaa_komento_lokiin(self.bot, interaction, "/äänestys uusi"))
         asyncio.create_task(kirjaa_ga_event(self.bot, interaction.user.id, "uusi_äänestys_komento"))
 
@@ -218,4 +249,10 @@ async def setup(bot: commands.Bot):
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
 
         if member and not member.bot:
+            if poll.get("denied_members") and member.id in poll["denied_members"]:
+                await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta on estetty.")
+                return
+            if poll.get("allowed_members") and member.id not in poll["allowed_members"]:
+                await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta ei ole sallittujen joukossa.")
+                return
             await log_channel.send(f"🗳️ {member.mention} äänesti **{poll['question']}** reaktiolla {payload.emoji.name}")

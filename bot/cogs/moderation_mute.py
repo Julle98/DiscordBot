@@ -14,11 +14,15 @@ class Moderation_mute(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # MUTE
     @app_commands.command(name="mute", description="Aseta jäähy jäsenelle.")
-    @app_commands.describe(jäsen="Jäsen, jolle asetetaan jäähy", kesto="Jäähyn kesto", syy="Syy")
+    @app_commands.describe(
+        jäsen="Jäsen, jolle asetetaan jäähy",
+        kesto="Jäähyn kesto (esim. 10s, 5m, 1h)",
+        syy="Syy",
+        viesti_id="Viestin ID tai useampi pilkulla erotettuna"
+    )
     @app_commands.checks.has_role("Mestari")
-    async def mute(self, interaction: discord.Interaction, jäsen: discord.Member, kesto: str, syy: str = "Ei syytä annettu"):
+    async def mute(self, interaction: discord.Interaction, jäsen: discord.Member, kesto: str, syy: str = "Ei syytä annettu", viesti_id: str = None):
         await kirjaa_komento_lokiin(self.bot, interaction, "/mute")
         await kirjaa_ga_event(self.bot, interaction.user.id, "mute_komento")
         if jäsen == interaction.user:
@@ -36,29 +40,77 @@ class Moderation_mute(commands.Cog):
             else:
                 await interaction.response.send_message("Virheellinen aikaformaatti. Käytä esim. 10s, 5m, 1h", ephemeral=True)
                 return
+
+            poistetut = []
+            if viesti_id:
+                ids = [i.strip() for i in viesti_id.split(",") if i.strip().isdigit()]
+                for vid in ids:
+                    try:
+                        msg = await interaction.channel.fetch_message(int(vid))
+                        if msg.author.id == jäsen.id:
+                            await msg.delete()
+                            poistetut.append(vid)
+                    except:
+                        continue
+
+            try:
+                await jäsen.send(f"Sinut on asetettu jäähylle palvelimella {interaction.guild.name} ajaksi {kesto}.\nSyy: {syy}")
+            except discord.Forbidden:
+                pass
+
             await jäsen.timeout(duration, reason=f"{syy} (Asetti: {interaction.user})")
             await interaction.response.send_message(f"{jäsen.mention} asetettu jäähylle ajaksi {kesto}. Syy: {syy}")
+
             modlog_channel = self.bot.get_channel(MODLOG_CHANNEL_ID)
             if modlog_channel:
-                await modlog_channel.send(
-                    f"🔇 **Jäähy asetettu**\n👤 {jäsen.mention}\n⏱ {kesto}\n📝 {syy}\n👮 {interaction.user.mention}"
-                )
+                log_msg = f"🔇 **Jäähy asetettu**\n👤 {jäsen.mention}\n⏱ {kesto}\n📝 {syy}\n👮 {interaction.user.mention}"
+                if poistetut:
+                    log_msg += f"\n🗑 Poistetut viestit: {', '.join(poistetut)}"
+                await modlog_channel.send(log_msg)
         except Exception as e:
             await interaction.response.send_message(f"Virhe asetettaessa jäähyä: {e}", ephemeral=True)
 
-    # UNMUTE
     @app_commands.command(name="unmute", description="Poista jäähy jäseneltä.")
-    @app_commands.describe(jäsen="Jäsen, jolta poistetaan jäähy", syy="Syy")
+    @app_commands.describe(
+        jäsen="Jäsen, jolta poistetaan jäähy",
+        syy="Syy",
+        viesti_id="Viestin ID tai useampi pilkulla erotettuna"
+    )
     @app_commands.checks.has_role("Mestari")
-    async def unmute(self, interaction: discord.Interaction, jäsen: discord.Member, syy: str = "Ei syytä annettu"):
+    async def unmute(self, interaction: discord.Interaction, jäsen: discord.Member, syy: str = "Ei syytä annettu", viesti_id: str = None):
         await kirjaa_komento_lokiin(self.bot, interaction, "/unmute")
         await kirjaa_ga_event(self.bot, interaction.user.id, "unmute_komento")
         if jäsen.timed_out_until is None:
             await interaction.response.send_message(f"{jäsen.mention} ei ole jäähyllä.", ephemeral=True)
             return
         try:
+            poistetut = []
+            if viesti_id:
+                ids = [i.strip() for i in viesti_id.split(",") if i.strip().isdigit()]
+                for vid in ids:
+                    try:
+                        msg = await interaction.channel.fetch_message(int(vid))
+                        if msg.author.id == jäsen.id:
+                            await msg.delete()
+                            poistetut.append(vid)
+                    except:
+                        continue
+
             await jäsen.timeout(None, reason=f"{syy} (Poisti: {interaction.user})")
+
+            try:
+                await jäsen.send(f"Jäähysi on poistettu palvelimella {interaction.guild.name}.\nSyy: {syy}")
+            except discord.Forbidden:
+                pass
+
             await interaction.response.send_message(f"{jäsen.mention} on vapautettu jäähyltä. Syy: {syy}")
+
+            modlog_channel = self.bot.get_channel(MODLOG_CHANNEL_ID)
+            if modlog_channel:
+                log_msg = f"✅ **Jäähy poistettu**\n👤 {jäsen.mention}\n📝 {syy}\n👮 {interaction.user.mention}"
+                if poistetut:
+                    log_msg += f"\n🗑 Poistetut viestit: {', '.join(poistetut)}"
+                await modlog_channel.send(log_msg)
         except Exception as e:
             await interaction.response.send_message(f"Virhe poistettaessa jäähyä: {e}", ephemeral=True)
 

@@ -7,6 +7,7 @@ from collections import defaultdict
 from bot.utils.bot_setup import bot
 from bot.utils.env_loader import load_env_and_validate
 from bot.utils.moderation_tasks import start_moderation_loops
+from bot.utils.antinuke import start_antinuke_loops
 from bot.utils.store_utils import start_store_loops
 from bot.utils.tasks_utils import start_tasks_loops
 from bot.utils.antinuke import check_deletions
@@ -43,6 +44,7 @@ COGS = [
     "bot.cogs.polls",
     "bot.cogs.vip",
     "bot.cogs.xp_voice",
+    "bot.cogs.backup_cog",
     "bot.cogs.moderation",
     "bot.cogs.moderation_channels",
     "bot.cogs.moderation_kickban",
@@ -113,6 +115,7 @@ async def on_ready():
 
     check_deletions.start()
     start_moderation_loops()
+    start_antinuke_loops()
     start_store_loops()
     start_tasks_loops()
     paivita_ruokailuvuorot()
