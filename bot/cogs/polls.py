@@ -162,28 +162,34 @@ async def end_poll(bot: commands.Bot, message_id: int):
         json.dump(db, f, indent=2)
 
 class VarmistusView(ui.View):
-    def __init__(self):
+    def __init__(self, bot: commands.Bot):
         super().__init__()
+        self.bot = bot
 
     @ui.button(label="✅ Jatka ja luo äänestys", style=discord.ButtonStyle.green)
     async def jatka(self, interaction: Interaction, button: ui.Button):
-        await interaction.response.send_modal(AanestysModal())
+        try:
+            await interaction.response.send_modal(AanestysModal())
+        except Exception as e:
+            await interaction.followup.send(f"⚠️ Modalin avaaminen epäonnistui: {e}", ephemeral=True)
+            return
+
+        asyncio.create_task(kirjaa_komento_lokiin(self.bot, interaction, "/äänestys uusi"))
+        asyncio.create_task(kirjaa_ga_event(self.bot, interaction.user.id, "uusi_äänestys_komento"))
 
 class Aanestys(commands.GroupCog, name="äänestys"):
     def __init__(self, bot: commands.Bot):
-        self.bot = bot
         super().__init__()
+        self.bot = bot
 
     @app_commands.command(name="uusi", description="Luo uusi äänestys")
     async def uusi(self, interaction: Interaction):
         await interaction.response.send_message(
             "⚠️ Varmista, että kaikki ID:t on kopioitu oikein ennen jatkamista.\n"
             "- Roolin ID\n- Sallitut jäsen-ID:t\n- Kielletyt jäsen-ID:t",
-            view=VarmistusView(),
+            view=VarmistusView(self.bot),
             ephemeral=True
         )
-        asyncio.create_task(kirjaa_komento_lokiin(self.bot, interaction, "/äänestys uusi"))
-        asyncio.create_task(kirjaa_ga_event(self.bot, interaction.user.id, "uusi_äänestys_komento"))
 
     @app_commands.command(name="tulokset", description="Näytä äänestyksen nykytilanne")
     async def tulokset(self, interaction: discord.Interaction, message_id: int):
