@@ -5,6 +5,7 @@ from datetime import timedelta
 from bot.utils.logger import kirjaa_ga_event, kirjaa_komento_lokiin
 from dotenv import load_dotenv
 import os
+import re
 from bot.utils.error_handler import CommandErrorHandler
 
 load_dotenv()
@@ -113,6 +114,57 @@ class Moderation_mute(commands.Cog):
                 await modlog_channel.send(log_msg)
         except Exception as e:
             await interaction.response.send_message(f"Virhe poistettaessa jäähyä: {e}", ephemeral=True)
+
+    @app_commands.command(name="jäähyt", description="Näytä jäsenen jäähyhistoria.")
+    @app_commands.describe(jäsen="Jäsen, jonka jäähyt halutaan tarkistaa")
+    @app_commands.checks.has_role("Mestari")
+    async def jäähyt(self, interaction: discord.Interaction, jäsen: discord.Member):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/jäähyt")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "jäähyt_komento")
+
+        modlog_channel = self.bot.get_channel(MODLOG_CHANNEL_ID)
+        if not modlog_channel:
+            await interaction.response.send_message("Modlog-kanavaa ei löytynyt.", ephemeral=True)
+            return
+
+        history = []
+        async for msg in modlog_channel.history(limit=500):
+            if msg.author.bot and f"{jäsen.mention}" in msg.content and "Jäähy asetettu" in msg.content:
+                kesto_match = re.search(r"⏱ (.+)", msg.content)
+                syy_match = re.search(r"📝 (.+)", msg.content)
+                asettaja_match = re.search(r"👮 (.+)", msg.content)
+                poistetut_match = re.search(r"🗑 Poistetut viestit: (.+)", msg.content)
+
+                kesto = kesto_match.group(1) if kesto_match else "?"
+                syy = syy_match.group(1) if syy_match else "?"
+                asettaja = asettaja_match.group(1) if asettaja_match else "?"
+                poistetut = poistetut_match.group(1) if poistetut_match else None
+
+                history.append({
+                    "aika": msg.created_at.strftime("%d.%m.%Y %H:%M"),
+                    "kesto": kesto,
+                    "syy": syy,
+                    "asettaja": asettaja,
+                    "poistetut": poistetut
+                })
+
+        if not history:
+            await interaction.response.send_message(f"{jäsen.mention} ei ole saanut jäähyjä.", ephemeral=True)
+            return
+
+        embed = discord.Embed(title=f"Jäähyhistoria: {jäsen}", color=discord.Color.orange())
+        for i, h in enumerate(history, 1):
+            value = (
+                f"📅 Aika: {h['aika']}\n"
+                f"⏱ Kesto: {h['kesto']}\n"
+                f"📝 Syy: {h['syy']}\n"
+                f"👮 Asettaja: {h['asettaja']}"
+            )
+            if h["poistetut"]:
+                value += f"\n🗑 Poistetut viestit: {h['poistetut']}"
+            embed.add_field(name=f"Jäähy #{i}", value=value, inline=False)
+
+        await interaction.response.send_message(embed=embed)
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
