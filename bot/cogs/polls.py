@@ -4,6 +4,7 @@ from discord import app_commands
 import asyncio
 import json
 import os
+from bot.utils.bot_setup import bot
 from dotenv import load_dotenv
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.error_handler import CommandErrorHandler
@@ -16,9 +17,9 @@ load_dotenv()
 DB_PATH = os.getenv("POLLS_JSON_PATH")
 LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID"))
 
-class AanestysModal(ui.Modal, title="📊 Luo uusi äänestys"):
+class AanestysModal(ui.Modal):
     def __init__(self):
-        super().__init__()
+        super().__init__(title="📊 Luo uusi äänestys")
 
         self.kysymys = ui.TextInput(label="Äänestyksen otsikko", max_length=100)
         self.vaihtoehdot = ui.TextInput(
@@ -37,92 +38,120 @@ class AanestysModal(ui.Modal, title="📊 Luo uusi äänestys"):
             required=False,
             max_length=20
         )
-        self.sallitut_jasenet = ui.TextInput(
-            label="Sallitut jäsen-ID:t (pilkulla eroteltuna)",
-            placeholder="Esim. 111111111111111111, 222222222222222222",
+        self.jasenrajoitukset = ui.TextInput(
+            label="Jäsenrajoitukset",
+            placeholder="Sallitut, erotin |, kielletyt... Esim: 111,222 | 333,444",
             required=False,
-            max_length=200
-        )
-        self.kielletyt_jasenet = ui.TextInput(
-            label="Kielletyt jäsen-ID:t (pilkulla eroteltuna)",
-            placeholder="Esim. 333333333333333333, 444444444444444444",
-            required=False,
-            max_length=200
+            max_length=400
         )
 
         self.add_item(self.kysymys)
         self.add_item(self.vaihtoehdot)
         self.add_item(self.aikaraja)
         self.add_item(self.rooli_id)
-        self.add_item(self.sallitut_jasenet)
-        self.add_item(self.kielletyt_jasenet)
+        self.add_item(self.jasenrajoitukset)
 
     async def on_submit(self, interaction: Interaction):
-        try:
-            minutes = int(self.aikaraja.value)
-            if minutes <= 0:
-                raise ValueError
-        except ValueError:
-            await interaction.response.send_message("⚠️ Virheellinen aikaraja.", ephemeral=True)
-            return
+                try:
+                    minutes = int(self.aikaraja.value)
+                    if minutes <= 0:
+                        raise ValueError
+                except ValueError:
+                    await interaction.response.send_message("⚠️ Virheellinen aikaraja. Käytä kokonaislukua yli 0.", ephemeral=True)
+                    return
 
-        options = [opt.strip() for opt in self.vaihtoehdot.value.split(",") if opt.strip()]
-        emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
-        if not 2 <= len(options) <= 5:
-            await interaction.response.send_message("⚠️ Anna 2–5 vaihtoehtoa.", ephemeral=True)
-            return
+                options = [opt.strip() for opt in self.vaihtoehdot.value.split(",") if opt.strip()]
+                emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+                if not 2 <= len(options) <= 5:
+                    await interaction.response.send_message("⚠️ Anna 2–5 vaihtoehtoa pilkulla eroteltuna.", ephemeral=True)
+                    return
 
-        embed = Embed(title="📊 Äänestys", description=self.kysymys.value, color=Color.blurple())
-        for i, opt in enumerate(options):
-            embed.add_field(name=emojis[i], value=opt, inline=False)
-        embed.set_footer(text=f"Päättyy {minutes} minuutissa.")
+                embed = Embed(title="📊 Äänestys", description=self.kysymys.value, color=Color.blurple())
+                for i, opt in enumerate(options):
+                    embed.add_field(name=emojis[i], value=opt, inline=False)
+                embed.set_footer(text=f"Päättyy {minutes} minuutissa.")
 
-        poll_msg = await interaction.channel.send(embed=embed)
-        for emoji in emojis[:len(options)]:
-            await poll_msg.add_reaction(emoji)
+                poll_msg = await interaction.channel.send(embed=embed)
+                for emoji in emojis[:len(options)]:
+                    await poll_msg.add_reaction(emoji)
 
-        role_id_str = self.rooli_id.value.strip()
-        role = None
-        if role_id_str.isdigit():
-            role_id = int(role_id_str)
-            role = interaction.guild.get_role(role_id)
+                role_id_str = self.rooli_id.value.strip()
+                role = None
+                if role_id_str.isdigit():
+                    role_id = int(role_id_str)
+                    role = interaction.guild.get_role(role_id)
 
-        if role_id_str:
-            if role and role.mentionable:
-                await interaction.channel.send(f"{role.mention} aika äänestää!")
-            elif role:
-                await interaction.channel.send(f"<@&{role.id}> aika äänestää!")
-            else:
-                await interaction.response.send_message("⚠️ Roolia ei löytynyt tai sitä ei voi tägätä.", ephemeral=True)
-                return
+                if role_id_str:
+                    if role and role.mentionable:
+                        await interaction.channel.send(f"{role.mention} aika äänestää!")
+                    elif role:
+                        await interaction.channel.send(f"<@&{role.id}> aika äänestää!")
+                    else:
+                        await interaction.response.send_message("⚠️ Roolia ei löytynyt tai sitä ei voi tägätä.", ephemeral=True)
+                        return
 
-        await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
+                allowed_roles = []
+                denied_roles = []
+                raw = self.jasenrajoitukset.value.strip()
 
-        allowed_members = [int(i.strip()) for i in self.sallitut_jasenet.value.split(",") if i.strip().isdigit()]
-        denied_members = [int(i.strip()) for i in self.kielletyt_jasenet.value.split(",") if i.strip().isdigit()]
+                try:
+                    if raw:
+                        parts = raw.split("|")
 
-        poll_data = {
-            "message_id": poll_msg.id,
-            "channel_id": poll_msg.channel.id,
-            "question": self.kysymys.value,
-            "options": options,
-            "emojis": emojis[:len(options)],
-            "active": True,
-            "allowed_members": allowed_members,
-            "denied_members": denied_members
-        }
+                        if parts[0].strip():
+                            allowed_raw = parts[0]
+                            allowed_roles = [int(i.strip()) for i in allowed_raw.split(",") if i.strip().isdigit()]
 
-        try:
-            with open(DB_PATH, "r") as f:
-                db = json.load(f)
-        except FileNotFoundError:
-            db = []
+                        if len(parts) > 1 and parts[1].strip():
+                            denied_raw = parts[1]
+                            denied_roles = [int(i.strip()) for i in denied_raw.split(",") if i.strip().isdigit()]
+                except Exception:
+                    await interaction.response.send_message(
+                        "⚠️ Virheellinen jäsenrajoitusten muoto. Käytä: ID,ID | ID,ID tai pelkkä | kielletyt",
+                        ephemeral=True
+                    )
+                    return
 
-        db.append(poll_data)
-        with open(DB_PATH, "w") as f:
-            json.dump(db, f, indent=2)
+                member = interaction.user
+                user_role_ids = [role.id for role in member.roles]
 
-        asyncio.create_task(wait_and_end_poll(interaction.client, poll_msg.id, minutes))
+                if any(role_id in user_role_ids for role_id in denied_roles):
+                    await interaction.response.send_message(
+                        "🚫 Sinulla on rooli, joka estää äänestämisen.",
+                        ephemeral=True
+                    )
+                    return
+
+                if allowed_roles and not any(role_id in user_role_ids for role_id in allowed_roles):
+                    await interaction.response.send_message(
+                        "🚫 Sinulla ei ole vaadittua roolia äänestämiseen.",
+                        ephemeral=True
+                    )
+                    return
+
+                poll_data = {
+                    "message_id": poll_msg.id,
+                    "channel_id": poll_msg.channel.id,
+                    "question": self.kysymys.value,
+                    "options": options,
+                    "emojis": emojis[:len(options)],
+                    "active": True,
+                    "allowed_roles": allowed_roles,
+                    "denied_roles": denied_roles
+                }
+
+                try:
+                    with open(DB_PATH, "r") as f:
+                        db = json.load(f)
+                except FileNotFoundError:
+                    db = []
+
+                db.append(poll_data)
+                with open(DB_PATH, "w") as f:
+                    json.dump(db, f, indent=2)
+
+                await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
+                asyncio.create_task(wait_and_end_poll(interaction.client, poll_msg.id, minutes))
 
 async def wait_and_end_poll(client, message_id, minutes):
     await asyncio.sleep(minutes * 60)
@@ -163,7 +192,7 @@ async def end_poll(bot: commands.Bot, message_id: int):
 
 class VarmistusView(ui.View):
     def __init__(self, bot: commands.Bot):
-        super().__init__()
+        super().__init__(timeout=None)
         self.bot = bot
 
     @ui.button(label="✅ Jatka ja luo äänestys", style=discord.ButtonStyle.green)
@@ -171,11 +200,8 @@ class VarmistusView(ui.View):
         try:
             await interaction.response.send_modal(AanestysModal())
         except Exception as e:
+            print(f"Modalin avaus epäonnistui: {e}")
             await interaction.followup.send(f"⚠️ Modalin avaaminen epäonnistui: {e}", ephemeral=True)
-            return
-
-        asyncio.create_task(kirjaa_komento_lokiin(self.bot, interaction, "/äänestys uusi"))
-        asyncio.create_task(kirjaa_ga_event(self.bot, interaction.user.id, "uusi_äänestys_komento"))
 
 class Aanestys(commands.GroupCog, name="äänestys"):
     def __init__(self, bot: commands.Bot):
@@ -184,6 +210,9 @@ class Aanestys(commands.GroupCog, name="äänestys"):
 
     @app_commands.command(name="uusi", description="Luo uusi äänestys")
     async def uusi(self, interaction: Interaction):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/äänestys uusi")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "uusi_äänestys_komento")
+
         await interaction.response.send_message(
             "⚠️ Varmista, että kaikki ID:t on kopioitu oikein ennen jatkamista.\n"
             "- Roolin ID\n- Sallitut jäsen-ID:t\n- Kielletyt jäsen-ID:t",
@@ -235,30 +264,34 @@ class Aanestys(commands.GroupCog, name="äänestys"):
     async def on_app_command_error(self, interaction, error):
         await CommandErrorHandler(self.bot, interaction, error)
 
+@bot.event
+async def on_raw_reaction_add(payload):
+    try:
+        with open(DB_PATH, "r") as f:
+            db = json.load(f)
+    except FileNotFoundError:
+        return
+
+    poll = next((p for p in db if p["message_id"] == payload.message_id and p["active"]), None)
+    if not poll or str(payload.emoji.name) not in poll["emojis"]:
+        return
+
+    guild = bot.get_guild(payload.guild_id)
+    member = guild.get_member(payload.user_id)
+    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+
+    if member and not member.bot:
+        user_role_ids = [role.id for role in member.roles]
+
+        if poll.get("denied_roles") and any(role_id in user_role_ids for role_id in poll["denied_roles"]):
+            await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta on estetty roolien perusteella.")
+            return
+
+        if poll.get("allowed_roles") and not any(role_id in user_role_ids for role_id in poll["allowed_roles"]):
+            await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta ei ole sallittujen roolien joukossa.")
+            return
+
+        await log_channel.send(f"🗳️ {member.mention} äänesti **{poll['question']}** reaktiolla {payload.emoji.name}")
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(Aanestys(bot))
-
-    @bot.event
-    async def on_raw_reaction_add(payload):
-        try:
-            with open(DB_PATH, "r") as f:
-                db = json.load(f)
-        except FileNotFoundError:
-            return
-
-        poll = next((p for p in db if p["message_id"] == payload.message_id and p["active"]), None)
-        if not poll or str(payload.emoji.name) not in poll["emojis"]:
-            return
-
-        guild = bot.get_guild(payload.guild_id)
-        member = guild.get_member(payload.user_id)
-        log_channel = bot.get_channel(LOG_CHANNEL_ID)
-
-        if member and not member.bot:
-            if poll.get("denied_members") and member.id in poll["denied_members"]:
-                await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta on estetty.")
-                return
-            if poll.get("allowed_members") and member.id not in poll["allowed_members"]:
-                await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta ei ole sallittujen joukossa.")
-                return
-            await log_channel.send(f"🗳️ {member.mention} äänesti **{poll['question']}** reaktiolla {payload.emoji.name}")

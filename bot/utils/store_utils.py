@@ -396,6 +396,34 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
                 pass
         bot.loop.create_task(poista_rooli_viiveella())
 
+    elif nimi == "custom rooli":
+        roolin_nimi = await kysy_kayttajalta(interaction, "Mikä on roolisi nimi?")
+        if not roolin_nimi:
+            await interaction.followup.send("❌ Roolin nimeä ei annettu. Toiminto peruutettu.", ephemeral=True)
+            return ""
+
+        rooli = await interaction.guild.create_role(name=roolin_nimi, hoist=True)
+
+        referenssi_rooli = discord.utils.get(interaction.guild.roles, name="-- Osto roolit --")
+        if referenssi_rooli:
+            uusi_position = referenssi_rooli.position + 1
+            await interaction.guild.edit_role_positions(positions={rooli: uusi_position})
+
+        await interaction.user.add_roles(rooli)
+        await interaction.followup.send(f"🎨 Roolisi **{rooli.name}** on luotu ja lisätty sinulle!", ephemeral=True)
+
+        async def poista_custom_rooli():
+            await asyncio.sleep(7 * 24 * 60 * 60)
+            try:
+                await interaction.user.remove_roles(rooli)
+                await interaction.user.send(f"⌛ Custom-roolisi **{rooli.name}** on poistettu.")
+                await rooli.delete()
+            except:
+                pass
+        bot.loop.create_task(poista_custom_rooli())
+
+        return f" (rooli: {roolin_nimi})"
+
     elif nimi == "vip-chat":
         rooli = discord.utils.get(interaction.guild.roles, name="VIP")
         if not rooli:

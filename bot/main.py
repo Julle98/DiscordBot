@@ -140,9 +140,10 @@ async def on_ready():
     try:
         if TEST_GUILD_ID:
             synced = await bot.tree.sync(guild=discord.Object(TEST_GUILD_ID))
+            print("Slash komennot synkronoitu vain testi palvelimelle. Synkronoidut komennot:", len(synced))
         else:
             synced = await bot.tree.sync()
-        print("Slash komennot synkronoitu. Synkronoidut komennot:", len(synced))
+            print("Slash komennot synkronoitu globaalisti. Synkronoidut komennot:", len(synced))
     except Exception as exc:
         print(f"Auto sync epäonnistui: {exc}")
 
