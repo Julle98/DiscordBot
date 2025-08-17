@@ -9,12 +9,7 @@ from bot.utils.bot_setup import bot
 from bot.utils.xp_utils import (
     käsittele_viesti_xp,
     tarkkaile_kanavan_aktiivisuutta,
-    load_xp_data,
-    save_xp_data,
-    calculate_level,
-    make_xp_content,
-    load_streaks,
-    save_streaks,
+    käsittele_dm_viesti,
 )
 from bot.utils.tiedot_utils import pending_file_sends
 from utils.xp_bonus import käsittele_xp_bonus
@@ -30,7 +25,11 @@ class XPSystem(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot or isinstance(message.channel, discord.DMChannel):
+        if message.author.bot:
+            return
+
+        if isinstance(message.channel, discord.DMChannel):
+            await käsittele_dm_viesti(self.bot, message)
             return
 
         request = pending_file_sends.get(message.author.id)
@@ -50,7 +49,9 @@ class XPSystem(commands.Cog):
                     file=discord.File(buffer, filename=liite.filename)
                 )
 
-                await message.channel.send(f"✅ Tiedosto toimitettiin yksityisviestillä käyttäjälle {request['kohde'].mention}.")
+                await message.channel.send(
+                    f"✅ Tiedosto toimitettiin yksityisviestillä käyttäjälle {request['kohde'].mention}."
+                )
             except discord.Forbidden:
                 await message.channel.send("⚠️ Käyttäjälle ei voitu lähettää tiedostoa yksityisviestillä.")
             except Exception as e:
@@ -68,16 +69,12 @@ class XPSystem(commands.Cog):
         nopea = any(r.name in nopea_roolit for r in member.roles) if member else False
         raja = timedelta(seconds=5 if nopea else 10)
 
-        if viimeinen and nyt - viimeinen < raja:
-            return
-
-        await käsittele_xp_bonus(message, user_id, nyt)
-
-        viime_viestit[user_id] = nyt
-        komento_ajastukset[user_id][komento_nimi] = nyt
-        viestit_ja_ajat[message.id] = (user_id, nyt)
+        if not viimeinen or nyt - viimeinen >= raja:
+            await käsittele_xp_bonus(message, user_id, nyt)
+            komento_ajastukset[user_id][komento_nimi] = nyt
 
         await käsittele_viesti_xp(self.bot, message)
+
         await self.bot.process_commands(message)
 
     @commands.Cog.listener()

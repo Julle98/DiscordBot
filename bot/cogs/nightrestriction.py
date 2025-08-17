@@ -32,7 +32,7 @@ class NightRestriction(commands.Cog):
         now = datetime.now(tz)
         weekday = now.weekday()
 
-        if weekday in [5, 6]:  # viikonloppu
+        if weekday in [5] or (weekday == 6 and now.hour < 23):  # viikonloppu
             start = time(0, 30)
             end = time(8, 30)
         else:  # arki
@@ -53,11 +53,24 @@ class NightRestriction(commands.Cog):
 
             perms = role.permissions
             if in_restriction:
-                perms.update(send_messages=False, connect=False)
+                perms.update(
+                    send_messages=False,
+                    connect=False,
+                    add_reactions=False,
+                    use_external_emojis=False
+                )
             else:
-                perms.update(send_messages=True, connect=True)
+                perms.update(
+                    send_messages=True,
+                    connect=True,
+                    add_reactions=True,
+                    use_external_emojis=True
+                )
 
-            await role.edit(permissions=perms, reason="Yön aikainen moderointi puute/takaisin muutos.")
+            await role.edit(
+                permissions=perms,
+                reason="Yön aikainen moderointipuute / palautus"
+            )
 
     async def log_status(self, guild: discord.Guild, in_restriction: bool, now: datetime):
         channel = guild.get_channel(MOD_LOG_CHANNEL_ID)

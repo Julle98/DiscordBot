@@ -151,17 +151,20 @@ async def on_ready():
 @bot.event
 async def on_app_command_completion(interaction: discord.Interaction, command: discord.app_commands.Command):
     try:
-        if interaction.extras.get("cooldown_skip"):
+        extras = getattr(interaction, "extras", {})  
+        if extras.get("cooldown_skip"):
             return
 
         komento_nimi = command.name
+        ehto = VALINNAISET_KOMENNOT.get(komento_nimi)
 
-        if komento_nimi in VALINNAISET_KOMENNOT:
-            ehto = VALINNAISET_KOMENNOT[komento_nimi]
-            if not ehto(interaction):
-                return  
+        if ehto and not ehto(interaction):
+            return
 
-        await anna_xp_komennosta(bot, interaction)
+        if callable(anna_xp_komennosta):  
+            await anna_xp_komennosta(bot, interaction)
+        else:
+            print("Varoitus: anna_xp_komennosta ei ole callable!")
 
     except Exception as e:
         print(f"XP:n antaminen epäonnistui: {e}")

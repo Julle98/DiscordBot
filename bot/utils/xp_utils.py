@@ -2,6 +2,7 @@ import discord
 import os
 import json
 import asyncio
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -237,6 +238,11 @@ async def anna_xp_komennosta(bot, interaction: discord.Interaction, xp_määrä:
 
     await paivita_streak(int(uid))
 
+spam_counts = defaultdict(lambda: {"count": 0, "timestamp": time.time()})
+SPAM_THRESHOLD = 2
+SPAM_WINDOW = 3
+SPAM_TIMEOUT = 15  
+
 async def käsittele_viesti_xp(bot, message: discord.Message):
     if message.author.bot:
         return
@@ -245,22 +251,25 @@ async def käsittele_viesti_xp(bot, message: discord.Message):
         await käsittele_dm_viesti(bot, message)
         return
 
-    nyt = datetime.now(timezone.utc)
     uid = str(message.author.id)
+    now = time.time()
 
-    viestihistoria[int(uid)].append(nyt)
-    viestihistoria[int(uid)] = [t for t in viestihistoria[int(uid)] if nyt - t < timedelta(seconds=3)]
+    if uid in spam_counts:
+        spam_counts[uid]["count"] += 1
+        spam_counts[uid]["timestamp"] = now
+    else:
+        spam_counts[uid] = {"count": 1, "timestamp": now}
 
-    if len(viestihistoria[int(uid)]) > 2:
+    if spam_counts[uid]["count"] > SPAM_THRESHOLD:
         try:
-            await message.author.timeout(timedelta(minutes=15), reason="Spam yritys")
-            await message.author.send("Sinut asetettiin 15 minuutin jäähylle: **Spam yritys**.")
+            await message.author.timeout(timedelta(minutes=SPAM_TIMEOUT), reason="Spam yritys")
+            await message.author.send(f"Sinut asetettiin {SPAM_TIMEOUT} minuutin jäähylle: **Spam yritys**.")
         except:
             pass
 
         try:
-            async for msg in message.channel.history(limit=10):
-                if msg.author == message.author and (nyt - msg.created_at.replace(tzinfo=timezone.utc)) < timedelta(seconds=3):
+            async for msg in message.channel.history(limit=50):
+                if msg.author == message.author:
                     await msg.delete()
         except:
             pass
@@ -270,12 +279,12 @@ async def käsittele_viesti_xp(bot, message: discord.Message):
             await modlog.send(
                 f"🔇 **Jäähy asetettu (automaattinen)**\n"
                 f"👤 Käyttäjä: {message.author.mention}\n"
-                f"⏱ Kesto: 15 minuuttia\n"
+                f"⏱ Kesto: {SPAM_TIMEOUT} minuuttia\n"
                 f"📝 Syy: Spam yritys\n"
                 f"👮 Asetti: Sannamaija"
             )
 
-        viestihistoria[int(uid)].clear()
+        spam_counts.pop(uid)
         return
 
     xp_data = load_xp_data()

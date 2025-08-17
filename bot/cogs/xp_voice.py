@@ -1,5 +1,4 @@
 import os
-import json
 from datetime import datetime, timedelta
 from pathlib import Path
 import discord
@@ -7,8 +6,6 @@ from discord.ext import commands, tasks
 from bot.utils.XPstorage import XPStorage
 
 from bot.utils.xp_utils import (
-    load_xp_data,
-    save_xp_data,
     calculate_level,
     tarkista_tasonousu,
     paivita_streak,
@@ -72,61 +69,61 @@ class XPVoice(commands.Cog):
 
     @tasks.loop(seconds=60)
     async def xp_voice_loop(self):
-        xp_data = load_xp_data()
+        xp_data = xp_storage.load_xp_data()
 
         for guild in self.bot.guilds:
             for vc in guild.voice_channels:
                 if vc.id == IGNORED_VOICE_CHANNEL_ID or vc == guild.afk_channel:
                     continue  
 
-            for member in vc.members:
-                if member.bot or not member.voice:
-                    continue
+                for member in vc.members:
+                    if member.bot or not member.voice:
+                        continue
 
-                user_id = str(member.id)
-                curr_state = {
-                    "muted": member.voice.self_mute or member.voice.mute,
-                    "streaming": member.voice.self_stream
-                }
+                    user_id = str(member.id)
+                    curr_state = {
+                        "muted": member.voice.self_mute or member.voice.mute,
+                        "streaming": member.voice.self_stream
+                    }
 
-                user_info = xp_data.get(user_id, {"xp": 0, "level": 0})
-                xp_gain = 10
+                    user_info = xp_data.get(user_id, {"xp": 0, "level": 0})
+                    xp_gain = 10
 
-                if any(role.id in DOUBLE_XP_ROLES for role in member.roles):
-                    xp_gain *= 2
-                if curr_state["muted"]:
-                    xp_gain *= 0.5
-                if curr_state["streaming"]:
-                    xp_gain *= 1.5
+                    if any(role.id in DOUBLE_XP_ROLES for role in member.roles):
+                        xp_gain *= 2
+                    if curr_state["muted"]:
+                        xp_gain *= 0.5
+                    if curr_state["streaming"]:
+                        xp_gain *= 1.5
 
-                user_info["xp"] += int(xp_gain)
-                new_level = calculate_level(user_info["xp"])
+                    user_info["xp"] += int(xp_gain)
+                    new_level = calculate_level(user_info["xp"])
 
-                if new_level > user_info["level"]:
-                    channel = guild.get_channel(XP_CHANNEL_ID)
-                    if channel:
-                        dummy_message = type("DummyMessage", (), {
-                            "author": member,
-                            "guild": guild,
-                            "channel": channel
-                        })()
-                        await tarkista_tasonousu(self.bot, dummy_message, user_info["level"], new_level)
+                    if new_level > user_info["level"]:
+                        channel = guild.get_channel(XP_CHANNEL_ID)
+                        if channel:
+                            dummy_message = type("DummyMessage", (), {
+                                "author": member,
+                                "guild": guild,
+                                "channel": channel
+                            })()
+                            await tarkista_tasonousu(self.bot, dummy_message, user_info["level"], new_level)
 
-                user_info["level"] = new_level
-                xp_data[user_id] = user_info
-                await paivita_streak(int(user_id))
+                    user_info["level"] = new_level
+                    xp_data[user_id] = user_info
+                    await paivita_streak(int(user_id))
 
-                voice_usage = self.voice_activity_data.setdefault("total_voice_usage", {})
-                channel_usage = self.voice_activity_data.setdefault("voice_channels", {})
+                    voice_usage = self.voice_activity_data.setdefault("total_voice_usage", {})
+                    channel_usage = self.voice_activity_data.setdefault("voice_channels", {})
 
-                user_total = voice_usage.setdefault(user_id, 0)
-                user_channels = channel_usage.setdefault(user_id, {})
+                    user_total = voice_usage.setdefault(user_id, 0)
+                    user_channels = channel_usage.setdefault(user_id, {})
 
-                voice_usage[user_id] = user_total + 60
-                user_channels[vc.id] = user_channels.get(vc.id, 0) + 60
+                    voice_usage[user_id] = user_total + 60
+                    user_channels[vc.id] = user_channels.get(vc.id, 0) + 60
 
         xp_storage.save_voice_activity(self.voice_activity_data)
-        save_xp_data(xp_data)
+        xp_storage.save_xp_data(xp_data)
 
 async def setup(bot):
     await bot.add_cog(XPVoice(bot))
