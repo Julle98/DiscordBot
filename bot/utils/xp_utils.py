@@ -238,10 +238,21 @@ async def anna_xp_komennosta(bot, interaction: discord.Interaction, xp_määrä:
 
     await paivita_streak(int(uid))
 
-spam_counts = defaultdict(lambda: {"count": 0, "timestamp": time.time()})
-SPAM_THRESHOLD = 2
-SPAM_WINDOW = 3
+spam_counts = defaultdict(lambda: {
+    "messages": [],
+    "commands": 0,
+})
+SPAM_MESSAGE_THRESHOLD = 4
+SPAM_COMMAND_THRESHOLD = 3
+SPAM_WINDOW = 10  
+SPAM_MINUTE_THRESHOLD = 6
+SPAM_MINUTE_WINDOW = 60  
 SPAM_TIMEOUT = 15  
+
+SPAM_EXEMPT_ROLE_IDS = [1339853855315197972, 1368228763770294375, 1339846508199022613, 1368538894034800660]
+
+def is_command(message):
+    return message.content.startswith("!") or message.content.startswith("/")
 
 async def käsittele_viesti_xp(bot, message: discord.Message):
     if message.author.bot:
@@ -254,38 +265,68 @@ async def käsittele_viesti_xp(bot, message: discord.Message):
     uid = str(message.author.id)
     now = time.time()
 
-    if uid in spam_counts:
-        spam_counts[uid]["count"] += 1
-        spam_counts[uid]["timestamp"] = now
+    user_spam = spam_counts[uid]
+    user_spam["messages"] = [ts for ts in user_spam["messages"] if now - ts <= SPAM_MINUTE_WINDOW]
+
+    if is_command(message):
+        user_spam["commands"] += 1
     else:
-        spam_counts[uid] = {"count": 1, "timestamp": now}
+        user_spam["messages"].append(now)
 
-    if spam_counts[uid]["count"] > SPAM_THRESHOLD:
-        try:
-            await message.author.timeout(timedelta(minutes=SPAM_TIMEOUT), reason="Spam yritys")
-            await message.author.send(f"Sinut asetettiin {SPAM_TIMEOUT} minuutin jäähylle: **Spam yritys**.")
-        except:
-            pass
+    spam_counts[uid] = user_spam
 
-        try:
-            async for msg in message.channel.history(limit=50):
-                if msg.author == message.author:
-                    await msg.delete()
-        except:
-            pass
+    recent_messages = [ts for ts in user_spam["messages"] if now - ts <= SPAM_WINDOW]
+    if len(recent_messages) > SPAM_MESSAGE_THRESHOLD or user_spam["commands"] > SPAM_COMMAND_THRESHOLD:
+        reason = "Spam yritys (nopea)"
+    elif len(user_spam["messages"]) > SPAM_MINUTE_THRESHOLD:
+        reason = "Spam yritys (runsas viestittely)"
+    else:
+        reason = None
 
-        modlog = bot.get_channel(MODLOG_CHANNEL_ID)
-        if modlog:
-            await modlog.send(
-                f"🔇 **Jäähy asetettu (automaattinen)**\n"
-                f"👤 Käyttäjä: {message.author.mention}\n"
-                f"⏱ Kesto: {SPAM_TIMEOUT} minuuttia\n"
-                f"📝 Syy: Spam yritys\n"
-                f"👮 Asetti: Sannamaija"
-            )
+    is_exempt = any(role.id in SPAM_EXEMPT_ROLE_IDS for role in message.author.roles)
 
-        spam_counts.pop(uid)
-        return
+    if reason:
+        if is_exempt:
+            modlog = bot.get_channel(MODLOG_CHANNEL_ID)
+            if modlog:
+                await modlog.send(
+                    f"⚠️ **Spam havaittu (ei jäähyä)**\n"
+                    f"👤 Käyttäjä: {message.author.mention}\n"
+                    f"📝 Syy: {reason}\n"
+                    f"🎭 Rooli: Vapautettu spam-tarkistuksesta"
+                )
+            spam_counts.pop(uid)
+            return
+        else:
+            try:
+                await message.author.timeout(timedelta(minutes=SPAM_TIMEOUT), reason=reason)
+                await message.author.send(f"Sinut asetettiin {SPAM_TIMEOUT} minuutin jäähylle: **{reason}**.")
+            except:
+                pass
+
+            try:
+                async for msg in message.channel.history(limit=100):
+                    if (
+                        msg.author == message.author and
+                        not msg.author.bot and
+                        (now - msg.created_at.timestamp()) <= SPAM_MINUTE_WINDOW
+                    ):
+                        await msg.delete()
+            except:
+                pass
+
+            modlog = bot.get_channel(MODLOG_CHANNEL_ID)
+            if modlog:
+                await modlog.send(
+                    f"🔇 **Jäähy asetettu (automaattinen)**\n"
+                    f"👤 Käyttäjä: {message.author.mention}\n"
+                    f"⏱ Kesto: {SPAM_TIMEOUT} minuuttia\n"
+                    f"📝 Syy: {reason}\n"
+                    f"👮 Asetti: Sannamaija"
+                )
+
+            spam_counts.pop(uid)
+            return
 
     xp_data = load_xp_data()
     user_info = xp_data.get(uid, {"xp": 0, "level": 0})
