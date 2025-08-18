@@ -174,7 +174,7 @@ class Moderation_messages(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-   # TOIMINTA
+    # TOIMINTA
     @app_commands.command(name="toiminta", description="Näytä aktiivisin kanava per jäsen")
     @app_commands.describe(jäsen="Valitse jäsen")
     @app_commands.checks.has_role("Mestari")
@@ -188,7 +188,7 @@ class Moderation_messages(commands.Cog):
 
         for kanava in kanavat:
             try:
-                count = sum(1 async for msg in kanava.history(limit=1000) if msg.author == jäsen)
+                count = sum(1 async for msg in kanava.history(limit=100) if msg.author == jäsen)
                 if count > 0:
                     viestimäärät[kanava] = count
             except discord.Forbidden:

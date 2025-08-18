@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 import datetime
 from datetime import datetime, timedelta
 from collections import defaultdict
+from collections import defaultdict, deque
+import time
 from bot.utils.bot_setup import bot
 from bot.utils.env_loader import load_env_and_validate
 from bot.utils.moderation_tasks import start_moderation_loops
@@ -13,6 +15,7 @@ from bot.utils.tasks_utils import start_tasks_loops
 from bot.utils.antinuke import check_deletions
 from bot.utils.xp_utils import anna_xp_komennosta
 from bot.utils.ruokailuvuorot_utils import paivita_ruokailuvuorot
+from bot.utils.time_utils import get_current_time_in_helsinki
 
 load_env_and_validate()
 load_dotenv()
@@ -21,10 +24,22 @@ TEST_GUILD_ID = int(os.getenv("TEST_GUILD_ID", 0))
 MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID"))   
 
 VALINNAISET_KOMENNOT = {
-    "kauppa": lambda interaction: interaction.namespace.get("tuote") is not None or interaction.namespace.get("kuponki") is not None,
-    "laskin": lambda interaction: interaction.namespace.get("selitys") is not None,
-    "tiedot": lambda interaction: interaction.namespace.get("käyttäjä") is not None
+    "kauppa": lambda interaction: hasattr(interaction, "namespace") and (
+        getattr(interaction.namespace, "tuote", None) is not None or
+        getattr(interaction.namespace, "kuponki", None) is not None
+    ),
+    "laskin": lambda interaction: hasattr(interaction, "namespace") and (
+        getattr(interaction.namespace, "selitys", None) is not None
+    ),
+    "tiedot": lambda interaction: hasattr(interaction, "namespace") and (
+        getattr(interaction.namespace, "käyttäjä", None) is not None
+    )
 }
+
+komento_loki = defaultdict(lambda: deque(maxlen=10))
+JAAHY_KESTO = 15 * 60  
+TAUKO_KOMENNOT = {"tauko", "break", "pause"}
+SPAM_EXEMPT_ROLE_IDS = [1339853855315197972, 1368228763770294375, 1339846508199022613, 1368538894034800660]
 
 DEFAULT_COOLDOWN = 10
 NOPEA_COOLDOWN = 5
@@ -105,9 +120,15 @@ async def on_ready():
             print("Poistetaan vanhoja botin tilaviestiä...")
             async for message in bot_status_kanava.history(limit=100):
                 await message.delete()
-            from bot.utils.time_utils import get_current_time_in_stockholm
-            current_time = get_current_time_in_stockholm()
-            await bot_status_kanava.send(f"Botti on nyt toiminnassa, käynnistetty: {current_time}")
+
+            current_time = get_current_time_in_helsinki()
+            bot_version = os.getenv("BOT_VERSION", "tuntematon")
+
+            viesti = (
+                f"Botti on nyt toiminnassa, käynnistetty: {current_time}\n"
+                f"Versionumero: {bot_version}"
+            )
+            await bot_status_kanava.send(viesti)
             print("Botin tilaviesti lähetetty.")
         else:
             print("🛜bot-status kanavaa ei löytynyt, tilaviestiä ei lähetetty.")
@@ -151,23 +172,60 @@ async def on_ready():
 @bot.event
 async def on_app_command_completion(interaction: discord.Interaction, command: discord.app_commands.Command):
     try:
-        extras = getattr(interaction, "extras", {})  
+        extras = getattr(interaction, "extras", {})
         if extras.get("cooldown_skip"):
             return
 
         komento_nimi = command.name
         ehto = VALINNAISET_KOMENNOT.get(komento_nimi)
-
         if ehto and not ehto(interaction):
             return
 
-        if callable(anna_xp_komennosta):  
+        if callable(anna_xp_komennosta):
             await anna_xp_komennosta(bot, interaction)
         else:
             print("Varoitus: anna_xp_komennosta ei ole callable!")
 
+        user = interaction.user
+        user_id = user.id
+        timestamp = time.time()
+        komento_loki[user_id].append((komento_nimi, timestamp))
+
+        recent = [t for k, t in komento_loki[user_id] if timestamp - t <= 10]
+        tauko_recent = [t for k, t in komento_loki[user_id] if k in TAUKO_KOMENNOT and timestamp - t <= 30]
+
+        if len(recent) > 3 or len(tauko_recent) > 5:
+            komento_loki[user_id].clear()
+            exempt = any(role.id in SPAM_EXEMPT_ROLE_IDS for role in getattr(user, "roles", []))
+
+            mute_channel_id = int(os.getenv("MUTE_CHANNEL_ID", 0))
+            mute_channel = bot.get_channel(mute_channel_id)
+
+            loki_viesti = (
+                "🔇 Jäähy asetettu (automaattinen)\n"
+                f"👤 Käyttäjä: {user.mention}\n"
+                f"⏱ Kesto: {'15 minuuttia' if not exempt else 'Ei asetettu'}\n"
+                "📝 Syy: Komento spam\n"
+                "👮 Asetti: Sannamaija"
+            )
+
+            if mute_channel:
+                await mute_channel.send(loki_viesti)
+
+            if not exempt:
+                try:
+                    await user.timeout(timedelta(seconds=JAAHY_KESTO), reason="Komento spam")
+
+                    dm_viesti = "Sinut asetettiin 15 min minuutin jäähylle: **Komento spam**."
+                    await user.send(dm_viesti)
+
+                except discord.Forbidden:
+                    print(f"DM-viestin lähetys epäonnistui: käyttäjä {user} ei hyväksy viestejä.")
+                except Exception as timeout_error:
+                    print(f"Jäähyn asettaminen epäonnistui: {timeout_error}")
+
     except Exception as e:
-        print(f"XP:n antaminen epäonnistui: {e}")
+        print(f"XP:n antaminen tai spam-tarkistus epäonnistui: {e}")
 
 async def _main():
     await load_cogs()
