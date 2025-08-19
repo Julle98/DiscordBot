@@ -219,6 +219,8 @@ async def on_app_command_completion(interaction: discord.Interaction, command: d
                     dm_viesti = "Sinut asetettiin 15 min minuutin jäähylle: **Komento spam**."
                     await user.send(dm_viesti)
 
+                    await interaction.delete_original_response()
+
                 except discord.Forbidden:
                     print(f"DM-viestin lähetys epäonnistui: käyttäjä {user} ei hyväksy viestejä.")
                 except Exception as timeout_error:

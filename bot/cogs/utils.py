@@ -199,8 +199,25 @@ class GiveawayView(discord.ui.View):
         if self.rooli not in interaction.user.roles:
             await interaction.response.send_message("Sinulla ei ole oikeaa roolia osallistuaksesi.", ephemeral=True)
             return
+        if interaction.user in self.osallistujat:
+            await interaction.response.send_message("Olet jo osallistunut!", ephemeral=True)
+            return
+
         self.osallistujat.add(interaction.user)
         await interaction.response.send_message("Olet mukana arvonnassa!", ephemeral=True)
+
+        mod_log_channel_id = int(os.getenv("MOD_LOG_CHANNEL_ID", 0))
+        mod_log_channel = interaction.client.get_channel(mod_log_channel_id)
+
+        if mod_log_channel:
+            logiviesti = (
+                f"📥 **Arvontaan osallistuminen**\n"
+                f"👤 Käyttäjä: {interaction.user.mention} (`{interaction.user.id}`)\n"
+                f"🎁 Palkinto: {self.palkinto}\n"
+                f"🎯 Rooli: {self.rooli.mention}\n"
+                f"👮 Arvonnan luoja: {self.luoja.mention}"
+            )
+            await mod_log_channel.send(logiviesti)
 
     @discord.ui.button(label="⛔ Lopeta arvonta", style=discord.ButtonStyle.red)
     async def lopetusnappi(self, interaction: Interaction, button: discord.ui.Button):
@@ -214,14 +231,40 @@ class GiveawayView(discord.ui.View):
             return
         self.loppunut = True
         self.stop()
+
+        mod_log_channel_id = int(os.getenv("MOD_LOG_CHANNEL_ID", 0))
+        mod_log_channel = kanava.guild.get_channel(mod_log_channel_id)
+
         if self.osallistujat:
             self.voittaja = random.choice(list(self.osallistujat))
             await kanava.send(
                 f"🎉 Onnea {self.voittaja.mention}, voitit **{self.palkinto}**!",
                 view=RerollView(self)
             )
+
+            if mod_log_channel:
+                logiviesti = (
+                    f"🏆 **Arvonnan voittaja**\n"
+                    f"🎁 Palkinto: {self.palkinto}\n"
+                    f"👤 Voittaja: {self.voittaja.mention} (`{self.voittaja.id}`)\n"
+                    f"👮 Arvonnan luoja: {self.luoja.mention}\n"
+                    f"📊 Osallistujia yhteensä: {len(self.osallistujat)}"
+                )
+                await mod_log_channel.send(logiviesti)
+
         else:
-            await kanava.send("Kukaan ei osallistunut arvontaan tai osallistujilla ei ollut oikeaa roolia.")
+            await kanava.send(
+                "⛔ Arvonta on päättynyt, mutta kukaan ei osallistunut tai osallistujilla ei ollut oikeaa roolia."
+            )
+
+            if mod_log_channel:
+                logiviesti = (
+                    f"🚫 **Arvonta päättyi ilman osallistujia**\n"
+                    f"🎁 Palkinto: {self.palkinto}\n"
+                    f"👮 Arvonnan luoja: {self.luoja.mention}\n"
+                    f"📊 Osallistujia: 0"
+                )
+                await mod_log_channel.send(logiviesti)
 
 class RerollView(discord.ui.View):
     def __init__(self, giveaway_view: GiveawayView):

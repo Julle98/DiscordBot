@@ -184,7 +184,19 @@ def onko_tehtava_suoritettu_ajankohtaisesti(tehtava, suoritukset):
         except:
             continue
     return False
-                
+
+def onko_tehtava_liian_aikaisin(tehtava, suoritukset, minuutteja=2):
+    nyt = datetime.now()
+    for suoritus in suoritukset:
+        if suoritus["task"] == tehtava:
+            try:
+                aika = datetime.fromisoformat(suoritus["timestamp"])
+                if (nyt - aika) < timedelta(minutes=minuutteja):
+                    return True
+            except:
+                continue
+    return False
+
 async def update_streak(user: discord.Member, task_type: str):
     now = datetime.now().date()
     uid = str(user.id)
@@ -721,6 +733,16 @@ class StartTaskView(discord.ui.View):
         if uid in active_listeners:
             await interaction.response.send_message(
                 "Sinulla on jo aktiivinen tehtävä käynnissä. Suorita tai peru se ennen uuden aloittamista.",
+                ephemeral=True
+            )
+            return
+
+        user_tasks = await load_user_tasks()
+        user_task_list = user_tasks.get(uid, [])
+
+        if onko_tehtava_liian_aikaisin(self.task_name, user_task_list, minuutteja=2):
+            await interaction.response.send_message(
+                f"⏳ Tehtävän **{self.task_name}** voi aloittaa uudelleen vasta hetken päästä. Odota vähintään 1–2 minuuttia edellisestä suorituksesta.",
                 ephemeral=True
             )
             return
