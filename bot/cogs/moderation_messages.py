@@ -5,6 +5,7 @@ from datetime import timedelta
 from bot.utils.logger import kirjaa_ga_event, kirjaa_komento_lokiin
 from dotenv import load_dotenv
 import os
+import asyncio
 from bot.utils.error_handler import CommandErrorHandler
 import datetime
 from datetime import timedelta, timezone
@@ -184,24 +185,31 @@ class Moderation_messages(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         viestimäärät = {}
-        kanavat = [c for c in interaction.guild.text_channels if c.permissions_for(jäsen).read_messages]
+        kanavat = [
+            c for c in interaction.guild.text_channels
+            if c.permissions_for(jäsen).read_messages and c.permissions_for(interaction.guild.me).read_message_history
+        ]
 
         for kanava in kanavat:
             try:
-                count = sum(1 async for msg in kanava.history(limit=100) if msg.author == jäsen)
+                count = 0
+                async for msg in asyncio.wait_for(kanava.history(limit=100), timeout=5):
+                    if msg.author == jäsen:
+                        count += 1
                 if count > 0:
                     viestimäärät[kanava] = count
-            except discord.Forbidden:
+            except (discord.Forbidden, asyncio.TimeoutError):
                 continue
 
         if not viestimäärät:
-            await interaction.followup.send("Ei viestejä löytynyt.")
+            await interaction.followup.send(f"**{jäsen.display_name}** ei ole lähettänyt viestejä viimeaikoina näkyvissä kanavissa.", ephemeral=True)
             return
 
         aktiivisin = max(viestimäärät, key=viestimäärät.get)
         määrä = viestimäärät[aktiivisin]
         await interaction.followup.send(
-            f"**{jäsen.display_name}** on lähettänyt eniten viestejä kanavalle {aktiivisin.mention} ({määrä} viestiä)."
+            f"📊 **{jäsen.display_name}** on ollut aktiivisin kanavassa {aktiivisin.mention} ({määrä} viestiä viimeisimmistä 100:sta per kanava).",
+            ephemeral=True
         )
 
     # VIESTIT

@@ -81,12 +81,12 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
                 if nimi_key not in ruoka_historia:
                     ruoka_historia[nimi_key] = []
                 if päivä not in ruoka_historia[nimi_key]:
-                    ruoka_historia[nimi_key].append(päivä)
+                    ruoka_historia[nimi_key].append(päivä.strip().split()[-1])  
 
                 if tyyppi == "lounas" or (kasvisvaihtoehto and "kasvis" in tyyppi):
                     emoji = "🍽️" if tyyppi == "lounas" else "🥦"
                     nimi = f"{emoji} **{meal['MealType']}**: {puhdas_nimi}"
-                    if merkinnät and meal.get("Labels"):
+                    if merkinnät and meal.get("Labels") and isinstance(meal["Labels"], list) and meal["Labels"]:
                         lisätiedot = ", ".join(meal["Labels"])
                         nimi += f" _(Merkinnät: {lisätiedot})_"
 
@@ -96,7 +96,7 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
                                 ruoka_historia[nimi_key],
                                 key=lambda x: datetime.strptime(x, "%-d.%-m.")
                             )[-1]
-                            viimeisin_dt = datetime.strptime(viimeisin_pvm, "%-d.%-m.")
+                            viimeisin_dt = datetime.strptime(viimeisin_pvm, "%d.%m.")
                             erotus = (datetime.now() - viimeisin_dt).days
                             nimi += f"\n> _Viimeksi tarjolla: {viimeisin_pvm} – {erotus} päivää sitten_"
                         except:

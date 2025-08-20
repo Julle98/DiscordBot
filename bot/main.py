@@ -117,19 +117,31 @@ async def on_ready():
     try:
         bot_status_kanava = discord.utils.get(bot.get_all_channels(), name="🛜bot-status")
         if bot_status_kanava:
-            print("Poistetaan vanhoja botin tilaviestiä...")
+            print("Poistetaan vanhoja botin tilaviestejä...")
             async for message in bot_status_kanava.history(limit=100):
                 await message.delete()
 
             current_time = get_current_time_in_helsinki()
             bot_version = os.getenv("BOT_VERSION", "tuntematon")
+            bot_name = bot.user.name
+            bot_avatar_url = bot.user.avatar.url if bot.user.avatar else None
 
-            viesti = (
-                f"Botti on nyt toiminnassa, käynnistetty: {current_time}\n"
-                f"Versionumero: {bot_version}"
+            embed = discord.Embed(
+                title=f"🤖 {bot_name} on käynnissä",
+                description="Botti on nyt toiminnassa ja valmiina auttamaan!",
+                color=discord.Color.green()
             )
-            await bot_status_kanava.send(viesti)
-            print("Botin tilaviesti lähetetty.")
+            embed.set_thumbnail(url=bot_avatar_url)
+            embed.add_field(name="🕒 Käynnistysaika", value=current_time, inline=False)
+            embed.add_field(
+                name="🛠️ Ongelmatilanteet",
+                value="Käytä komentoa `/help` tai kirjoita <#1339858713804013598> kanavalle.",
+                inline=False
+            )
+            embed.set_footer(text=f"Versio: {bot_version}", icon_url=None)
+
+            await bot_status_kanava.send(embed=embed)
+            print("Embed-tilaviesti lähetetty.")
         else:
             print("🛜bot-status kanavaa ei löytynyt, tilaviestiä ei lähetetty.")
     except Exception as e:

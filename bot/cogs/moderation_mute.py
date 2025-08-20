@@ -66,7 +66,7 @@ class Moderation_mute(commands.Cog):
             if modlog_channel:
                 log_msg = f"🔇 **Jäähy asetettu**\n👤 {jäsen.mention}\n⏱ {kesto}\n📝 {syy}\n👮 {interaction.user.mention}"
                 if poistetut:
-                    log_msg += f"\n🗑 Poistetut viestit: {', '.join(poistetut)}"
+                    log_msg += f"\n📨 Poistetut viestit: {', '.join(poistetut)}"
                 await modlog_channel.send(log_msg)
         except Exception as e:
             await interaction.response.send_message(f"Virhe asetettaessa jäähyä: {e}", ephemeral=True)
@@ -133,7 +133,7 @@ class Moderation_mute(commands.Cog):
                 kesto_match = re.search(r"⏱ (.+)", msg.content)
                 syy_match = re.search(r"📝 (.+)", msg.content)
                 asettaja_match = re.search(r"👮 (.+)", msg.content)
-                poistetut_match = re.search(r"🗑 Poistetut viestit: (.+)", msg.content)
+                poistetut_match = re.search(r"📨 Poistetut viestit: (.+)", msg.content)
 
                 kesto = kesto_match.group(1) if kesto_match else "?"
                 syy = syy_match.group(1) if syy_match else "?"
@@ -156,15 +156,15 @@ class Moderation_mute(commands.Cog):
         for i, h in enumerate(history, 1):
             value = (
                 f"📅 Aika: {h['aika']}\n"
-                f"⏱ Kesto: {h['kesto']}\n"
+                f"⏱️ Kesto: {h['kesto']}\n"
                 f"📝 Syy: {h['syy']}\n"
                 f"👮 Asettaja: {h['asettaja']}"
             )
             if h["poistetut"]:
-                value += f"\n🗑 Poistetut viestit: {h['poistetut']}"
+                value += f"\n📨 Poistetut viestit: {h['poistetut']}"
             embed.add_field(name=f"Jäähy #{i}", value=value, inline=False)
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
