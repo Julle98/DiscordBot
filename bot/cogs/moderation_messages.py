@@ -185,30 +185,39 @@ class Moderation_messages(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         viestimäärät = {}
+
         kanavat = [
             c for c in interaction.guild.text_channels
             if c.permissions_for(jäsen).read_messages and c.permissions_for(interaction.guild.me).read_message_history
         ]
 
+        async def hae_viestit(kanava: discord.TextChannel, jäsen: discord.Member, limit=100):
+            count = 0
+            async for msg in kanava.history(limit=limit):
+                if msg.author == jäsen:
+                    count += 1
+            return count
+
         for kanava in kanavat:
             try:
-                count = 0
-                async for msg in asyncio.wait_for(kanava.history(limit=100), timeout=5):
-                    if msg.author == jäsen:
-                        count += 1
+                count = await asyncio.wait_for(hae_viestit(kanava, jäsen), timeout=5)
                 if count > 0:
                     viestimäärät[kanava] = count
             except (discord.Forbidden, asyncio.TimeoutError):
                 continue
 
         if not viestimäärät:
-            await interaction.followup.send(f"**{jäsen.display_name}** ei ole lähettänyt viestejä viimeaikoina näkyvissä kanavissa.", ephemeral=True)
+            await interaction.followup.send(
+                f"**{jäsen.display_name}** ei ole lähettänyt viestejä viimeaikoina näkyvissä kanavissa.",
+                ephemeral=True
+            )
             return
 
         aktiivisin = max(viestimäärät, key=viestimäärät.get)
         määrä = viestimäärät[aktiivisin]
         await interaction.followup.send(
-            f"📊 **{jäsen.display_name}** on ollut aktiivisin kanavassa {aktiivisin.mention} ({määrä} viestiä viimeisimmistä 100:sta per kanava).",
+            f"📊 **{jäsen.display_name}** on ollut aktiivisin kanavassa {aktiivisin.mention} "
+            f"({määrä} viestiä viimeisimmistä 100:sta per kanava).",
             ephemeral=True
         )
 

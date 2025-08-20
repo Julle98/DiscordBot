@@ -33,6 +33,11 @@ def viikonpäivä_nimi(pvm_str):
 def puhdista_nimi(nimi):
     return re.sub(r"\s*\([^)]*\)", "", nimi).strip()
 
+def hae_merkinnät(nimi):
+    """Etsii sulkeissa olevat merkinnät nimestä."""
+    osumat = re.findall(r"\(([^)]+)\)", nimi)
+    return ", ".join(osumat) if osumat else ""
+
 async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", kasvisvaihtoehto=False, merkinnät=False, milloin_viimeksi=False):
     try:
         url_map = {
@@ -85,10 +90,17 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
 
                 if tyyppi == "lounas" or (kasvisvaihtoehto and "kasvis" in tyyppi):
                     emoji = "🍽️" if tyyppi == "lounas" else "🥦"
+                    puhdas_nimi = puhdista_nimi(meal["Name"])
                     nimi = f"{emoji} **{meal['MealType']}**: {puhdas_nimi}"
-                    if merkinnät and meal.get("Labels") and isinstance(meal["Labels"], list) and meal["Labels"]:
-                        lisätiedot = ", ".join(meal["Labels"])
-                        nimi += f" _(Merkinnät: {lisätiedot})_"
+                    if merkinnät:
+                        lisätiedot = ""
+                        if meal.get("Labels") and isinstance(meal["Labels"], list) and meal["Labels"]:
+                            lisätiedot = ", ".join(meal["Labels"])
+                        else:
+                            lisätiedot = hae_merkinnät(meal["Name"])
+                        
+                        if lisätiedot:
+                            nimi += f" _(Merkinnät: {lisätiedot})_"
 
                     if milloin_viimeksi:
                         try:
