@@ -69,6 +69,15 @@ class XPSystem(commands.Cog):
         nopea = any(r.name in nopea_roolit for r in member.roles) if member else False
         raja = timedelta(seconds=5 if nopea else 10)
 
+        if viimeinen and nyt - viimeinen < raja:
+            await message.delete() 
+            msg = await message.channel.send(
+                f"🐌 {message.author.mention}, viestit tulevat liian nopeasti! Odota hetki ennen seuraavaa."
+            )
+            await asyncio.sleep(5)
+            await msg.delete()  
+            return
+
         if not viimeinen or nyt - viimeinen >= raja:
             await käsittele_xp_bonus(message, user_id, nyt)
             komento_ajastukset[user_id][komento_nimi] = nyt
