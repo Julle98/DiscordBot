@@ -96,6 +96,41 @@ async def calculate_steps(lasku_parsittu, selitys):
     else:
         return f"Lasku: `{lasku_parsittu}`\nTulos: **{tulos}**"
 
+def latex_to_python(expr: str) -> str:
+    expr = expr.replace(" ", "")
+
+    expr = expr.replace(r"\cdot", "*")
+    expr = expr.replace(r"\times", "*")
+
+    expr = expr.replace(r"\div", "/")
+
+    expr = re.sub(r'\\sqrt{([^{}]+)}', r'math.sqrt(\1)', expr)
+    expr = re.sub(
+        r"""\\sqrt
+        
+
+\[(\d+)\]
+
+
+        {([^{}]+)}""",
+        r"math.pow(\2, 1/\1)",
+        expr,
+        flags=re.VERBOSE
+    )
+
+    expr = re.sub(r'\\frac{([^{}]+)}{([^{}]+)}', r'(\1/\2)', expr)
+
+    expr = re.sub(r'(\d+)\^\{([^{}]+)\}', r'\1**(\2)', expr)
+    expr = re.sub(r'(\d+)\^(\d+)', r'\1**\2', expr)
+
+    expr = re.sub(r'\\sin\(([^()]+)\)', r'math.sin(\1)', expr)
+    expr = re.sub(r'\\cos\(([^()]+)\)', r'math.cos(\1)', expr)
+    expr = re.sub(r'\\tan\(([^()]+)\)', r'math.tan(\1)', expr)
+
+    expr = re.sub(r'\\exp\(([^()]+)\)', r'math.exp(\1)', expr)
+
+    return expr
+
 ajastin_aktiiviset = {}
 
 async def ajastin_odotus(interaction: discord.Interaction, sekunnit: int):
@@ -184,10 +219,12 @@ class Misc(commands.Cog):
     @app_commands.command(name="aika", description="Näytä nykyinen aika haluamassasi UTC-ajassa.")
     @app_commands.checks.has_role("24G")
     async def aika(self, interaction: discord.Interaction):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/aika")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "aika_komento")
-
         await interaction.response.send_modal(AikaModal())
+        try:
+            await kirjaa_komento_lokiin(self.bot, interaction, "/aika")
+            await kirjaa_ga_event(self.bot, interaction.user.id, "aika_komento")
+        except Exception as e:
+            await interaction.response.send_message(f"Virhe: {e}", ephemeral=True)
 
     @app_commands.command(name="moikka", description="Moikkaa takaisin.")
     async def moikka(self, interaction: discord.Interaction):
@@ -258,34 +295,62 @@ class Misc(commands.Cog):
                 await interaction.response.send_message(f"Virhe: {e}", ephemeral=True)
 
     @app_commands.command(name="arvosanalaskuri", description="Laskee arvosanan pisteistä.")
-    @app_commands.describe(pisteet="Saadut pisteet", maksimi="Maksimipisteet", lapipääsyprosentti="Läpipääsy %")
-    async def arvosanalaskuri(self, interaction: discord.Interaction, pisteet: float, maksimi: float, lapipääsyprosentti: float):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/arvosanalaskuri")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "arvosanalaskuri_komento")
+    @app_commands.describe(
+        pisteet="Saadut pisteet",
+        maksimi="Maksimipisteet",
+        lapipääsyprosentti="Läpipääsy %",
+        piilota_vastaus="Näytä vastaus vain sinulle?"
+    )
+    async def arvosanalaskuri(
+        self,
+        interaction: discord.Interaction,
+        pisteet: float,
+        maksimi: float,
+        lapipääsyprosentti: float,
+        piilota_vastaus: bool = False
+    ):
+        try:
+            await interaction.response.defer(ephemeral=piilota_vastaus)
+            await kirjaa_komento_lokiin(self.bot, interaction, "/arvosanalaskuri")
+            await kirjaa_ga_event(self.bot, interaction.user.id, "arvosanalaskuri_komento")
 
-        lapiraja = (lapipääsyprosentti / 100) * maksimi
-        if pisteet < lapiraja:
-            arvosana = 0
-        else:
-            skaala = (pisteet - lapiraja) / (maksimi - lapiraja) if maksimi != lapiraja else 1
-            arvosana = round(4 + 6 * skaala)
-            arvosana = min(max(arvosana, 4), 10)
+            lapiraja = (lapipääsyprosentti / 100) * maksimi
+            if pisteet < lapiraja:
+                arvosana = 0
+            else:
+                skaala = (pisteet - lapiraja) / (maksimi - lapiraja) if maksimi != lapiraja else 1
+                arvosana = round(4 + 6 * skaala)
+                arvosana = min(max(arvosana, 4), 10)
 
-        await interaction.response.send_message(f"Pisteet: {pisteet}/{maksimi} → Arvosana: **{arvosana}**")
-    
+            await interaction.followup.send(
+                f"Pisteet: {pisteet}/{maksimi} → Arvosana: **{arvosana}**",
+                ephemeral=piilota_vastaus
+            )
+
+        except Exception as e:
+            await interaction.followup.send(
+                f"Virhe arvosanalaskurissa: {str(e)}",
+                ephemeral=True
+            )
+
     @app_commands.command(name="laskin", description="Laskee laskun ja näyttää välivaiheet.")
-    @app_commands.describe(lasku="Anna lasku esim. 8*5(4+4)", selitys="Haluatko selityksen? kyllä/ei")
+    @app_commands.describe(
+        lasku="Anna lasku esim. 8*5(4+4) tai LaTeX-muodossa kuten \\frac{4}{2} + \\sin(0)",
+        selitys="Haluatko selityksen? kyllä/ei"
+    )
     async def laskin(self, interaction: discord.Interaction, lasku: str, selitys: str = "ei"):
         await kirjaa_komento_lokiin(self.bot, interaction, "/laskin")
         await kirjaa_ga_event(self.bot, interaction.user.id, "laskin_komento")
 
         try:
-            lasku_parsittu = lasku.replace("^", "**").replace("sqrt", "math.sqrt")
+            lasku_parsittu = latex_to_python(lasku)
+
+            lasku_parsittu = lasku_parsittu.replace("^", "**").replace("sqrt", "math.sqrt")
             lasku_parsittu = lasku_parsittu.replace(")(", ")*(")
             lasku_parsittu = re.sub(r'(\d)\(', r'\1*(', lasku_parsittu)
 
-            if not re.fullmatch(r'^[\d\s\.\+\-\*/\(\)\^mathsqrt]+$', lasku_parsittu):
-                await interaction.response.send_message("Virhe: sallittuja ovat numerot, + - * / ^ ( ) ja sqrt().", ephemeral=True)
+            if not re.fullmatch(r'^[\d\s\.\+\-\*/\(\)\^mathsqrtmath\.sinmath\.cosmath\.tanmath\.exp]+$', lasku_parsittu):
+                await interaction.response.send_message("Virhe: laskussa on tuntemattomia merkkejä. Käytä vain matemaattisia funktioita ja operaatioita.", ephemeral=True)
                 return
 
             result = await asyncio.wait_for(calculate_steps(lasku_parsittu, selitys), timeout=3)

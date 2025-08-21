@@ -15,6 +15,7 @@ import json
 
 from dotenv import load_dotenv
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
+from bot.utils.xp_utils import make_xp_content
 
 HELP_DATA_FILE = os.getenv("HELP_DATA_FILE")
 
@@ -50,14 +51,29 @@ class HelpResponseModal(discord.ui.Modal, title="Kirjoita palaute käyttäjälle
             style=discord.TextStyle.paragraph,
             required=True
         )
+        self.xp_maara = discord.ui.TextInput(
+            label="XP-palkinto (valinnainen)",
+            placeholder="Esim. 10",
+            required=False
+        )
+
         self.add_item(self.palaute)
+        self.add_item(self.xp_maara)
 
     async def on_submit(self, interaction: discord.Interaction):
-        try:
-            alkuperäinen_id = self.embed.title.split("ID:")[-1].strip() if "ID:" in self.embed.title else "tuntematon"
+        alkuperäinen_id = self.embed.title.split("ID:")[-1].strip() if "ID:" in self.embed.title else "tuntematon"
 
+        xp_arvo = self.xp_maara.value.strip()
+        xp_määrä = int(xp_arvo) if xp_arvo.isdigit() else 0
+        xp_viesti = None
+
+        if xp_määrä > 0:
+            xp_viesti = make_xp_content(self.vastaanottaja.id, xp_määrä)
+
+        try:
+            xp_maininta = f"\n\n🎉 Sinulle on myönnetty {xp_määrä} XP-pistettä!" if xp_määrä > 0 else ""
             await self.vastaanottaja.send(
-                f"**Vastaus pyyntöösi ({self.toiminto}) – ID: `{alkuperäinen_id}`**\n{self.palaute.value}",
+                f"**Vastaus pyyntöösi ({self.toiminto}) – ID: `{alkuperäinen_id}`**\n{self.palaute.value}{xp_maininta}",
                 embed=self.embed
             )
         except discord.Forbidden:
@@ -66,19 +82,26 @@ class HelpResponseModal(discord.ui.Modal, title="Kirjoita palaute käyttäjälle
             return
 
         uusi_embed = self.embed.copy()
-        alku_footer = self.embed.footer.text or ""
         emoji = "📬" if self.toiminto == "vastattu" else "✅"
         vari = discord.Color.blurple() if self.toiminto == "vastattu" else discord.Color.green()
+        alku_footer = self.embed.footer.text or ""
+
+        footer_teksti = f"{alku_footer} • {self.toiminto.capitalize()}"
+        if self.toiminto == "vastattu" and xp_määrä > 0:
+            footer_teksti += f" • +{xp_määrä} XP"
 
         uusi_embed.title = f"{emoji} {self.embed.title}"
         uusi_embed.color = vari
         uusi_embed.set_footer(
-            text=f"{alku_footer} • {self.toiminto.capitalize()}",
+            text=footer_teksti,
             icon_url=self.embed.footer.icon_url
         )
 
         await self.viesti.edit(embed=uusi_embed, view=None)
-        await interaction.response.send_message(f"Pyyntö on {self.toiminto}. (ID: `{alkuperäinen_id}`)", ephemeral=True)
+        await interaction.response.send_message(
+            f"Pyyntö on {self.toiminto}. (ID: `{alkuperäinen_id}`)" + (f" 🎉 +{xp_määrä} XP myönnetty käyttäjälle!" if xp_määrä > 0 else ""),
+            ephemeral=True
+        )
 
 class HelpButtons(discord.ui.View):
     def __init__(self, user, embed):
@@ -167,8 +190,9 @@ class HelpDropdown(discord.ui.View):
         self.options = [
             discord.SelectOption(label="⚒️ Ongelma", value="ongelma", description="Tekninen ongelma tai bugi."),
             discord.SelectOption(label="❓ Report", value="report", description="Ilmoitus jostain asiattomasta."),
+            discord.SelectOption(label="📢 Valitus", value="valitus", description="Virallinen valitus tai palaute."),
             discord.SelectOption(label="💁 Jokin muu", value="muu", description="Yleinen kysymys, idea tai ehdotus."),
-            discord.SelectOption(label="📢 Valitus", value="valitus", description="Virallinen valitus tai palaute.")
+            
         ]
 
         self.select = discord.ui.Select(placeholder="Valitse aihealue", options=self.options)

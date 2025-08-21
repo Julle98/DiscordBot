@@ -10,7 +10,7 @@ load_dotenv()
 GUILD_ID = int(os.getenv("GUILD_ID"))
 ROLE_24G_ID = int(os.getenv("ROLE_24G_ID"))
 ROLE_VIP_ID = int(os.getenv("ROLE_VIP_ID"))
-MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID"))
+CONSOLE_LOG = int(os.getenv("CONSOLE_LOG"))
 
 class NightRestriction(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -73,7 +73,7 @@ class NightRestriction(commands.Cog):
             )
 
     async def log_status(self, guild: discord.Guild, in_restriction: bool, now: datetime):
-        channel = guild.get_channel(MOD_LOG_CHANNEL_ID)
+        channel = guild.get_channel(CONSOLE_LOG)
         if channel:
             role_names = [r.name for r in [guild.get_role(ROLE_24G_ID), guild.get_role(ROLE_VIP_ID)] if r]
             if in_restriction:

@@ -10,7 +10,7 @@ load_dotenv()
 
 SOURCE_DIR = os.getenv("XP_JSON_PATH")
 BACKUP_DIR = os.getenv("BACKUP_JSON_PATH")
-LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", 0))
+CONSOLE_LOG = int(os.getenv("CONSOLE_LOG", 0))
 
 class BackupCog(commands.Cog):
     def __init__(self, bot):
@@ -39,8 +39,8 @@ class BackupCog(commands.Cog):
         return messages
 
     async def send_backup_report(self, messages: list, title: str):
-        if LOG_CHANNEL_ID:
-            channel = self.bot.get_channel(LOG_CHANNEL_ID)
+        if CONSOLE_LOG:
+            channel = self.bot.get_channel(CONSOLE_LOG)
             if channel:
                 embed = discord.Embed(
                     title=title,

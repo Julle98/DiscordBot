@@ -42,7 +42,11 @@ DAILY_TASKS = [
     "Striimaa peliäsi",
     "Lisää tarra viestiin",
     "Kerro viikonpäivä",
-    "Lähetä viesti, jossa on kysymys"
+    "Lähetä viesti, jossa on kysymys",
+    "Mainitse kanava viestissä",
+    "Lähetä viesti, jossa on GIF",
+    "Lähetä viesti, jossa on linkki",
+    "Vastaa toisen käyttäjän viestiin"
 ]
 
 WEEKLY_TASKS = [
@@ -54,7 +58,8 @@ WEEKLY_TASKS = [
     "Osta jotain kaupasta",
     "Lähetä viesti arkipäivänä",
     "Kysy jotain toiselta käyttäjältä",
-    "Lisää reaktio toisen viestiin, jota ei ole vielä reagoitu"
+    "Lisää reaktio toisen viestiin, jota ei ole vielä reagoitu",
+    "Lähetä viesti, jossa on yli 10 sanaa"
 ]
 
 MONTHLY_TASKS = [
@@ -477,6 +482,31 @@ class TaskListener(discord.ui.View):
                     await self.finish_task()
                 except asyncio.TimeoutError:
                     pass
+        
+        elif self.task_name == "Mainitse kanava viestissä":
+            if message.channel.id == TASK_CHANNEL_ID and message.channel_mentions:
+                await self.finish_task()
+
+        elif self.task_name == "Lähetä viesti, jossa on yli 10 sanaa":
+            if message.channel.id == TASK_CHANNEL_ID and len(message.content.split()) > 10:
+                await self.finish_task()
+
+        elif self.task_name == "Lähetä viesti, jossa on GIF":
+            if message.channel.id == TASK_CHANNEL_ID and any(att.filename.lower().endswith(".gif") for att in message.attachments):
+                await self.finish_task()
+
+        elif self.task_name == "Lähetä viesti, jossa on linkki":
+            if message.channel.id == TASK_CHANNEL_ID and ("http://" in message.content or "https://" in message.content):
+                await self.finish_task()
+
+        elif self.task_name == "Vastaa toisen käyttäjän viestiin":
+            if message.channel.id == TASK_CHANNEL_ID and message.reference and message.author.id == self.user.id:
+                try:
+                    ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                    if ref_msg.author.id != self.user.id:
+                        await self.finish_task()
+                except:
+                    pass
 
     async def on_interaction(self, interaction: discord.Interaction):
         if self.completed or interaction.user.id != self.user.id:
@@ -686,6 +716,11 @@ TASK_INSTRUCTIONS = {
     "Kysy jotain toiselta käyttäjältä": "Lähetä kysymys toiselle käyttäjälle <#1339846062281588777> kanavalla. Mainitse käyttäjä ja käytä kysymysmerkkiä viestissä. Aikaa suoritukseen 30 min.",
     "Lisää reaktio toisen viestiin, jota ei ole vielä reagoitu": "Lisää emoji-reaktio viestiin <#1339846062281588777> kanavalla, jossa ei ollut vielä reaktioita. Aikaa suoritukseen 30 min.",
     "Jaa kuva, josta syntyy vitsi tai reaktio": "Lähetä kuva <#1339846062281588777> kanavalle, johon joku muu vastaa viestillä tai reagoi emojilla. Aikaa suoritukseen 30 min.",
+    "Mainitse kanava viestissä": "Lähetä viesti <#1339846062281588777> kanavalle, jossa mainitset toisen kanavan (esim. #yleinen). Aikaa suoritukseen 30 min.",
+    "Lähetä viesti, jossa on yli 10 sanaa": "Lähetä viesti <#1339846062281588777> kanavalle, jossa on yli 10 sanaa. Aikaa suoritukseen 30 min.",
+    "Lähetä viesti, jossa on GIF": "Lähetä GIF-kuva <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
+    "Lähetä viesti, jossa on linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää linkin (http/https). Aikaa suoritukseen 30 min.",
+    "Vastaa toisen käyttäjän viestiin": "Vastaa toisen käyttäjän viestiin <#1339846062281588777> kanavalla käyttämällä vastaustoimintoa. Aikaa suoritukseen 30 min.",
 }
 
 class TaskControlView(discord.ui.View):

@@ -41,47 +41,31 @@ def parse_schedule(text: str) -> dict:
             continue
 
         if "Ruokailu" in line:
-            m3 = re.search(
-                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Oppitunti\s*"
+            m = re.search(
                 r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Ruokailu\s*"
                 r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Oppitunti", line, re.I)
-            if m3:
-                current_oppitunti = f"{m3.group(1)}, {m3.group(3)}"
-                current_ruokailu = m3.group(2)
+            if m:
+                current_ruokailu = m.group(1)
+                current_oppitunti = m.group(2)
                 continue
 
-            m1 = re.search(
+            m_alt = re.search(
                 r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Oppitunti\s*"
                 r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Ruokailu", line, re.I)
-            if m1:
-                current_oppitunti = m1.group(1)
-                current_ruokailu = m1.group(2)
-                continue
-
-            m2 = re.search(
-                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Ruokailu\s*"
-                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Oppitunti", line, re.I)
-            if m2:
-                current_ruokailu = m2.group(1)
-                current_oppitunti = m2.group(2)
-                continue
-
-            m4 = re.search(r"(\d{1,2}\.\d{2}\s*-\s*)\s*Ruokailu", line, re.I)
-            if m4:
-                current_ruokailu = m4.group(1).strip()
-                current_oppitunti = None
+            if m_alt:
+                current_oppitunti = m_alt.group(1)
+                current_ruokailu = m_alt.group(2)
                 continue
 
         codes = re.findall(
-            r"\b[A-ZÅÄÖ]{2,}[A-ZÅÄÖ]*\d*(?:\+[A-ZÅÄÖ0-9.]+)?(?:\.\d+)?(?:\+[A-ZÅÄÖ0-9.]+)?\b",
-            line
+            r"\b[A-ZÅÄÖ]{1,}[A-ZÅÄÖ0-9.]*\b", line
         )
-        if codes and current_vuoro:
+        if codes and current_weekday and current_vuoro:
             for code in codes:
+                code = code.strip().upper()
                 if code not in schedule:
                     schedule[code] = {}
-                day = current_weekday if current_weekday else "PERJANTAI"
-                schedule[code][day] = {
+                schedule[code][current_weekday] = {
                     "vuoro": current_vuoro,
                     "ruokailu": current_ruokailu,
                     "oppitunti": current_oppitunti
