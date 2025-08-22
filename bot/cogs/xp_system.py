@@ -9,7 +9,6 @@ import os
 from bot.utils.bot_setup import bot
 from bot.utils.xp_utils import (
     käsittele_viesti_xp,
-    tarkkaile_kanavan_aktiivisuutta,
     käsittele_dm_viesti,
 )
 from bot.utils.tiedot_utils import pending_file_sends
@@ -36,7 +35,6 @@ varoitusviestit = [
 class XPSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.slowmode_watcher.start()
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -140,14 +138,6 @@ class XPSystem(commands.Cog):
             nyt = datetime.now(timezone.utc)
             if nyt - aika < timedelta(seconds=10):
                 komento_ajastukset[user_id].pop("xp_viesti", None)
-
-    @tasks.loop(seconds=30)
-    async def slowmode_watcher(self):
-        await tarkkaile_kanavan_aktiivisuutta()
-
-    @slowmode_watcher.before_loop
-    async def wait_ready(self):
-        await self.bot.wait_until_ready()
 
 async def setup(bot):
     await bot.add_cog(XPSystem(bot))
