@@ -622,7 +622,7 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                 with open(os.getenv("XP_VOICE_DATA_PATH"), "r", encoding="utf-8") as f:
                     voice_data = json.load(f)
                 voice_minutes = voice_data.get("total_voice_usage", {}).get(uid, 0)
-                voice_xp = voice_minutes * 10
+                voice_xp = (voice_minutes / 60) * 10
             except Exception as e:
                 voice_xp = 0
                 print("Puhe-XP:n arvio epäonnistui:", e)
