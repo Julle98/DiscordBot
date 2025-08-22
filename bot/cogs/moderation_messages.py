@@ -277,7 +277,6 @@ class Moderation_messages(commands.Cog):
 
     # AKTIIVISIMMAT
     @app_commands.command(name="aktiivisimmat", description="Näytä aktiivisimmat käyttäjät tai aloita viestiseuranta.")
-    @app_commands.checks.has_role("Mestari")
     @app_commands.describe(
         paiva="Muoto YYYY-MM-DD. Tyhjä = nykyhetki",
         tarkista="Näytä onko seuranta käynnissä"

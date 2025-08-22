@@ -10,7 +10,7 @@ from functools import wraps
 import time
 from datetime import datetime, timedelta
 import uuid
-from bot.utils.xp_utils import anna_xp_komennosta
+from bot.utils.xp_utils import load_xp_data, calculate_level, save_xp_data
 from discord.ui import Button, View
 from discord import Embed
 import os
@@ -191,13 +191,23 @@ class XPApprovalView(View):
             await interaction.response.send_message("⏳ Pyyntö on vanhentunut tai ei kelvollinen.", ephemeral=True)
             return
 
-        dummy_interaction = type("DummyInteraction", (), {
-            "user": interaction.guild.get_member(self.user_id),
-            "channel": interaction.channel,
-            "guild": interaction.guild
-        })()
-        await anna_xp_komennosta(interaction.client, dummy_interaction, self.xp_amount)
-        await interaction.response.send_message(f"✅ {self.xp_amount} XP lisätty käyttäjälle <@{self.user_id}>.")
+        user_id = str(self.user_id)
+        xp_data = load_xp_data()
+        tiedot = xp_data.get(user_id, {"xp": 0, "level": 0})
+
+        tiedot["xp"] += self.xp_amount
+        tiedot["level"] = calculate_level(tiedot["xp"])
+        xp_data[user_id] = tiedot
+        save_xp_data(xp_data)
+
+        jäsen = interaction.guild.get_member(self.user_id)
+        viesti = (
+            f"✅ Lisättiin {self.xp_amount} XP:tä käyttäjälle {jäsen.mention}. "
+            f"Nykyinen XP: {tiedot['xp']}, Taso: {tiedot['level']}"
+        )
+
+        await interaction.channel.send(viesti)
+        await interaction.response.send_message("✅ XP-pyyntö toteutettu.", ephemeral=True)
 
     @discord.ui.button(label="Peruuta", style=discord.ButtonStyle.danger)
     async def deny(self, interaction: discord.Interaction, button: Button):
@@ -205,9 +215,25 @@ class XPApprovalView(View):
             await interaction.response.send_message("🚫 Vain Mestari-rooli voi peruuttaa XP:n.", ephemeral=True)
             return
 
-        if self.req_id in xp_approval_requests:
-            xp_approval_requests.pop(self.req_id)
-            await interaction.response.send_message(f"❌ XP-pyyntö {self.req_id} peruttu.")
+        data = xp_approval_requests.pop(self.req_id, None)
+        if data:
+            jäsen = interaction.guild.get_member(self.user_id)
+            xp_data = load_xp_data()
+            tiedot = xp_data.get(str(self.user_id), {"xp": 0, "level": 0})
+
+            if self.xp_amount >= 0:
+                viesti = (
+                    f"❌ XP:n lisäys ({self.xp_amount}) käyttäjälle {jäsen.mention} peruttiin. "
+                    f"Nykyinen XP: {tiedot['xp']}, Taso: {tiedot['level']}"
+                )
+            else:
+                viesti = (
+                    f"❌ XP:n vähennys ({abs(self.xp_amount)}) käyttäjältä {jäsen.mention} peruttiin. "
+                    f"Nykyinen XP: {tiedot['xp']}, Taso: {tiedot['level']}"
+                )
+
+            await interaction.channel.send(viesti)
+            await interaction.response.send_message("❌ XP-pyyntö peruttu.", ephemeral=True)
         else:
             await interaction.response.send_message("❌ Pyyntöä ei löytynyt.", ephemeral=True)
 
