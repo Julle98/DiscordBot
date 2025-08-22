@@ -4,6 +4,8 @@ import os
 import json
 import random
 from datetime import datetime, timedelta, timezone
+from discord.ui import Modal, Select
+from discord.ui import Modal, TextInput
 from dotenv import load_dotenv
 from discord.ui import Button, View
 from discord.ext import tasks, commands
@@ -41,7 +43,8 @@ kauppa_tuotteet = [
     {"nimi": "Oma puhekanava", "kuvaus": "Saat oman äänikanavan", "hinta": 7000, "kertakäyttöinen": True, "emoji": "🎙️", "tarjousprosentti": 25},
     {"nimi": "Valitse värisi", "kuvaus": "Saat värillisen roolin (esim. sininen) 7 päiväksi", "hinta": 1500, "kertakäyttöinen": False, "emoji": "🧬", "tarjousprosentti": 30},
     {"nimi": "Valitse emoji", "kuvaus": "Bot reagoi viesteihisi valitsemallasi emojilla 7 päivän ajan", "hinta": 3500, "kertakäyttöinen": True, "emoji": "🤖", "tarjousprosentti": 30},
-    {"nimi": "Soundboard-oikeus", "kuvaus": "Käyttöoikeus puhekanavan soundboardiin 3 päiväksi", "hinta": 4000, "kertakäyttöinen": True, "emoji": "🔊", "tarjousprosentti": 10}
+    {"nimi": "Soundboard-oikeus", "kuvaus": "Käyttöoikeus puhekanavan soundboardiin 3 päiväksi", "hinta": 4000, "kertakäyttöinen": True, "emoji": "🔊", "tarjousprosentti": 10},
+    {"nimi": "Streak palautus", "kuvaus": "Palauttaa valitsemasi streakin aiempaan pisin-arvoon.", "hinta": 3000, "kertakäyttöinen": True, "emoji": "♻️", "tarjousprosentti": 20}
 ]
 
 if not tuotteet_polku.exists():
@@ -235,13 +238,47 @@ def onko_tuote_voimassa(user_id: str, tuotteen_nimi: str) -> bool:
             return True
     return False
 
+class StreakPalautusModal(Modal, title="Valitse streak palautettavaksi"):
+    def __init__(self, interaction):
+        super().__init__()
+        self.interaction = interaction
+        self.select = Select(
+            placeholder="Valitse streakin tyyppi",
+            options=[
+                discord.SelectOption(label="Päivittäinen", value="daily"),
+                discord.SelectOption(label="Viikoittainen", value="weekly"),
+                discord.SelectOption(label="Kuukausittainen", value="monthly"),
+                discord.SelectOption(label="Puhe", value="voice")
+            ]
+        )
+        self.add_item(self.select)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        from bot.utils.tasks_utils import load_streaks, save_streaks
+        uid = str(interaction.user.id)
+        streaks = load_streaks()
+        valinta = self.select.values[0]
+
+        if uid not in streaks or valinta not in streaks[uid]:
+            await interaction.response.send_message("❌ Tälle streakille ei löytynyt dataa.", ephemeral=True)
+            return
+
+        data = streaks[uid][valinta]
+        if data.get("streak", 0) < data.get("max_streak", 0):
+            data["streak"] = data["max_streak"]
+            save_streaks(streaks)
+            await interaction.response.send_message(
+                f"♻️ {valinta.capitalize()} streak palautettu arvoon {data['max_streak']}! 🔥",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message("ℹ️ Streak on jo ennätyksessä, ei palautettavaa.", ephemeral=True)
+
 def nykyinen_periodi():
     alku = datetime(2025, 1, 1, tzinfo=timezone.utc)
     delta = datetime.now(timezone.utc) - alku
     periodi = (delta.days // 4) % (len(kauppa_tuotteet) // 2)
     return periodi
-
-from datetime import datetime, timedelta, timezone
 
 def nayta_kauppa_embed(interaction, tarjoukset):
     user_id = str(interaction.user.id)
@@ -338,8 +375,6 @@ async def kysy_kayttajalta(interaction, kysymys):
 
 def puhdista_tuotteen_nimi(nimi: str) -> str:
     return nimi.replace(" (Tarjous!)", "").strip().lower()
-
-from discord.ui import Modal, TextInput
 
 class KanavaModal(Modal, title="Luo oma kanava"):
     nimi = TextInput(label="Kanavan nimi", placeholder="esim. oma-kanava")
@@ -561,6 +596,10 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
                 pass
         bot.loop.create_task(poista_rooli_viiveella())
 
+        return ""
+    
+    elif nimi == "streak palautus":
+        await interaction.response.send_modal(StreakPalautusModal(interaction))
         return ""
 
     elif "kanava" in nimi:

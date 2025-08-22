@@ -181,38 +181,6 @@ async def tarkista_tasonousu(bot, message, old_level, new_level):
 
         viestitetyt_tasonousut[uid] = new_level
 
-async def tarkkaile_kanavan_aktiivisuutta():
-    await asyncio.sleep(5)
-    from utils.bot_setup import bot
-    await bot.wait_until_ready()
-
-    kanava = bot.get_channel(SLOWMODE_CHANNEL_ID)
-    if not kanava:
-        print("Hidastuskanavaa ei löytynyt.")
-        return
-
-    while not bot.is_closed():
-        nyt = datetime.now(timezone.utc)
-        aktiiviset = 0
-
-        try:
-            async for msg in kanava.history(limit=100, after=nyt - timedelta(seconds=30)):
-                if not msg.author.bot:
-                    aktiiviset += 1
-        except:
-            await asyncio.sleep(30)
-            continue
-
-        try:
-            if aktiiviset >= 15 and kanava.slowmode_delay == 0:
-                await kanava.edit(slowmode_delay=5)
-            elif aktiiviset < 3 and kanava.slowmode_delay > 0:
-                await kanava.edit(slowmode_delay=0)
-        except:
-            pass
-
-        await asyncio.sleep(30)
-
 async def anna_xp_komennosta(bot, interaction: discord.Interaction, xp_määrä: int = 10):
     uid = str(interaction.user.id)
     xp_data = load_xp_data()
