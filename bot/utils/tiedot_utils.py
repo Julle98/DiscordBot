@@ -618,9 +618,20 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                 tallennettu_xp = 0
                 embed.add_field(name="⚠️ Virhe", value=f"XP-datan lataus epäonnistui: {e}", inline=False)
 
-            arvio_viesti_xp = max(0, tallennettu_xp - tehtävä_xp)
+            try:
+                with open(os.getenv("XP_VOICE_DATA_PATH"), "r", encoding="utf-8") as f:
+                    voice_data = json.load(f)
+                voice_minutes = voice_data.get("total_voice_usage", {}).get(uid, 0)
+                voice_xp = voice_minutes * 10
+            except Exception as e:
+                voice_xp = 0
+                print("Puhe-XP:n arvio epäonnistui:", e)
+
+            arvio_viesti_xp = max(0, tallennettu_xp - tehtävä_xp - voice_xp)
+
             tehtävä_prosentti = (tehtävä_xp / tallennettu_xp) * 100 if tallennettu_xp > 0 else 0
             viesti_prosentti = (arvio_viesti_xp / tallennettu_xp) * 100 if tallennettu_xp > 0 else 0
+            puhe_prosentti = (voice_xp / tallennettu_xp) * 100 if tallennettu_xp > 0 else 0
 
             embed = discord.Embed(
                 title="🔢 XP-raportti",
@@ -630,18 +641,26 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
 
             embed.add_field(name="🧩 XP-erittely", value=(
                 f"📘 Tehtävistä arvioitu: {tehtävä_xp} XP\n"
+                f"🔊 Puhekanavista arvioitu: {voice_xp} XP\n"
                 f"🔍 Arvio viestipohjaisesta XP:stä: {arvio_viesti_xp} XP\n"
                 f"✨ Tallennettu yhteensä: {tallennettu_xp} XP"
             ), inline=False)
 
             embed.add_field(name="📈 XP-jakauma (%)", value=(
                 f"📘 Tehtävät: {tehtävä_prosentti:.1f}%\n"
+                f"🔊 Puhe: {puhe_prosentti:.1f}%\n"
                 f"🔎 Viestit: {viesti_prosentti:.1f}%"
             ), inline=False)
 
-            if tehtävä_xp > tallennettu_xp:
+            embed.add_field(name="ℹ️ Tarkkuus", value=(
+                "XP-arviot perustuvat saatavilla oleviin tietoihin, mutta eivät ole täysin tarkkoja. "
+                "Kaikkia viestejä, tehtäviä ja puhekanavalla oloa ei seurata sekunnin tarkkuudella, "
+                "joten todellinen XP voi poiketa hieman arvioista."
+            ), inline=False)
+
+            if tehtävä_xp + voice_xp > tallennettu_xp:
                 embed.add_field(name="⚠️ Huomautus", value=(
-                    "Tehtävistä arvioitu XP on suurempi kuin tallennettu. Voi viitata tallennusvirheeseen."
+                    "Tehtävistä ja puheesta arvioitu XP on suurempi kuin tallennettu. Voi viitata tallennusvirheeseen."
                 ), inline=False)
 
     if kategoria == "Moderointi":
