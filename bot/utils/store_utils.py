@@ -227,6 +227,14 @@ def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: 
     print(f"✅ Kuponki {koodi} hyväksytty. Alennus: {kuponki.get('prosentti', 0)}%")
     return kuponki.get("prosentti", 0)
 
+def onko_tuote_voimassa(user_id: str, tuotteen_nimi: str) -> bool:
+    ostot = lue_ostokset()
+    kayttajan_ostot = ostot.get(user_id, [])
+    for o in kayttajan_ostot:
+        if puhdista_tuotteen_nimi(o.get("nimi", "")) == puhdista_tuotteen_nimi(tuotteen_nimi):
+            return True
+    return False
+
 def nykyinen_periodi():
     alku = datetime(2025, 1, 1, tzinfo=timezone.utc)
     delta = datetime.now(timezone.utc) - alku
@@ -375,7 +383,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             await asyncio.sleep(3 * 24 * 60 * 60)
             try:
                 await interaction.user.remove_roles(rooli)
-                await interaction.user.send("⌛ Erikoisemoji-roolisi on vanhentunut.")
+                await interaction.user.send("⌛ Erikoisemoji-roolisi on vanhentunut.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
             except:
                 pass
         bot.loop.create_task(poista_erikoisemoji())
@@ -391,7 +399,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             await asyncio.sleep(24 * 60 * 60)
             try:
                 await interaction.user.remove_roles(rooli)
-                await interaction.user.send("⏳ Double XP -roolisi on vanhentunut.")
+                await interaction.user.send("⏳ Double XP -roolisi on vanhentunut.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
             except:
                 pass
         bot.loop.create_task(poista_rooli_viiveella())
@@ -416,7 +424,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             await asyncio.sleep(7 * 24 * 60 * 60)
             try:
                 await interaction.user.remove_roles(rooli)
-                await interaction.user.send(f"⌛ Custom-roolisi **{rooli.name}** on poistettu.")
+                await interaction.user.send(f"⌛ Custom-roolisi **{rooli.name}** on poistettu.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
                 await rooli.delete()
             except:
                 pass
@@ -435,7 +443,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             await asyncio.sleep(7 * 24 * 60 * 60)
             try:
                 await interaction.user.remove_roles(rooli)
-                await interaction.user.send("⌛ VIP-chat-oikeutesi on päättynyt.")
+                await interaction.user.send("⌛ VIP-chat-oikeutesi on päättynyt.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
             except:
                 pass
         bot.loop.create_task(poista_vip_chat())
@@ -498,7 +506,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             await asyncio.sleep(7 * 24 * 60 * 60)
             try:
                 await interaction.user.remove_roles(rooli)
-                await interaction.user.send(f"🎨 Väriroolisi **{rooli.name}** on poistettu.")
+                await interaction.user.send(f"🎨 Väriroolisi **{rooli.name}** on poistettu.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
                 await rooli.delete()
             except:
                 pass
@@ -513,7 +521,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             async def poista_reaktio():
                 await asyncio.sleep(7 * 24 * 60 * 60)
                 auto_react_users.pop(str(interaction.user.id), None)
-                await interaction.user.send("⌛ Emoji-oikeutesi on päättynyt.")
+                await interaction.user.send("⌛ Emoji-oikeutesi on päättynyt.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
             bot.loop.create_task(poista_reaktio())
             lisatieto = f" (emoji: {emoji_valinta})"
         return lisatieto
@@ -529,7 +537,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             await asyncio.sleep(3 * 24 * 60 * 60)
             try:
                 await interaction.user.remove_roles(rooli)
-                await interaction.user.send("⌛ Soundboard-oikeus on päättynyt.")
+                await interaction.user.send("⌛ Soundboard-oikeus on päättynyt.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
             except:
                 pass
         bot.loop.create_task(poista_soundboard())
@@ -548,7 +556,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             await asyncio.sleep(7 * 24 * 60 * 60)
             try:
                 await interaction.user.remove_roles(rooli)
-                await interaction.user.send("⌛ VIP-roolisi on nyt vanhentunut.")
+                await interaction.user.send("⌛ VIP-roolisi on nyt vanhentunut.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
             except:
                 pass
         bot.loop.create_task(poista_rooli_viiveella())
@@ -579,6 +587,13 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
         await interaction.response.send_message("Tuotetta ei löytynyt.", ephemeral=True)
         return
 
+    if onko_tuote_voimassa(user_id, tuote["nimi"]):
+        await interaction.response.send_message(
+            f"🚫 Tuote **{tuote['nimi']}** on jo käytössäsi. Odota, että oikeus päättyy ennen kuin ostat uudestaan.",
+            ephemeral=True
+        )
+        return
+
     periodi = nykyinen_periodi()
     tarjousnimet = [t["nimi"] for t in tarjoukset]
     vaihdettavat = [t["nimi"] for t in kauppa_tuotteet[periodi*2:(periodi+1)*2]]
@@ -594,12 +609,8 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
 
     ostot[user_id] = [o for o in ostot[user_id] if isinstance(o, dict) and "nimi" in o]
 
-    if tuote["kertakäyttöinen"] and any(o.get("nimi") == tuote["nimi"] for o in ostot[user_id]):
-        await interaction.response.send_message("Olet jo ostanut tämän kertakäyttöisen tuotteen.", ephemeral=True)
-        return
-
     if kuponki:
-        alennus_prosentti = tarkista_kuponki(kuponki, tuote["nimi"], user_id)
+        alennus_prosentti = tarkista_kuponki(kuponki, tuote["nimi"], user_id, interaction)
         if alennus_prosentti == 0:
             await interaction.response.send_message("❌ Kuponki ei kelpaa tälle tuotteelle, vanhentunut tai käyttöraja täynnä. Osto peruutettu.", ephemeral=True)
             return
