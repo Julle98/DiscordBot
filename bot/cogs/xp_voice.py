@@ -49,23 +49,50 @@ class XPVoice(commands.Cog):
                 return f"@{member.display_name} {activity_start}"
 
             elif not after_val and before_val:
-                start_time = self.voice_activity_data["temporary_flags"].get(state_key)
+                start_time = self.voice_activity_data["temporary_flags"].pop(state_key, None)
                 if start_time:
                     duration = int(timestamp_now - start_time)
                     return f"@{member.display_name} {activity_end}. Kokonaisaika {str(timedelta(seconds=duration))}"
             return None
 
-        msg = handle_flag("self_mute", "mykisti itsensä", "lopetti mykistyksen")
-        if not msg:
-            msg = handle_flag("self_stream", "aloitti näytön jaon", "lopetti näytön jaon")
+        messages = []
+
+        if not before.channel and after.channel:
+            join_key = f"{user_id}_voice_join"
+            self.voice_activity_data["temporary_flags"][join_key] = timestamp_now
+
+        mute_msg = handle_flag("self_mute", "mykisti itsensä", "lopetti mykistyksen")
+        stream_msg = handle_flag("self_stream", "aloitti näytön jaon", "lopetti näytön jaon")
+        if mute_msg:
+            messages.append(mute_msg)
+        if stream_msg:
+            messages.append(stream_msg)
 
         if after.channel == guild.afk_channel and before.channel != guild.afk_channel:
-            msg = f"@{member.display_name} siirtyi AFK-tilaan 😴"
+            messages.append(f"@{member.display_name} siirtyi AFK-tilaan 😴")
         elif before.channel == guild.afk_channel and after.channel != guild.afk_channel:
-            msg = f"@{member.display_name} palasi aktiiviseksi 🎉"
+            messages.append(f"@{member.display_name} palasi aktiiviseksi 🎉")
 
-        if msg and channel:
-            await channel.send(msg)
+        if before.channel and not after.channel:
+            messages.append(f"@{member.display_name} poistui puhekanavalta 🚪")
+
+            join_key = f"{user_id}_voice_join"
+            join_time = self.voice_activity_data["temporary_flags"].pop(join_key, None)
+            if join_time:
+                duration = int(timestamp_now - join_time)
+                messages.append(f"@{member.display_name} oli puhekanavalla yhteensä {str(timedelta(seconds=duration))}")
+
+            for flag in ["self_mute", "self_stream"]:
+                state_key = f"{user_id}_{flag}"
+                start_time = self.voice_activity_data["temporary_flags"].pop(state_key, None)
+                if start_time:
+                    duration = int(timestamp_now - start_time)
+                    flag_text = "mykistyksen" if flag == "self_mute" else "näytön jaon"
+                    messages.append(f"@{member.display_name} lopetti {flag_text}. Kokonaisaika {str(timedelta(seconds=duration))}")
+
+        for msg in messages:
+            if channel:
+                await channel.send(msg)
 
     @tasks.loop(seconds=60)
     async def xp_voice_loop(self):
