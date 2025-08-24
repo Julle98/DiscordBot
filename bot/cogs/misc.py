@@ -209,7 +209,7 @@ general_jokes = [
     "Miksi kissa ei osaa käyttää tietokonetta? Koska se painaa aina hiirtä.",
     "Miksi jääkaappi on hyvä ystävä? Se ei koskaan petä – se pysyy viileänä.",
     "Miksi kirahvi ei pelaa piilosta? Se jää aina kiinni.",
-    "Miksi sieni oli juhlien tähti? Koska se oli fun guy (fungi)!"
+    "Miksi sieni oli juhlien tähti? Koska se oli fun guy! :D"
 ]
 
 class Misc(commands.Cog):
