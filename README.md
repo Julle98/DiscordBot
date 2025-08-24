@@ -1,22 +1,27 @@
-# Sannamaija-V2
-Newer version with cool new features and more. The bot is still not public!
-The bot works fine with Visual Studio Code and Python extension from Microsoft. 
+# 🤖 Sannamaija Discord bot V2
 
-I don't know if it work somewhere else than Visual Studio Code but code extensions are there so big recommendation to run it on Visual Studio Code.
+**SannamaijaV2** is a custom Discord bot built exclusively for one private server. It supports moderation, engagement, and fun — with over 60 unique slash commands.
 
-The main language in the bot are Finnish and you can always change it to English if you want.
+---
 
-The code contain lot of commands over 45 commands.
+## Features
 
-# Instructions for deploying the bot
-1. Download Visual Studio Code.
-2. Download all the files in the repository. Zip file is good option.
-3. Download pip extensions at requirements.txt file. Big recommendation to some kind of virtual environment! 
-4. Change the .env file data to your own.
-5. Run the file and have fun!
-- Also you need make a bot in the Discord Developer Portal.
+- 60+ slash commands for moderation and utility
+- Fun commands for games and interaction
+- XP system for chat and voice activity
+- Tailored experience for the Sannamaija community
+
+---
+
+## License
+
+This project is open source and licensed under the MIT License. You are free to use, modify, and distribute it with proper attribution.
+
+See the [LICENSE](LICENSE) file for full details.
+
+---
 
 # Credits
-The bot was made by me Julle98 and my beginner skills sometimes used Copilot for code help.
 
-You can always contact me if you need on Discord: Julle98#0 
+Created by **Julle98** using beginner skills and occasional help from GitHub Copilot.  
+Feel free to reach out on Discord: `Julle98#0`
