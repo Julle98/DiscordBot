@@ -66,15 +66,26 @@ class Vault(commands.Cog):
         await kirjaa_komento_lokiin(self.bot, interaction, "/holvi_tallenna")
         await kirjaa_ga_event(self.bot, interaction.user.id, "holvi_tallenna_komento")
 
+        kayttajan_holvit = [key for key, val in self.holvi.items() if val["kayttaja"] == interaction.user.id]
+        max_holvit = 3
+
+        member = interaction.guild.get_member(interaction.user.id)
+        if member and any(role.name == "HolviPlus" for role in member.roles):
+            max_holvit = 5
+
+        if len(kayttajan_holvit) >= max_holvit:
+            await interaction.response.send_message(f"Sinulla on jo {len(kayttajan_holvit)} holvia. Enimmäismäärä on {max_holvit}. 🚫", ephemeral=True)
+            return
+
         self.holvi[salasana] = {
             "sisalto": salaa(sisalto, salasana),
             "kayttaja": interaction.user.id
         }
         tallenna_holvi(self.holvi)
 
-        await laheta_lokiviesti(self.bot, f"📁 Holvi luotu käyttäjältä <@{interaction.user.id}> salasanalla `{salasana}`.")
+        await laheta_lokiviesti(self.bot, f"Holvi luotu käyttäjältä <@{interaction.user.id}> salasanalla `{salasana}`. 📂")
         await interaction.response.send_message(
-            f"✅ Sisältö tallennettu holviin!\n🔐 Muista salasanasi: `{salasana}`", ephemeral=True
+            f"Sisältö tallennettu holviin onnistuneesti! ✅\nMuista salasanasi: `{salasana}` 🔐", ephemeral=True
         )
 
     @app_commands.command(name="holvi_paivita", description="Lisää tekstiä olemassa olevaan holviin.")
@@ -86,17 +97,17 @@ class Vault(commands.Cog):
 
         entry = self.holvi.get(salasana)
         if not entry:
-            await interaction.response.send_message("❌ Salasana ei vastaa mitään holvia.", ephemeral=True)
+            await interaction.response.send_message("Salasana ei vastaa mitään holvia. ❌", ephemeral=True)
             return
 
         if entry["kayttaja"] != interaction.user.id:
-            await interaction.response.send_message("⛔ Et voi muokata toisen käyttäjän holvia.", ephemeral=True)
+            await interaction.response.send_message("Et voi muokata toisen käyttäjän holvia. ⛔", ephemeral=True)
             return
 
         try:
             nykyinen = pura(entry["sisalto"], salasana)
         except Exception:
-            await interaction.response.send_message("❌ Salasanan purku epäonnistui.", ephemeral=True)
+            await interaction.response.send_message("Salasanan purku epäonnistui. ❌", ephemeral=True)
             return
 
         entry["sisalto"] = salaa(nykyinen + f"\n{lisa}", salasana)
@@ -104,58 +115,78 @@ class Vault(commands.Cog):
 
         aikaleima = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         await laheta_lokiviesti(self.bot, f"[{aikaleima}] ✏️ <@{interaction.user.id}> lisäsi tekstiä holviin salasanalla `{salasana}`.")
-        await interaction.response.send_message("✅ Teksti lisätty holviin!", ephemeral=True)
+        await interaction.response.send_message("Teksti lisätty holviin onnistuneesti! ✅", ephemeral=True)
 
-    @app_commands.command(name="holvi_hae", description="Hae sisältö holvista salasanalla ja vaihda tarvittaessa salasana.")
-    @app_commands.describe(salasana="Nykyinen salasana", uusi_salasana="(Valinnainen) uusi salasana holville")
+    @app_commands.command(name="holvi_hae", description="Hae sisältö holvista salasanalla ja vaihda tai poista holvi.")
+    @app_commands.describe(salasana="Nykyinen salasana", uusi_salasana="(Ei avaa holvia) uusi salasana holville", poista="Poista holvi salasanalla (True/False)")
     @app_commands.checks.has_role("24G")
-    async def holvi_hae(self, interaction: discord.Interaction, salasana: str, uusi_salasana: str = None):
+    async def holvi_hae(self, interaction: discord.Interaction, salasana: str, uusi_salasana: str = None, poista: bool = False):
         await kirjaa_komento_lokiin(self.bot, interaction, "/holvi_hae")
         await kirjaa_ga_event(self.bot, interaction.user.id, "holvi_hae_komento")
 
         entry = self.holvi.get(salasana)
         if not entry:
-            await interaction.response.send_message("❌ Salasana ei vastaa mitään tallennettua sisältöä.", ephemeral=True)
+            await interaction.response.send_message("Salasana ei vastaa mitään tallennettua sisältöä. ❌", ephemeral=True)
             return
 
         if entry["kayttaja"] != interaction.user.id:
-            await interaction.response.send_message("⛔ Tämä sisältö ei ole sinun tallentama.", ephemeral=True)
+            await interaction.response.send_message("Tämä sisältö ei ole sinun tallentama. ⛔", ephemeral=True)
             return
 
-        try:
-            sisalto = pura(entry["sisalto"], salasana)
-        except Exception:
-            await interaction.response.send_message("❌ Salasanan purku epäonnistui.", ephemeral=True)
+        if poista:
+            del self.holvi[salasana]
+            tallenna_holvi(self.holvi)
+            await laheta_lokiviesti(self.bot, f"<@{interaction.user.id}> poisti holvin salasanalla: `{salasana}`. 🗑️")
+            await interaction.response.send_message(f"Holvi salasanalla `{salasana}` poistettu. ✅", ephemeral=True)
             return
 
         if uusi_salasana:
+            try:
+                sisalto = pura(entry["sisalto"], salasana)
+            except Exception:
+                await interaction.response.send_message("Salasanan purku epäonnistui. ❌", ephemeral=True)
+                return
+
             self.holvi[uusi_salasana] = {
                 "sisalto": salaa(sisalto, uusi_salasana),
                 "kayttaja": entry["kayttaja"]
             }
             del self.holvi[salasana]
             tallenna_holvi(self.holvi)
-            salasana = uusi_salasana
-            await laheta_lokiviesti(self.bot, f"🔑 <@{interaction.user.id}> vaihtoi holvin salasanan uuteen: `{salasana}`.")
-            await interaction.followup.send(f"🔑 Salasana vaihdettu onnistuneesti uuteen: `{salasana}`", ephemeral=True)
 
-        await interaction.response.send_message(f"📂 Holvin sisältö: {sisalto}", ephemeral=True)
+            await laheta_lokiviesti(self.bot, f"<@{interaction.user.id}> vaihtoi holvin salasanan uuteen: `{uusi_salasana}`. 🔑")
 
-        view = KirjautumisView(user_id=interaction.user.id, kirjautuneet=self.kirjautuneet)
+            try:
+                await interaction.user.send(f"Salasanasi holviin on vaihdettu onnistuneesti.\nUusi salasana: `{uusi_salasana}` 🔐")
+            except discord.Forbidden:
+                await interaction.followup.send("Salasanan vaihto onnistui, mutta DM-viestin lähetys epäonnistui (käyttäjän yksityisyysasetukset). ⚠️", ephemeral=True)
+            else:
+                await interaction.followup.send("Salasanan vaihto onnistui. Vahvistus lähetetty yksityisviestinä. ✅", ephemeral=True)
+            return
 
         try:
-            await interaction.user.send(
-                content=(
-                    f"🔐 Kirjauduit holviin salasanalla `{salasana}`.\n"
-                    f"📌 Sisältö haettu onnistuneesti.\n"
-                    f"✅ Voit merkitä kirjautumisen tehdyksi alla olevista painikkeista."
-                ),
-                view=view
-            )
-        except discord.Forbidden:
-            await interaction.followup.send("⚠️ En voinut lähettää DM-viestiä. Tarkista yksityisyysasetuksesi.", ephemeral=True)
+            sisalto = pura(entry["sisalto"], salasana)
+        except Exception:
+            await interaction.response.send_message("Salasanan purku epäonnistui. ❌", ephemeral=True)
+            return
 
         self.kirjautuneet.add(interaction.user.id)
+        await interaction.response.send_message(f"Holvin sisältö: {sisalto} 📂", ephemeral=True)
+
+    @app_commands.command(name="holvi_lista", description="Näytä kaikki omat holvit.")
+    @app_commands.checks.has_role("24G")
+    async def holvi_lista(self, interaction: discord.Interaction):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/holvi_lista")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "holvi_lista_komento")
+
+        kayttajan_holvit = [key for key, val in self.holvi.items() if val["kayttaja"] == interaction.user.id]
+
+        if not kayttajan_holvit:
+            await interaction.response.send_message("Sinulla ei ole yhtään holvia. Luo uusi ``/holvi_tallenna`` 📭", ephemeral=True)
+            return
+
+        lista = "\n".join(f"🔐 `{key}`" for key in kayttajan_holvit)
+        await interaction.response.send_message(f"📋 Holvisi:\n{lista} ", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
