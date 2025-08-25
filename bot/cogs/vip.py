@@ -55,23 +55,9 @@ async def ajastin_odotus(interaction: discord.Interaction, sekunnit: int):
         except discord.Forbidden:
             pass
 
-HOLVI_POLKU = os.getenv("HOLVI_POLKU")
-
-def lataa_holvi():
-    if not os.path.exists(HOLVI_POLKU):
-        return {}
-    with open(HOLVI_POLKU, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def tallenna_holvi(data):
-    os.makedirs(os.path.dirname(HOLVI_POLKU), exist_ok=True)
-    with open(HOLVI_POLKU, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
 class Vip(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.holvi = lataa_holvi()
     
     @app_commands.command(name="sano", description="Sano Sannamaijalle sanottavaa.")
     @app_commands.checks.has_role("24G")
@@ -155,36 +141,6 @@ class Vip(commands.Cog):
                 pass
 
         asyncio.create_task(muistutus())
-
-    @app_commands.command(name="holvi_tallenna", description="Tallenna sisältö holviin salasanalla.")
-    @app_commands.describe(salasana="Salasana holviin", sisalto="Tallennettava sisältö")
-    @app_commands.checks.has_role("24G")
-    async def holvi_tallenna(self, interaction: discord.Interaction, salasana: str, sisalto: str):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/holvi_tallenna")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "holvi_tallenna_komento")
-        self.holvi[salasana] = {
-            "sisalto": sisalto,
-            "kayttaja": interaction.user.id
-        }
-        tallenna_holvi(self.holvi)
-        await interaction.response.send_message("✅ Sisältö tallennettu holviin!", ephemeral=True)
-
-    @app_commands.command(name="holvi_hae", description="Hae sisältö holvista salasanalla.")
-    @app_commands.describe(salasana="Salasana holviin")
-    @app_commands.checks.has_role("24G")
-    async def holvi_hae(self, interaction: discord.Interaction, salasana: str):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/holvi_hae")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "holvi_hae_komento")
-        entry = self.holvi.get(salasana)
-        if not entry:
-            await interaction.response.send_message("❌ Salasana ei vastaa mitään tallennettua sisältöä.", ephemeral=True)
-            return
-
-        if entry["kayttaja"] != interaction.user.id:
-            await interaction.response.send_message("⛔ Tämä sisältö ei ole sinun tallentama.", ephemeral=True)
-            return
-
-        await interaction.response.send_message(f"📂 Holvin sisältö: {entry['sisalto']}", ephemeral=True)
 
     @app_commands.command(name="ennustus", description="Saat mystisen ennustuksen.")
     @app_commands.checks.has_role("24G")
