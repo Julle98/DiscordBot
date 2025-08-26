@@ -53,9 +53,9 @@ class Levels(commands.Cog):
             )
 
         elif vaihtoehto.value == "kaikki":
-            mestari = discord.utils.get(interaction.guild.roles, name="Mestari")
-            if mestari not in interaction.user.roles:
-                await interaction.followup.send("Vain Mestari-roolilla voi tarkastella kaikkien tasoja.", ephemeral=True)
+            ryhmyri = discord.utils.get(interaction.guild.roles, name="24G")
+            if ryhmyri not in interaction.user.roles:
+                await interaction.followup.send("Vain 24G-roolilla voi tarkastella kaikkien tasoja.", ephemeral=True)
                 return
 
             entries = []
