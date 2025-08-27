@@ -57,14 +57,18 @@ class NightRestriction(commands.Cog):
                     send_messages=False,
                     connect=False,
                     add_reactions=False,
-                    use_external_emojis=False
+                    use_external_emojis=False,
+                    send_messages_in_threads=False,
+                    send_messages_in_forums=False
                 )
             else:
                 perms.update(
                     send_messages=True,
                     connect=True,
                     add_reactions=True,
-                    use_external_emojis=True
+                    use_external_emojis=True,
+                    send_messages_in_threads=True,
+                    send_messages_in_forums=True
                 )
 
             await role.edit(

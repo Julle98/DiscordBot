@@ -15,7 +15,6 @@ CONSOLE_LOG = int(os.getenv("CONSOLE_LOG", 0))
 class BackupCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.backup_loop.start()
 
     def cog_unload(self):
         self.backup_loop.cancel()
@@ -53,13 +52,19 @@ class BackupCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
+        if not self.backup_loop.is_running():
+            self.backup_loop.start()
+
         messages = self.backup_json_files()
         await self.send_backup_report(messages, "🚀 Botti käynnistetty – varmuuskopiointi suoritettu")
 
     @tasks.loop(minutes=60)
     async def backup_loop(self):
-        messages = self.backup_json_files()
-        await self.send_backup_report(messages, "🔄 JSON-varmuuskopiointi suoritettu")
+        try:
+            messages = self.backup_json_files()
+            await self.send_backup_report(messages, "🔄 JSON-varmuuskopiointi suoritettu")
+        except Exception as e:
+            print(f"❌ Varmuuskopiointi epäonnistui: {e}")
 
     @backup_loop.before_loop
     async def before_backup_loop(self):
