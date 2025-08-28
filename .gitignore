@@ -1,4 +1,5 @@
 __pycache__/
+.idea/
 bot/__pycache__/
 utils/__pycache__/
 dashboard/__pycache__/
