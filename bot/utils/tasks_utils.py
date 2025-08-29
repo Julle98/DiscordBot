@@ -44,7 +44,8 @@ DAILY_TASKS = [
     "Kerro viikonpäivä",
     "Lähetä viesti, jossa on kysymys",
     "Mainitse kanava viestissä",
-    "Lähetä viesti, jossa on GIF",
+    "Lähetä Tenor-linkki",
+    "Lähetä Giphy-linkki",
     "Lähetä viesti, jossa on linkki",
     "Vastaa toisen käyttäjän viestiin"
 ]
@@ -491,8 +492,12 @@ class TaskListener(discord.ui.View):
             if message.channel.id == TASK_CHANNEL_ID and len(message.content.split()) > 10:
                 await self.finish_task()
 
-        elif self.task_name == "Lähetä viesti, jossa on GIF":
-            if message.channel.id == TASK_CHANNEL_ID and any(att.filename.lower().endswith(".gif") for att in message.attachments):
+        elif self.task_name == "Lähetä Tenor-linkki":
+            if message.channel.id == TASK_CHANNEL_ID and "tenor.com/view" in message.content.lower():
+                await self.finish_task()
+
+        elif self.task_name == "Lähetä Giphy-linkki":
+            if message.channel.id == TASK_CHANNEL_ID and "giphy.com/gifs" in message.content.lower():
                 await self.finish_task()
 
         elif self.task_name == "Lähetä viesti, jossa on linkki":
@@ -721,6 +726,9 @@ TASK_INSTRUCTIONS = {
     "Lähetä viesti, jossa on GIF": "Lähetä GIF-kuva <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
     "Lähetä viesti, jossa on linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää linkin (http/https). Aikaa suoritukseen 30 min.",
     "Vastaa toisen käyttäjän viestiin": "Vastaa toisen käyttäjän viestiin <#1339846062281588777> kanavalla käyttämällä vastaustoimintoa. Aikaa suoritukseen 30 min.",
+    "Lähetä Tenor-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Tenor-palvelun GIF-linkin (esim. tenor.com/view/...). Aikaa suoritukseen 30 min.",
+    "Lähetä Giphy-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Giphy-palvelun GIF-linkin (esim. giphy.com/gifs/...). Aikaa suoritukseen 30 min.",
+
 }
 
 class TaskControlView(discord.ui.View):
