@@ -60,6 +60,7 @@ class XPVoice(commands.Cog):
         if not before.channel and after.channel:
             join_key = f"{user_id}_voice_join"
             self.voice_activity_data["temporary_flags"][join_key] = timestamp_now
+            messages.append(f"@{member.display_name} liittyi kanavaan **{after.channel.name}** 🎙️")
 
         mute_msg = handle_flag("self_mute", "mykisti itsensä", "lopetti mykistyksen")
         stream_msg = handle_flag("self_stream", "aloitti näytön jaon", "lopetti näytön jaon")
@@ -74,7 +75,7 @@ class XPVoice(commands.Cog):
             messages.append(f"@{member.display_name} palasi aktiiviseksi 🎉")
 
         if before.channel and not after.channel:
-            messages.append(f"@{member.display_name} poistui puhekanavalta 🚪")
+            messages.append(f"@{member.display_name} poistui kanavalta **{before.channel.name}** 🚪")
 
             join_key = f"{user_id}_voice_join"
             join_time = self.voice_activity_data["temporary_flags"].pop(join_key, None)
@@ -88,7 +89,7 @@ class XPVoice(commands.Cog):
                 if start_time:
                     duration = int(timestamp_now - start_time)
                     flag_text = "mykistyksen" if flag == "self_mute" else "näytön jaon"
-                    messages.append(f"@{member.display_name} lopetti {flag_text}. Kokonaisaika {str(timedelta(seconds=duration))}")
+                    messages.append(f"@{member.display_name} lopetti {flag_text} poistumisen yhteydessä. Kokonaisaika {str(timedelta(seconds=duration))}")
 
         for msg in messages:
             if channel:
@@ -106,6 +107,11 @@ class XPVoice(commands.Cog):
                 for member in vc.members:
                     if member.bot or not member.voice:
                         continue
+
+                    user_id = str(member.id)
+                    temp_flags = self.voice_activity_data.get("temporary_flags", {})
+                    if user_id not in temp_flags.get(f"{user_id}_voice_join", {}):
+                        continue  
 
                     user_id = str(member.id)
                     curr_state = {
