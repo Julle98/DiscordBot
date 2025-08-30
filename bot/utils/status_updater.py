@@ -24,24 +24,25 @@ def get_last_status(bot: commands.Bot) -> Optional[str]:
 class StatusUpdater(commands.Cog):
 
     LISTENING: List[str] = [
-        "Ongelmianne | /komennot",
-        "Komentojanne | /komennot",
-        "Tehtäviänne | /komennot",
-        "Ostoksianne | /komennot",
+        "Ongelmat | /komennot",
+        "Komennot | /komennot",
+        "Tehtävät | /komennot",
+        "Ostokset | /komennot",
     ]
     WATCHING: List[str] = [
         "Wilma | /komennot",
-        "Keskustelujanne | /komennot",
-        "Schauplatz | /komennot",
-        "Suorituksia | /komennot",
+        "TV | /komennot",
+        "YouTube | /komennot",
+        "TikTok | /komennot",
     ]
     PLAYING: List[str] = [
-        "Abitti 2 | /komennot",
-        "Tiedoillasi | /komennot",
-        "Komennoilla | /komennot",
-        "Matikkaeditori | /komennot",
+        "Abitti | /komennot",
+        "Matikka | /komennot",
+        "Sanapeli | /komennot",
+        "Koodia | /komennot",
+        "Facebook | /komennot",
+        "Candy Crush | /komennot",
     ]
-
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.last_status: Optional[str] = None

@@ -10,7 +10,7 @@ async def hae_kayttajan_xp(bot: discord.Client, user_id: int):
     async for msg in xp_channel.history(limit=1000):
         if msg.author.bot and msg.content.startswith(f"{user_id}:"):
             xp, level = parse_xp_content(msg.content)
-            viestit = (xp // 10)  # Jos 10 XP per viesti
+            viestit = (xp // 10)
             return {"viestit": viestit, "xp": xp, "level": level}
 
     return {"viestit": 0, "xp": 0, "level": 0}
