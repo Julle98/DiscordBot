@@ -134,33 +134,37 @@ class ruoka(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="ruokailuvuorot", description="Näyttää uusimmat ruokailuvuorot.")
+    @app_commands.command(name="ruokailuvuorot", description="Näyttää ruokailuvuorot.")
     @app_commands.describe(
-        luokkakoodi="(BETA OMINAISUUS) Luokan tunnus, esim. ENA05.13 tai MAB04.13"
+        luokkakoodi="Luokan tunnus (kaikki isolla), esim. ENA05.13 tai S25.12",
+        paiva="Viikonpäivä (tyhjä = tämän päivän ruokailuvuoro)"
     )
+    @app_commands.choices(paiva=[
+        app_commands.Choice(name="Maanantai", value="MAANANTAI"),
+        app_commands.Choice(name="Tiistai", value="TIISTAI"),
+        app_commands.Choice(name="Keskiviikko", value="KESKIVIIKKO"),
+        app_commands.Choice(name="Torstai", value="TORSTAI"),
+        app_commands.Choice(name="Perjantai", value="PERJANTAI"),
+    ])
     @app_commands.checks.has_role("24G")
-    async def ruokailuvuorot(self, interaction: discord.Interaction, luokkakoodi: str = None):
+    async def ruokailuvuorot(
+        self,
+        interaction: discord.Interaction,
+        luokkakoodi: str = None,
+        paiva: app_commands.Choice[str] = None
+    ):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ruokailuvuorot")
         await kirjaa_ga_event(self.bot, interaction.user.id, "ruokailuvuorot_komento")
 
         raw_path = os.getenv("RAW_SCHEDULE_PATH")
         drive_link = os.getenv("RUOKAILU_DRIVE_LINK")
 
-        def get_weekday_name():
-            weekday_map = {
-                0: "MAANANTAI",
-                1: "TIISTAI",
-                2: "KESKIVIIKKO",
-                3: "TORSTAI",
-                4: "PERJANTAI"
-            }
-            today = datetime.today().weekday()
-            return weekday_map.get(today)
+        weekdays = ["MAANANTAI", "TIISTAI", "KESKIVIIKKO", "TORSTAI", "PERJANTAI"]
 
-        weekday = get_weekday_name()
-        if not weekday:
-            await interaction.response.send_message("Tänään ei ole arkipäivä, joten ruokailuvuoroja ei näytetä.")
-            return
+        if paiva:
+            weekday = paiva.value
+        else:
+            weekday = weekdays[datetime.today().weekday()] if datetime.today().weekday() < 5 else "MAANANTAI"
 
         if luokkakoodi:
             try:
@@ -169,6 +173,7 @@ class ruoka(commands.Cog):
 
                 schedule = parse_schedule(text)
 
+                luokkakoodi = luokkakoodi.upper()
                 if luokkakoodi in schedule:
                     entry = schedule[luokkakoodi].get(weekday)
                     if not entry:
