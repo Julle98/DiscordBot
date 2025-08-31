@@ -142,7 +142,7 @@ class ruoka(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="ruokailuvuorot", description="Näyttää ruokailuvuorot.")
+    @app_commands.command(name="ruokailuvuorot", description="Antaa ruokailuvuoro listan tai etsii ruokailuvuoron.")
     @app_commands.describe(
         luokkakoodi="Luokan tunnus (kaikki isolla), esim. ENA05.13 tai S25.12",
         paiva="Viikonpäivä (tyhjä = tämän päivän ruokailuvuoro)"
