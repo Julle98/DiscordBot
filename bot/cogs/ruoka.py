@@ -73,9 +73,17 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
         )
 
         for day in days:
-            päivä = day["Date"]
+            päivä = day["Date"]  
             viikonpäivä = viikonpäivä_nimi(päivä) if valinta != "päivän ruoka" else ""
             otsikko = f"{viikonpäivä} {päivä}" if viikonpäivä else päivä
+
+            pvm_match = re.search(r"\d{1,2}\.\d{1,2}\.", päivä)
+            if not pvm_match:
+                continue
+            pvm_str = pvm_match.group()
+
+            dt = datetime.strptime(pvm_str, "%d.%m.")
+            tallennettava_pvm = dt.strftime("%Y-%m-%d")
 
             ateriat = []
             for meal in day["Meals"]:
@@ -85,20 +93,19 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
 
                 if nimi_key not in ruoka_historia:
                     ruoka_historia[nimi_key] = []
-                if päivä not in ruoka_historia[nimi_key]:
-                    ruoka_historia[nimi_key].append(päivä.strip().split()[-1])  
+                if tallennettava_pvm not in ruoka_historia[nimi_key]:
+                    ruoka_historia[nimi_key].append(tallennettava_pvm)
 
                 if tyyppi == "lounas" or (kasvisvaihtoehto and "kasvis" in tyyppi):
                     emoji = "🍽️" if tyyppi == "lounas" else "🥦"
-                    puhdas_nimi = puhdista_nimi(meal["Name"])
                     nimi = f"{emoji} **{meal['MealType']}**: {puhdas_nimi}"
+
                     if merkinnät:
                         lisätiedot = ""
                         if meal.get("Labels") and isinstance(meal["Labels"], list) and meal["Labels"]:
                             lisätiedot = ", ".join(meal["Labels"])
                         else:
                             lisätiedot = hae_merkinnät(meal["Name"])
-                        
                         if lisätiedot:
                             nimi += f" _(Merkinnät: {lisätiedot})_"
 
@@ -106,12 +113,12 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
                         try:
                             viimeisin_pvm = sorted(
                                 ruoka_historia[nimi_key],
-                                key=lambda x: datetime.strptime(x, "%-d.%-m.")
+                                key=lambda x: datetime.strptime(x, "%Y-%m-%d")
                             )[-1]
-                            viimeisin_dt = datetime.strptime(viimeisin_pvm, "%d.%m.")
-                            erotus = (datetime.now() - viimeisin_dt).days
-                            nimi += f"\n> _Viimeksi tarjolla: {viimeisin_pvm} – {erotus} päivää sitten_"
-                        except:
+                            viimeisin_dt = datetime.strptime(viimeisin_pvm, "%Y-%m-%d")
+                            erotus = (datetime.now().date() - viimeisin_dt.date()).days
+                            nimi += f"\n> _Viimeksi tarjolla: {viimeisin_dt.strftime('%d.%m.%Y')} – {erotus} päivää sitten_"
+                        except Exception as e:
                             nimi += "\n> _(Viimeisin tarjoilupäivä ei saatavilla)_"
 
                     ateriat.append(nimi)
