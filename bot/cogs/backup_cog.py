@@ -58,7 +58,7 @@ class BackupCog(commands.Cog):
         messages = self.backup_json_files()
         await self.send_backup_report(messages, "🚀 Botti käynnistetty – varmuuskopiointi suoritettu")
 
-    @tasks.loop(minutes=60)
+    @tasks.loop(minutes=360)
     async def backup_loop(self):
         try:
             messages = self.backup_json_files()
