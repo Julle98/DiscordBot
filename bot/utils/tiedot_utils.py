@@ -1002,7 +1002,7 @@ class KategoriaView(ui.View):
             for nimi in KATEGORIAT:
                 self.add_item(KategoriaNappi(nimi, user, alkuperäinen_käyttäjä=self.alkuperäinen_käyttäjä))
         else:
-            if not erillinen_viesti or valittu not in ["Moderointi", "Komennot"]:
+            if not erillinen_viesti or valittu not in ["Moderointi", "Komennot", "Toiminta"]:
                 self.add_item(PalaaNappi(user))
 
             self.add_item(LataaNappi(valittu, user, AVAIMET_KATEGORIALLE.get(valittu, [])))
