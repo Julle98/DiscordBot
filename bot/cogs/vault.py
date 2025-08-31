@@ -35,10 +35,20 @@ class KirjautumisView(View):
         await laheta_lokiviesti(interaction.client, f"✅ <@{self.user_id}> merkitsi itsensä kirjautuneeksi holviin.")
         await interaction.response.send_message("📌 Kirjautuminen merkattu onnistuneesti!", ephemeral=True)
 
+        for child in self.children:
+            if isinstance(child, Button):
+                child.disabled = True
+        await interaction.message.edit(view=self)
+
     @discord.ui.button(label="❌ En ollut minä", style=discord.ButtonStyle.danger)
     async def sulje(self, interaction: discord.Interaction, button: Button):
         await laheta_lokiviesti(interaction.client, f"❌ <@{self.user_id}> sulki modalin ilman kirjautumismerkintää.")
         await interaction.response.send_message("🔒 Ilmoitus lähetetty.", ephemeral=True)
+
+        for child in self.children:
+            if isinstance(child, Button):
+                child.disabled = True
+        await interaction.message.edit(view=self)
 
 HOLVI_POLKU = os.getenv("HOLVI_POLKU")
 
