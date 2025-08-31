@@ -16,6 +16,7 @@ from datetime import datetime
 import os
 import json
 from pathlib import Path
+from typing import Optional
 import discord
 
 def start_store_loops():
@@ -23,6 +24,8 @@ def start_store_loops():
         tarkista_ostojen_kuukausi.start()
     if not paivita_tarjous_automatisoitu.is_running():
         paivita_tarjous_automatisoitu.start()
+    if not tarkista_vanhentuneet_oikeudet.is_running():
+        tarkista_vanhentuneet_oikeudet.start()
 
 load_dotenv()
 OSTOSLOKI_KANAVA_ID = int(os.getenv("OSTOSLOKI_KANAVA_ID"))
@@ -46,6 +49,15 @@ kauppa_tuotteet = [
     {"nimi": "Soundboard-oikeus", "kuvaus": "Käyttöoikeus puhekanavan soundboardiin 3 päiväksi", "hinta": 4000, "kertakäyttöinen": True, "emoji": "🔊", "tarjousprosentti": 10},
     {"nimi": "Streak palautus", "kuvaus": "Palauttaa valitsemasi streakin aiempaan pisin-arvoon.", "hinta": 3000, "kertakäyttöinen": True, "emoji": "♻️", "tarjousprosentti": 20}
 ]
+
+TUOTELOGIIKKA = {
+    "VIP-chat": {"rooli": "VIP", "kesto": timedelta(days=30)},
+    "Valitse emoji": {"rooli": "EmojiValinta", "kesto": timedelta(days=14)},
+    "Oma komento": {"rooli": "KomentoKäyttäjä", "kesto": timedelta(days=14)},
+    "Custom rooli": {"rooli": "CustomRooli", "kesto": timedelta(days=30)},
+    "Soundboard-oikeus": {"rooli": "Soundboard", "kesto": timedelta(days=7)},
+    # Lisää tarvittaessa muita tuotteita
+}
 
 if not tuotteet_polku.exists():
     with open(tuotteet_polku, "w", encoding="utf-8") as f:
@@ -82,6 +94,60 @@ async def tarkista_ostojen_kuukausi():
             tallenna_ostokset({})
     except Exception as e:
         print(f"Ostojen tarkistus epäonnistui: {e}")
+
+@tasks.loop(hours=1)
+async def tarkista_vanhentuneet_oikeudet():
+    ostot = lue_ostokset()
+    nyt = datetime.now()
+
+    for user_id, ostoslista in ostot.items():
+        guild = discord.utils.get(bot.guilds)
+        member = guild.get_member(int(user_id))
+        if not member:
+            continue
+
+        for ostos in ostoslista:
+            try:
+                pvm = datetime.fromisoformat(ostos.get("pvm", ""))
+                nimi = ostos.get("nimi", "")
+
+                for avain, tiedot in TUOTELOGIIKKA.items():
+                    if avain.lower() in nimi.lower():
+                        if (nyt - pvm) > tiedot["kesto"]:
+                            rooli = discord.utils.get(guild.roles, name=tiedot["rooli"])
+                            if rooli and rooli in member.roles:
+                                await member.remove_roles(rooli)
+                                print(f"🧹 Poistettu rooli {rooli.name} käyttäjältä {member.name}")
+
+                                try:
+                                    await member.send(
+                                        f"⌛ Oikeutesi **{rooli.name}** on vanhentunut.\n"
+                                        f"🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉"
+                                    )
+                                except discord.Forbidden:
+                                    print(f"❌ DM-viesti epäonnistui käyttäjälle {member.name}")
+            except Exception as e:
+                print(f"⚠️ Virhe roolin poistossa: {e}")
+
+    for user_id, emoji in list(auto_react_users.items()):
+        member = guild.get_member(int(user_id))
+        if not member:
+            continue
+
+        emoji_ostot = ostot.get(str(user_id), [])
+        for ostos in emoji_ostot:
+            if "valitse emoji" in ostos.get("nimi", "").lower():
+                pvm = datetime.fromisoformat(ostos.get("pvm", ""))
+                if (nyt - pvm) > timedelta(days=7):
+                    auto_react_users.pop(user_id, None)
+                    print(f"🧹 Poistettu emoji-oikeus käyttäjältä {member.name}")
+                    try:
+                        await member.send(
+                            f"⌛ Emoji-oikeutesi ({emoji}) on päättynyt.\n"
+                            f"🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉"
+                        )
+                    except discord.Forbidden:
+                        print(f"❌ DM-viesti epäonnistui käyttäjälle {member.name}")
 
 @tasks.loop(hours=1)
 async def paivita_tarjous_automatisoitu():
@@ -230,13 +296,22 @@ def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: 
     print(f"✅ Kuponki {koodi} hyväksytty. Alennus: {kuponki.get('prosentti', 0)}%")
     return kuponki.get("prosentti", 0)
 
-def onko_tuote_voimassa(user_id: str, tuotteen_nimi: str) -> bool:
+def onko_tuote_voimassa(user_id: str, tuotteen_nimi: str) -> Optional[timedelta]:
     ostot = lue_ostokset()
     kayttajan_ostot = ostot.get(user_id, [])
+    nyt = datetime.now()
+
     for o in kayttajan_ostot:
-        if puhdista_tuotteen_nimi(o.get("nimi", "")) == puhdista_tuotteen_nimi(tuotteen_nimi):
-            return True
-    return False
+        nimi = puhdista_tuotteen_nimi(o.get("nimi", ""))
+        if nimi == puhdista_tuotteen_nimi(tuotteen_nimi):
+            pvm = datetime.fromisoformat(o.get("pvm", ""))
+            tuotelogiikka = TUOTELOGIIKKA.get(nimi.lower())
+            if tuotelogiikka:
+                kesto = tuotelogiikka["kesto"]
+                paattymisaika = pvm + kesto
+                if nyt < paattymisaika:
+                    return paattymisaika - nyt
+    return None
 
 class StreakPalautusModal(Modal, title="Valitse streak palautettavaksi"):
     def __init__(self, interaction):
@@ -414,30 +489,12 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             await interaction.user.add_roles(rooli)
         await interaction.followup.send("😎 Erikoisemoji on nyt käytössäsi!", ephemeral=True)
 
-        async def poista_erikoisemoji():
-            await asyncio.sleep(3 * 24 * 60 * 60)
-            try:
-                await interaction.user.remove_roles(rooli)
-                await interaction.user.send("⌛ Erikoisemoji-roolisi on vanhentunut.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
-            except:
-                pass
-        bot.loop.create_task(poista_erikoisemoji())
-
     elif nimi == "double xp -päivä":
         rooli = discord.utils.get(interaction.guild.roles, name="Double XP")
         if not rooli:
             rooli = await interaction.guild.create_role(name="Double XP")
         await interaction.user.add_roles(rooli)
-        await interaction.followup.send("⚡ Sait Double XP -roolin 24 tunniksi!", ephemeral=True)
-
-        async def poista_rooli_viiveella():
-            await asyncio.sleep(24 * 60 * 60)
-            try:
-                await interaction.user.remove_roles(rooli)
-                await interaction.user.send("⏳ Double XP -roolisi on vanhentunut.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
-            except:
-                pass
-        bot.loop.create_task(poista_rooli_viiveella())
+        await interaction.followup.send("⚡ Sait Double XP -roolin!", ephemeral=True)
 
     elif nimi == "custom rooli":
         roolin_nimi = await kysy_kayttajalta(interaction, "Mikä on roolisi nimi?")
@@ -446,7 +503,6 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             return ""
 
         rooli = await interaction.guild.create_role(name=roolin_nimi, hoist=True)
-
         referenssi_rooli = discord.utils.get(interaction.guild.roles, name="-- Osto roolit --")
         if referenssi_rooli:
             uusi_position = referenssi_rooli.position + 1
@@ -454,18 +510,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
 
         await interaction.user.add_roles(rooli)
         await interaction.followup.send(f"🎨 Roolisi **{rooli.name}** on luotu ja lisätty sinulle!", ephemeral=True)
-
-        async def poista_custom_rooli():
-            await asyncio.sleep(7 * 24 * 60 * 60)
-            try:
-                await interaction.user.remove_roles(rooli)
-                await interaction.user.send(f"⌛ Custom-roolisi **{rooli.name}** on poistettu.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
-                await rooli.delete()
-            except:
-                pass
-        bot.loop.create_task(poista_custom_rooli())
-
-        return f" (rooli: {roolin_nimi})"
+        lisatieto = f" (rooli: {roolin_nimi})"
 
     elif nimi == "vip-chat":
         rooli = discord.utils.get(interaction.guild.roles, name="VIP")
@@ -473,15 +518,6 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             rooli = await interaction.guild.create_role(name="VIP")
         await interaction.user.add_roles(rooli)
         await interaction.followup.send("💎 Sait pääsyn VIP-chattiin!", ephemeral=True)
-
-        async def poista_vip_chat():
-            await asyncio.sleep(7 * 24 * 60 * 60)
-            try:
-                await interaction.user.remove_roles(rooli)
-                await interaction.user.send("⌛ VIP-chat-oikeutesi on päättynyt.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
-            except:
-                pass
-        bot.loop.create_task(poista_vip_chat())
 
     elif nimi == "oma puhekanava":
         nimi_kanava = await kysy_kayttajalta(interaction, "Mikä on kanavasi nimi?")
@@ -525,8 +561,7 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
         if vari:
             rooli = await interaction.guild.create_role(name=f"{interaction.user.name}-{varivalinta}", colour=vari, hoist=True)
 
-            roolit = interaction.guild.roles
-            referenssi_rooli = discord.utils.get(roolit, name="-- Osto roolit --")
+            referenssi_rooli = discord.utils.get(interaction.guild.roles, name="-- Osto roolit --")
             if referenssi_rooli:
                 uusi_position = referenssi_rooli.position + 1
                 await interaction.guild.edit_role_positions(positions={rooli: uusi_position})
@@ -536,68 +571,29 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             lisatieto = f" (väri: {varivalinta})"
         else:
             await interaction.followup.send("❌ Väriä ei tunnistettu. Toiminto peruutettu.", ephemeral=True)
-        
-        async def poista_varirooli():
-            await asyncio.sleep(7 * 24 * 60 * 60)
-            try:
-                await interaction.user.remove_roles(rooli)
-                await interaction.user.send(f"🎨 Väriroolisi **{rooli.name}** on poistettu.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
-                await rooli.delete()
-            except:
-                pass
-        bot.loop.create_task(poista_varirooli())
 
     elif nimi == "valitse emoji":
         emoji_valinta = await kysy_kayttajalta(interaction, "Millä emojilla botin tulisi reagoida viesteihisi?")
         if emoji_valinta:
             auto_react_users[str(interaction.user.id)] = emoji_valinta
             await interaction.followup.send(f"🤖 Bot reagoi viesteihisi emojilla {emoji_valinta} seuraavat 7 päivää!", ephemeral=True)
-
-            async def poista_reaktio():
-                await asyncio.sleep(7 * 24 * 60 * 60)
-                auto_react_users.pop(str(interaction.user.id), None)
-                await interaction.user.send("⌛ Emoji-oikeutesi on päättynyt.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
-            bot.loop.create_task(poista_reaktio())
             lisatieto = f" (emoji: {emoji_valinta})"
-        return lisatieto
 
     elif nimi == "soundboard-oikeus":
         rooli = discord.utils.get(interaction.guild.roles, name="SoundboardAccess")
         if not rooli:
             rooli = await interaction.guild.create_role(name="SoundboardAccess")
         await interaction.user.add_roles(rooli)
-        await interaction.followup.send("🔊 Soundboard-oikeus myönnetty puhekanavalle 3 päiväksi!", ephemeral=True)
-
-        async def poista_soundboard():
-            await asyncio.sleep(3 * 24 * 60 * 60)
-            try:
-                await interaction.user.remove_roles(rooli)
-                await interaction.user.send("⌛ Soundboard-oikeus on päättynyt.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
-            except:
-                pass
-        bot.loop.create_task(poista_soundboard())
-        return lisatieto
+        await interaction.followup.send("🔊 Soundboard-oikeus myönnetty puhekanavalle!", ephemeral=True)
 
     elif nimi == "vip-rooli":
         rooli = discord.utils.get(interaction.guild.roles, name="VIP")
         if not rooli:
             await interaction.followup.send("⚠️ VIP-roolia ei löytynyt palvelimelta. Luo se ensin manuaalisesti!", ephemeral=True)
             return ""
-        
         await interaction.user.add_roles(rooli)
-        await interaction.followup.send("👑 VIP-rooli myönnetty sinulle 7 päiväksi!", ephemeral=True)
+        await interaction.followup.send("👑 VIP-rooli myönnetty sinulle!", ephemeral=True)
 
-        async def poista_rooli_viiveella():
-            await asyncio.sleep(7 * 24 * 60 * 60)
-            try:
-                await interaction.user.remove_roles(rooli)
-                await interaction.user.send("⌛ VIP-roolisi on nyt vanhentunut.\n 🛒 Voit nyt ostaa lisää tuotteita komennolla **/kauppa** 🎉")
-            except:
-                pass
-        bot.loop.create_task(poista_rooli_viiveella())
-
-        return ""
-    
     elif nimi == "streak palautus":
         await interaction.response.send_modal(StreakPalautusModal(interaction))
         return ""
@@ -626,9 +622,14 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
         await interaction.response.send_message("Tuotetta ei löytynyt.", ephemeral=True)
         return
 
-    if onko_tuote_voimassa(user_id, tuote["nimi"]):
+    voimassa_jaljella = onko_tuote_voimassa(user_id, tuote["nimi"])
+    if voimassa_jaljella:
+        paattyy = datetime.now() + voimassa_jaljella
+        paattyy_str = paattyy.strftime("%d.%m.%Y klo %H:%M")
         await interaction.response.send_message(
-            f"🚫 Tuote **{tuote['nimi']}** on jo käytössäsi. Odota, että oikeus päättyy ennen kuin ostat uudestaan.",
+            f"🚫 Tuote **{tuote['nimi']}** on jo käytössäsi.\n"
+            f"⏳ Voimassaoloaikaa jäljellä noin **{voimassa_jaljella.days} päivää** (päättyy {paattyy_str}).\n"
+            f"🛒 Voit ostaa tuotteen uudelleen, kun oikeus on vanhentunut.",
             ephemeral=True
         )
         return
