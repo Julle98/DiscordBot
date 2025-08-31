@@ -83,6 +83,7 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
             pvm_str = pvm_match.group()
 
             dt = datetime.strptime(pvm_str, "%d.%m.")
+            dt = dt.replace(year=datetime.now().year)
             tallennettava_pvm = dt.strftime("%Y-%m-%d")
 
             ateriat = []
