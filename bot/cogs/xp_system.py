@@ -88,7 +88,7 @@ class XPSystem(commands.Cog):
             await self.bot.process_commands(message)
             return
 
-        raja = timedelta(seconds=10)
+        raja = timedelta(seconds=2)
         if viimeinen and nyt - viimeinen < raja:
             await message.delete()
 
