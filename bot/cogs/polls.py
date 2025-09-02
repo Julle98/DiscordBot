@@ -52,106 +52,96 @@ class AanestysModal(ui.Modal):
         self.add_item(self.jasenrajoitukset)
 
     async def on_submit(self, interaction: Interaction):
-                try:
-                    minutes = int(self.aikaraja.value)
-                    if minutes <= 0:
-                        raise ValueError
-                except ValueError:
-                    await interaction.response.send_message("⚠️ Virheellinen aikaraja. Käytä kokonaislukua yli 0.", ephemeral=True)
-                    return
+        try:
+            minutes = int(self.aikaraja.value)
+            if minutes <= 0:
+                raise ValueError
+        except ValueError:
+            await interaction.response.send_message("⚠️ Virheellinen aikaraja. Käytä kokonaislukua yli 0.", ephemeral=True)
+            return
 
-                options = [opt.strip() for opt in self.vaihtoehdot.value.split(",") if opt.strip()]
-                emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
-                if not 2 <= len(options) <= 5:
-                    await interaction.response.send_message("⚠️ Anna 2–5 vaihtoehtoa pilkulla eroteltuna.", ephemeral=True)
-                    return
+        options = [opt.strip() for opt in self.vaihtoehdot.value.split(",") if opt.strip()]
+        emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+        if not 2 <= len(options) <= 5:
+            await interaction.response.send_message("⚠️ Anna 2–5 vaihtoehtoa pilkulla eroteltuna.", ephemeral=True)
+            return
 
-                embed = Embed(title="📊 Äänestys", description=self.kysymys.value, color=Color.blurple())
-                for i, opt in enumerate(options):
-                    embed.add_field(name=emojis[i], value=opt, inline=False)
-                embed.set_footer(text=f"Päättyy {minutes} minuutissa.")
+        embed = Embed(title="📊 Äänestys", description=self.kysymys.value, color=Color.blurple())
+        for i, opt in enumerate(options):
+            embed.add_field(name=emojis[i], value=opt, inline=False)
+        embed.set_footer(text=f"Päättyy {minutes} minuutissa.")
 
-                poll_msg = await interaction.channel.send(embed=embed)
-                for emoji in emojis[:len(options)]:
-                    await poll_msg.add_reaction(emoji)
+        poll_msg = await interaction.channel.send(embed=embed)
+        for emoji in emojis[:len(options)]:
+            await poll_msg.add_reaction(emoji)
 
-                role_id_str = self.rooli_id.value.strip()
-                role = None
-                if role_id_str.isdigit():
-                    role_id = int(role_id_str)
-                    role = interaction.guild.get_role(role_id)
+        role_id_str = self.rooli_id.value.strip()
+        role = None
+        if role_id_str.isdigit():
+            role_id = int(role_id_str)
+            role = interaction.guild.get_role(role_id)
 
-                if role_id_str:
-                    if role and role.mentionable:
-                        await interaction.channel.send(f"{role.mention} aika äänestää!")
-                    elif role:
-                        await interaction.channel.send(f"<@&{role.id}> aika äänestää!")
-                    else:
-                        await interaction.response.send_message("⚠️ Roolia ei löytynyt tai sitä ei voi tägätä.", ephemeral=True)
-                        return
+        if role_id_str:
+            if role and role.mentionable:
+                await interaction.channel.send(f"{role.mention} aika äänestää!")
+            elif role:
+                await interaction.channel.send(f"<@&{role.id}> aika äänestää!")
+            else:
+                await interaction.response.send_message("⚠️ Roolia ei löytynyt tai sitä ei voi tägätä.", ephemeral=True)
+                return
 
-                allowed_roles = []
-                denied_roles = []
-                raw = self.jasenrajoitukset.value.strip()
+        allowed_roles = []
+        denied_roles = []
+        raw = self.jasenrajoitukset.value.strip()
 
-                try:
-                    if raw:
-                        parts = raw.split("|")
+        try:
+            if raw:
+                parts = raw.split("|")
+                if parts[0].strip():
+                    allowed_roles = [int(i.strip()) for i in parts[0].split(",") if i.strip().isdigit()]
+                if len(parts) > 1 and parts[1].strip():
+                    denied_roles = [int(i.strip()) for i in parts[1].split(",") if i.strip().isdigit()]
+        except Exception:
+            await interaction.response.send_message(
+                "⚠️ Virheellinen jäsenrajoitusten muoto. Käytä: ID,ID | ID,ID tai pelkkä | kielletyt",
+                ephemeral=True
+            )
+            return
 
-                        if parts[0].strip():
-                            allowed_raw = parts[0]
-                            allowed_roles = [int(i.strip()) for i in allowed_raw.split(",") if i.strip().isdigit()]
+        member = interaction.user
+        user_role_ids = [r.id for r in member.roles]
 
-                        if len(parts) > 1 and parts[1].strip():
-                            denied_raw = parts[1]
-                            denied_roles = [int(i.strip()) for i in denied_raw.split(",") if i.strip().isdigit()]
-                except Exception:
-                    await interaction.response.send_message(
-                        "⚠️ Virheellinen jäsenrajoitusten muoto. Käytä: ID,ID | ID,ID tai pelkkä | kielletyt",
-                        ephemeral=True
-                    )
-                    return
+        if any(rid in user_role_ids for rid in denied_roles):
+            await interaction.response.send_message("🚫 Sinulla on rooli, joka estää äänestämisen.", ephemeral=True)
+            return
 
-                member = interaction.user
-                user_role_ids = [role.id for role in member.roles]
+        if allowed_roles and not any(rid in user_role_ids for rid in allowed_roles):
+            await interaction.response.send_message("🚫 Sinulla ei ole vaadittua roolia äänestämiseen.", ephemeral=True)
+            return
 
-                if any(role_id in user_role_ids for role_id in denied_roles):
-                    await interaction.response.send_message(
-                        "🚫 Sinulla on rooli, joka estää äänestämisen.",
-                        ephemeral=True
-                    )
-                    return
+        poll_data = {
+            "message_id": poll_msg.id,
+            "channel_id": poll_msg.channel.id,
+            "question": self.kysymys.value,
+            "options": options,
+            "emojis": emojis[:len(options)],
+            "active": True,
+            "allowed_roles": allowed_roles,
+            "denied_roles": denied_roles
+        }
 
-                if allowed_roles and not any(role_id in user_role_ids for role_id in allowed_roles):
-                    await interaction.response.send_message(
-                        "🚫 Sinulla ei ole vaadittua roolia äänestämiseen.",
-                        ephemeral=True
-                    )
-                    return
+        try:
+            with open(DB_PATH, "r") as f:
+                db = json.load(f)
+        except FileNotFoundError:
+            db = []
 
-                poll_data = {
-                    "message_id": poll_msg.id,
-                    "channel_id": poll_msg.channel.id,
-                    "question": self.kysymys.value,
-                    "options": options,
-                    "emojis": emojis[:len(options)],
-                    "active": True,
-                    "allowed_roles": allowed_roles,
-                    "denied_roles": denied_roles
-                }
+        db.append(poll_data)
+        with open(DB_PATH, "w") as f:
+            json.dump(db, f, indent=2)
 
-                try:
-                    with open(DB_PATH, "r") as f:
-                        db = json.load(f)
-                except FileNotFoundError:
-                    db = []
-
-                db.append(poll_data)
-                with open(DB_PATH, "w") as f:
-                    json.dump(db, f, indent=2)
-
-                await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
-                asyncio.create_task(wait_and_end_poll(interaction.client, poll_msg.id, minutes))
+        await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
+        asyncio.create_task(wait_and_end_poll(interaction.client, poll_msg.id, minutes))
 
 async def wait_and_end_poll(client, message_id, minutes):
     await asyncio.sleep(minutes * 60)
