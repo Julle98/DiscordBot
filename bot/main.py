@@ -82,7 +82,8 @@ COGS = [
     "bot.cogs.tiedot",
     "bot.cogs.nightrestriction",
     "bot.cogs.vault",
-    "bot.cogs.calender"
+    "bot.cogs.calender",
+    "bot.cogs.weather"
 ]
 
 async def load_cogs() -> None:
