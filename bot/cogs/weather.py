@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 import aiohttp
 
 CODES = {
@@ -28,6 +29,8 @@ class Weather(commands.Cog):
         app_commands.Choice(name="7 päivän ennuste", value="daily"),
     ])
     async def saa(self, interaction: discord.Interaction, paikka: str, tyyppi: app_commands.Choice[str]):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/sää")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "sää_komento")
         await interaction.response.defer(thinking=True)
 
         async with aiohttp.ClientSession() as session:

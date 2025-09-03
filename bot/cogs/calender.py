@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 import aiohttp
 import datetime
 import pytz
@@ -25,6 +26,8 @@ class Calendar(commands.Cog):
         app_commands.Choice(name="Kuukausi", value="kuukausi"),
     ])
     async def tapahtumat(self, interaction: discord.Interaction, aikaväli: app_commands.Choice[str]):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/kalenteri")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "kalenteri_komento")
         await interaction.response.defer(thinking=True)
 
         tz = pytz.timezone(TIMEZONE)
