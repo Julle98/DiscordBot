@@ -12,7 +12,27 @@ ROLE_24G_ID = int(os.getenv("ROLE_24G_ID"))
 ROLE_VIP_ID = int(os.getenv("ROLE_VIP_ID"))
 CONSOLE_LOG = int(os.getenv("CONSOLE_LOG"))
 
-class NightRestriction(commands.Cog):
+CATEGORY_IDS_LIMITED = [
+    int(os.getenv("CATEGORY_LIMITED_1")),
+    int(os.getenv("CATEGORY_LIMITED_2")),
+    int(os.getenv("CATEGORY_LIMITED_3")),
+    int(os.getenv("CATEGORY_LIMITED_4"))
+]
+
+CATEGORY_ID_VIP_HIDE = int(os.getenv("CATEGORY_VIP_HIDE"))
+
+CHANNEL_ID_NIGHT_ONLY = int(os.getenv("CHANNEL_NIGHT_ONLY"))
+
+TASO_ROLE_IDS = [
+    int(os.getenv("ROLE_TASO_1")),
+    int(os.getenv("ROLE_TASO_5")),
+    int(os.getenv("ROLE_TASO_10")),
+    int(os.getenv("ROLE_TASO_15")),
+    int(os.getenv("ROLE_TASO_25")),
+    int(os.getenv("ROLE_TASO_50"))
+]
+
+class NightVisibilityCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.restriction_active = None
@@ -27,15 +47,20 @@ class NightRestriction(commands.Cog):
         if guild is None:
             return
 
-        roles = [guild.get_role(ROLE_24G_ID), guild.get_role(ROLE_VIP_ID)]
         tz = pytz.timezone("Europe/Helsinki")
         now = datetime.now(tz)
         weekday = now.weekday()
 
-        if weekday in [5] or (weekday == 6 and now.hour < 23):  # viikonloppu
+        is_weekend = (
+            weekday == 4 and now.hour >= 23 or  
+            weekday == 5 or                     
+            (weekday == 6 and now.hour < 8)     
+        )
+
+        if is_weekend:
             start = time(0, 30)
             end = time(8, 30)
-        else:  # arki
+        else:
             start = time(23, 0)
             end = time(7, 0)
 
@@ -43,48 +68,47 @@ class NightRestriction(commands.Cog):
 
         if in_restriction != self.restriction_active:
             self.restriction_active = in_restriction
-            await self.update_roles(roles, in_restriction)
+            await self.update_channel_visibility(guild, in_restriction)
             await self.log_status(guild, in_restriction, now)
 
-    async def update_roles(self, roles: list[discord.Role], in_restriction: bool):
-        for role in roles:
-            if role is None:
-                continue
+    async def update_channel_visibility(self, guild: discord.Guild, in_restriction: bool):
+        role_24g = guild.get_role(ROLE_24G_ID)
+        role_vip = guild.get_role(ROLE_VIP_ID)
+        everyone = guild.default_role
 
-            perms = role.permissions
-            if in_restriction:
-                perms.update(
-                    send_messages=False,
-                    connect=False,
-                    add_reactions=False,
-                    use_external_emojis=False,
-                    send_messages_in_threads=False,
-                    send_messages_in_forums=False
-                )
-            else:
-                perms.update(
-                    send_messages=True,
-                    connect=True,
-                    add_reactions=True,
-                    use_external_emojis=True,
-                    send_messages_in_threads=True,
-                    send_messages_in_forums=True
-                )
+        for cat_id in CATEGORY_IDS_LIMITED:
+            category = guild.get_channel(cat_id)
+            if category:
+                overwrites = category.overwrites
+                if role_24g:
+                    overwrites[role_24g] = discord.PermissionOverwrite(view_channel=not in_restriction)
+                if role_vip:
+                    overwrites[role_vip] = discord.PermissionOverwrite(view_channel=not in_restriction)
+                await category.edit(overwrites=overwrites)
 
-            await role.edit(
-                permissions=perms,
-                reason="Yön aikainen moderointipuute / palautus"
-            )
+        vip_category = guild.get_channel(CATEGORY_ID_VIP_HIDE)
+        if vip_category:
+            overwrites = vip_category.overwrites
+            for role_id in [ROLE_VIP_ID] + TASO_ROLE_IDS:
+                role = guild.get_role(role_id)
+                if role:
+                    overwrites[role] = discord.PermissionOverwrite(view_channel=not in_restriction)
+            await vip_category.edit(overwrites=overwrites)
+
+        night_channel = guild.get_channel(CHANNEL_ID_NIGHT_ONLY)
+        if night_channel:
+            overwrites = {
+                everyone: discord.PermissionOverwrite(view_channel=False),
+                role_24g: discord.PermissionOverwrite(view_channel=in_restriction),
+                role_vip: discord.PermissionOverwrite(view_channel=in_restriction)
+            }
+            await night_channel.edit(overwrites=overwrites)
 
     async def log_status(self, guild: discord.Guild, in_restriction: bool, now: datetime):
         channel = guild.get_channel(CONSOLE_LOG)
         if channel:
-            role_names = [r.name for r in [guild.get_role(ROLE_24G_ID), guild.get_role(ROLE_VIP_ID)] if r]
-            if in_restriction:
-                msg = f"⛔ Rajoitukset päällä rooleille {', '.join(role_names)} ({now.strftime('%H:%M')})"
-            else:
-                msg = f"✅ Rajoitukset poistettu rooleilta {', '.join(role_names)} ({now.strftime('%H:%M')})"
-            await channel.send(msg)
+            status = "⛔ Rajoitukset päällä" if in_restriction else "✅ Rajoitukset poistettu"
+            await channel.send(f"{status} ({now.strftime('%H:%M')})")
 
     def is_time_between(self, start: time, end: time, check: time):
         if start < end:
@@ -93,4 +117,4 @@ class NightRestriction(commands.Cog):
             return check >= start or check <= end
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(NightRestriction(bot))
+    await bot.add_cog(NightVisibilityCog(bot))
