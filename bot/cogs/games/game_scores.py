@@ -17,14 +17,14 @@ class Scores(commands.Cog):
         pelit = "\n".join(
             f"{game}: {count} voittoa"
             for game, count in user_stats.items()
-            if game != "total_wins"
+            if game not in ["total_wins", "total_xp"]
         ) or "Ei vielä voittoja"
 
         global_ranking = games_utils.get_global_stats()
         ranking_text = ""
         for idx, (uid, xp) in enumerate(global_ranking, start=1):
             member = interaction.guild.get_member(uid)
-            name = member.name if member else f"User {uid}"
+            name = member.display_name if member else f"User {uid}"
             ranking_text += f"**{idx}. {name}** – {xp} XP\n"
 
         embed = discord.Embed(
@@ -33,8 +33,9 @@ class Scores(commands.Cog):
         )
         embed.add_field(
             name=f"Omat statsit ({interaction.user.name})",
-            value=f"Total voitot: {user_stats.get('total_wins', 0)}\n"
-                  f"XP: {user_xp}\n\n{pelit}",
+            value=f"Voitot: {user_stats.get('total_wins', 0)}\n"
+                f"XP: {user_stats.get('total_xp', 0)}\n"
+                f"Pelejä yhteensä: {user_stats.get('total_games', '–')}\n\n{pelit}",
             inline=False
         )
         embed.add_field(
@@ -43,6 +44,8 @@ class Scores(commands.Cog):
             inline=False
         )
 
+        embed.set_footer(text="Pelitilastot päivittyvät automaattisesti")
+        embed.timestamp = discord.utils.utcnow()
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
