@@ -38,9 +38,6 @@ class NightVisibilityCog(commands.Cog):
         self.restriction_active = None
         self.check_restrictions.start()
 
-    def cog_unload(self):
-        self.check_restrictions.cancel()
-
     @tasks.loop(minutes=1)
     async def check_restrictions(self):
         guild = self.bot.get_guild(GUILD_ID)
@@ -70,6 +67,11 @@ class NightVisibilityCog(commands.Cog):
             self.restriction_active = in_restriction
             await self.update_channel_visibility(guild, in_restriction)
             await self.log_status(guild, in_restriction, now)
+
+    @check_restrictions.before_loop
+    async def before_check_restrictions(self):
+        await self.bot.wait_until_ready()
+        await self.check_restrictions()
 
     async def update_channel_visibility(self, guild: discord.Guild, in_restriction: bool):
         role_24g = guild.get_role(ROLE_24G_ID)
@@ -115,6 +117,10 @@ class NightVisibilityCog(commands.Cog):
             return start <= check <= end
         else:
             return check >= start or check <= end
+        
+    @check_restrictions.before_loop
+    async def before_check_restrictions(self):
+        await self.bot.wait_until_ready()
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(NightVisibilityCog(bot))
