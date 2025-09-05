@@ -12,6 +12,10 @@ class FlagToggleButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         view: Miinaharava = self.view
+        if view.game_over:
+            await interaction.response.send_message("⚠️ Peli on jo päättynyt. Käynnistä uusi peli painamalla 🔄.", ephemeral=True)
+            return
+
         if interaction.user.id != view.owner_id:
             await interaction.response.send_message("❌ Et voi muuttaa tätä peliä!", ephemeral=True)
             return
@@ -19,6 +23,19 @@ class FlagToggleButton(discord.ui.Button):
         view.flag_mode = not view.flag_mode
         self.label = f"🚩 Liputustila: {'ON' if view.flag_mode else 'OFF'}"
         await interaction.response.edit_message(view=view)
+
+class RestartButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="🔄 Käynnistä peli uudelleen", style=discord.ButtonStyle.success, row=4)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: Miinaharava = self.view
+        if interaction.user.id != view.owner_id:
+            await interaction.response.send_message("❌ Et voi käynnistää toisen peliä uudelleen!", ephemeral=True)
+            return
+
+        new_view = Miinaharava(owner_id=interaction.user.id)
+        await interaction.response.edit_message(content="💣 Uusi miinaharava käynnistetty!", view=new_view)
 
 class MiinaharavaButton(discord.ui.Button):
     def __init__(self, x, y, is_bomb, board):
@@ -39,22 +56,20 @@ class MiinaharavaButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         view: Miinaharava = self.view
-        if interaction.user.id != view.owner_id:
+
+        if interaction.user.id != view.owner_id or view.game_over:
             await interaction.response.send_message("❌ Et voi muuttaa tätä peliä!", ephemeral=True)
             return
 
         if view.flag_mode:
             self.flagged = not self.flagged
+            view.flag_count += 1 if self.flagged else -1
             self.label = "🚩" if self.flagged else "⬜"
-            await interaction.response.edit_message(view=view)
 
-            flagged_bombs = [b for b in view.children if isinstance(b, MiinaharavaButton) and b.flagged]
-            actual_bombs = [b for b in view.children if isinstance(b, MiinaharavaButton) and b.is_bomb]
-            if len(flagged_bombs) == len(actual_bombs) and all(b.is_bomb for b in flagged_bombs):
-                for b in view.children:
-                    b.disabled = True
-                games_utils.add_win(interaction.user.id, "miinaharava")
-                await interaction.followup.send(f"🎯 {interaction.user.mention} liputti kaikki pommit oikein! +1 voitto ja +10 XP", ephemeral=True)
+            await interaction.response.edit_message(
+                content=f"💣 Miinaharava käynnissä! Pommit: {view.bomb_count} | Liputettu: {view.flag_count}",
+                view=view
+            )
             return
 
         if self.flagged:
@@ -70,23 +85,38 @@ class MiinaharavaButton(discord.ui.Button):
                     if child.is_bomb and child.label == "⬜":
                         child.label = "💣"
                         child.style = discord.ButtonStyle.danger
-            await interaction.response.edit_message(view=view)
+            view.game_over = True
             await interaction.followup.send("💣 Hävisit! Oikea peli päättyi.", ephemeral=True)
-        else:
-            self.label = str(self.count_adjacent_bombs())
-            self.style = discord.ButtonStyle.success
-            self.disabled = True
+            await view.disable_all_buttons()
+            view.add_item(RestartButton())
             await interaction.response.edit_message(view=view)
+            return
 
-            if all(b.disabled or b.is_bomb for b in view.children):
-                games_utils.add_win(interaction.user.id, "miinaharava")
-                await interaction.followup.send(f"🎉 {interaction.user.mention} selvitti kentän! +1 voitto ja +10 XP", ephemeral=True)
+        self.label = str(self.count_adjacent_bombs())
+        self.style = discord.ButtonStyle.success
+        self.disabled = True
+        await interaction.response.edit_message(view=view)
+
+        if all(
+            b.disabled or b.is_bomb
+            for b in view.children
+            if isinstance(b, MiinaharavaButton)
+        ):
+            view.game_over = True
+            games_utils.add_win(interaction.user.id, "miinaharava")
+            await interaction.followup.send(f"🎉 {interaction.user.mention} selvitti kentän! +1 voitto ja +10 XP", ephemeral=True)
+            await view.disable_all_buttons()
+            view.add_item(RestartButton())
+            await interaction.response.edit_message(view=view)
 
 class Miinaharava(discord.ui.View):
     def __init__(self, owner_id, size=4, bombs=5):  
         super().__init__()
         self.owner_id = owner_id
         self.flag_mode = False
+        self.game_over = False
+        self.bomb_count = bombs
+        self.flag_count = 0
         grid = [(x, y) for x in range(size) for y in range(size)]
         bomb_coords = random.sample(grid, bombs)
         board = { (x, y): (x, y) in bomb_coords for x, y in grid }
@@ -97,14 +127,25 @@ class Miinaharava(discord.ui.View):
 
         self.add_item(FlagToggleButton())
 
+    async def disable_all_buttons(self):
+        await asyncio.sleep(20)
+        if not self.game_over:
+            return   
+        for child in self.children:
+            child.disabled = True
+
 class MiinaharavaCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @app_commands.command(name="peli_miinaharava", description="Pelaa miinaharavaa")
     async def peli_miinaharava(self, interaction: discord.Interaction):
-        await interaction.response.send_message("💣 Miinaharava käynnistetty!", view=Miinaharava(owner_id=interaction.user.id))
-
+        view = Miinaharava(owner_id=interaction.user.id)
+        bomb_count = view.bomb_count  
+        await interaction.response.send_message(
+            f"💣 Miinaharava käynnistetty! Pommit: {bomb_count} | Liputettu: 0",
+            view=view
+        )
         asyncio.create_task(kirjaa_komento_lokiin(self.bot, interaction, "/peli_miinaharava"))
         asyncio.create_task(kirjaa_ga_event(self.bot, interaction.user.id, "peli_miinaharava_komento"))
 
