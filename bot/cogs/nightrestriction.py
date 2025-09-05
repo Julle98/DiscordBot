@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime, time
+from bot.utils.bot_setup import bot
 import pytz
 import os
 from dotenv import load_dotenv
@@ -117,10 +118,6 @@ class NightVisibilityCog(commands.Cog):
             return start <= check <= end
         else:
             return check >= start or check <= end
-        
-    @check_restrictions.before_loop
-    async def before_check_restrictions(self):
-        await self.bot.wait_until_ready()
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(NightVisibilityCog(bot))
