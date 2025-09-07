@@ -5,6 +5,15 @@ from bot.utils import games_utils
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 import asyncio
 
+class RestartButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="🔄 Käynnistä peli uudelleen", style=discord.ButtonStyle.success, row=3)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: TicTacToe = self.view
+        new_view = TicTacToe(view.player_x, view.player_o)
+        await interaction.response.edit_message(content="♻️ Ristinolla käynnistetty uudelleen!", view=new_view, ephemeral=True)
+
 class TicTacToeButton(discord.ui.Button):
     def __init__(self, x, y, view):
         super().__init__(label="⬜", style=discord.ButtonStyle.secondary, row=y)
@@ -14,10 +23,6 @@ class TicTacToeButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         view: TicTacToe = self.view_ref
-
-        if interaction.user.id not in [view.player_x.id, view.player_o.id]:
-            await interaction.response.send_message("❌ Et voi painaa nappuloita tässä pelissä!", ephemeral=True)
-            return
 
         if self.label != "⬜":
             await interaction.response.send_message("❌ Tämä ruutu on jo valittu!", ephemeral=True)
@@ -48,6 +53,10 @@ class TicTacToeButton(discord.ui.Button):
                 b.disabled = True
             await interaction.response.edit_message(view=view)
             await interaction.followup.send(f"🎉 {winner.mention} voitti ristinollan! +1 voitto ja +10 XP")
+
+            view.add_item(RestartButton())
+            await interaction.response.edit_message(view=view)
+            asyncio.create_task(view.disable_restart_button())
             return
 
         if all(cell != "" for row in view.board for cell in row):
@@ -57,6 +66,10 @@ class TicTacToeButton(discord.ui.Button):
                 b.disabled = True
             await interaction.response.edit_message(view=view)
             await interaction.followup.send("🤝 Peli päättyi tasapeliin! Molemmat saavat +2 XP")
+
+            view.add_item(RestartButton())
+            await interaction.response.edit_message(view=view)
+            asyncio.create_task(view.disable_restart_button())
             return
 
         view.turn = "O" if view.turn == "X" else "X"
@@ -74,6 +87,14 @@ class TicTacToe(discord.ui.View):
             for x in range(3):
                 self.add_item(TicTacToeButton(x, y, self))
 
+    async def disable_restart_button(self):
+        await asyncio.sleep(20)
+        for child in self.children:
+            if isinstance(child, RestartButton):
+                child.disabled = True
+                child.style = discord.ButtonStyle.secondary
+                child.label = "⏳ Käynnistäminen ei enää mahdollista"
+
 class Ristinolla(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -81,7 +102,7 @@ class Ristinolla(commands.Cog):
     @app_commands.command(name="peli_ristinolla", description="Pelaa ristinollaa kahdella pelaajalla")
     async def peli_ristinolla(self, interaction: discord.Interaction, opponent: discord.Member):
         if opponent.bot or opponent == interaction.user:
-            await interaction.response.send_message("❌ Valitse oikea pelaaja.", ephemeral=True)
+            await interaction.response.send_message("❌ Valitse oikea pelaaja. Äläkä bottia tai itseäsi.", ephemeral=True)
             return
 
         await interaction.response.send_message(

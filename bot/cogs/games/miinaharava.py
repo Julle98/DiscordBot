@@ -16,10 +16,6 @@ class FlagToggleButton(discord.ui.Button):
             await interaction.response.send_message("⚠️ Peli on jo päättynyt. Käynnistä uusi peli painamalla 🔄.", ephemeral=True)
             return
 
-        if interaction.user.id != view.owner_id:
-            await interaction.response.send_message("❌ Et voi muuttaa tätä peliä!", ephemeral=True)
-            return
-
         view.flag_mode = not view.flag_mode
         self.label = f"🚩 Liputustila: {'ON' if view.flag_mode else 'OFF'}"
         await interaction.response.edit_message(view=view)
@@ -30,9 +26,6 @@ class RestartButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         view: Miinaharava = self.view
-        if interaction.user.id != view.owner_id:
-            await interaction.response.send_message("❌ Et voi käynnistää toisen peliä uudelleen!", ephemeral=True)
-            return
 
         new_view = Miinaharava(owner_id=interaction.user.id)
         await interaction.response.edit_message(content="💣 Uusi miinaharava käynnistetty!", view=new_view)
@@ -56,10 +49,6 @@ class MiinaharavaButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         view: Miinaharava = self.view
-
-        if interaction.user.id != view.owner_id or view.game_over:
-            await interaction.response.send_message("❌ Et voi muuttaa tätä peliä!", ephemeral=True)
-            return
 
         if view.flag_mode:
             self.flagged = not self.flagged
@@ -133,6 +122,7 @@ class Miinaharava(discord.ui.View):
             return   
         for child in self.children:
             child.disabled = True
+            child.label = "⏳ Käynnistäminen ei enää mahdollista"
 
 class MiinaharavaCog(commands.Cog):
     def __init__(self, bot):
@@ -144,7 +134,8 @@ class MiinaharavaCog(commands.Cog):
         bomb_count = view.bomb_count  
         await interaction.response.send_message(
             f"💣 Miinaharava käynnistetty! Pommit: {bomb_count} | Liputettu: 0",
-            view=view
+            view=view,
+            ephemeral=True
         )
         asyncio.create_task(kirjaa_komento_lokiin(self.bot, interaction, "/peli_miinaharava"))
         asyncio.create_task(kirjaa_ga_event(self.bot, interaction.user.id, "peli_miinaharava_komento"))

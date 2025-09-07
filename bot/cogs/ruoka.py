@@ -56,7 +56,7 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
             tänään = datetime.now().strftime("%-d.%-m.")
             päivän_ruoat = next((day for day in days if tänään in day["Date"]), None)
             if not päivän_ruoat:
-                await interaction.followup.send("📅 Tälle päivälle ei löytynyt ruokalistaa.")
+                await interaction.followup.send("📅 Tälle päivälle ei löytynyt ruokalistaa.", ephemeral=True)
                 return
             days = [päivän_ruoat]
 
@@ -68,7 +68,7 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
 
         embed = discord.Embed(
             title=f"📆 Tilun ruokalista ({valinta.capitalize()})",
-            description=f"📁 Päivitetty: {datetime.now().strftime('%d.%m.%Y')}\n🔗 Lähde: KOULURUOKA.fi",
+            description=f"📁 Päivitetty: {datetime.now().strftime('%d.%m.%Y')}\n🔗 Lähde: kouluruoka.fi",
             color=discord.Color.orange()
         )
 
