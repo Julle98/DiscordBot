@@ -91,7 +91,7 @@ COGS = [
     "bot.cogs.games.ristinolla"
 ]
 
-async def load_cogs() -> None:
+async def load_cogs():
     print("🔄 Ladataan cogeja…")
     for name in COGS:
         try:
@@ -99,7 +99,6 @@ async def load_cogs() -> None:
             print(f"  ✅ {name}")
         except Exception as exc:
             print(f"  ❌ {name}: {exc}")
-            logging.exception(f"Virhe ladattaessa {name}")
 
 @bot.command()
 @commands.is_owner()
@@ -118,9 +117,19 @@ async def sync(ctx: commands.Context, global_sync: bool = False):
 @bot.event
 async def on_ready():
     print(f"{bot.user} käynnissä")
+    await bot.wait_until_ready()
 
-    for cog_name, cog_obj in bot.cogs.items():
-        print(f"✅ Cog valmiina: {cog_name}")
+    if bot.user:
+        print(f"{bot.user} käynnissä")
+    else:
+        print("⚠️ Botti ei ole kirjautunut sisään, bot.user on None")
+        return  
+
+    if bot.cogs:
+        for cog_name in bot.cogs:
+            print(f"✅ Cog valmiina: {cog_name}")
+    else:
+        print("⚠️ Yhtään cogia ei ole ladattu.")
 
     try:
         bot_status_kanava = discord.utils.get(bot.get_all_channels(), name="🛜bot-status")
@@ -179,15 +188,19 @@ async def on_ready():
     except Exception as exc:
         print(f"XP-monitorin käynnistys epäonnistui: {exc}")
 
-    try:
-        if TEST_GUILD_ID:
-            synced = await bot.tree.sync(guild=discord.Object(TEST_GUILD_ID))
-            print("Slash komennot synkronoitu vain testi palvelimelle. Synkronoidut komennot:", len(synced))
-        else:
+    if TEST_GUILD_ID:
+        try:
+            guild = discord.Object(TEST_GUILD_ID)
+            synced = await bot.tree.sync(guild=guild)
+            print(f"Synkronoitu {len(synced)} komentoa testipalvelimelle.")
+        except Exception as exc:
+            print(f"Synkronointi testipalvelimelle epäonnistui: {exc}")
+    else:
+        try:
             synced = await bot.tree.sync()
-            print("Slash komennot synkronoitu globaalisti. Synkronoidut komennot:", len(synced))
-    except Exception as exc:
-        print(f"Auto sync epäonnistui: {exc}")
+            print(f"Synkronoitu {len(synced)} komentoa globaalisti.")
+        except Exception as exc:
+            print(f"Synkronointi globaalisti epäonnistui: {exc}")
 
 @bot.event
 async def on_app_command_completion(interaction: discord.Interaction, command: discord.app_commands.Command):
@@ -251,7 +264,16 @@ async def on_app_command_completion(interaction: discord.Interaction, command: d
 
 async def _main():
     await load_cogs()
-    await bot.start(TOKEN)
+    try:
+        await bot.start(TOKEN)
+    except discord.errors.DiscordServerError as e:
+        print(f"Discordin palvelinvirhe: {e}")
+    except discord.LoginFailure as e:
+        print(f"Kirjautuminen epäonnistui: {e}")
+    except Exception as e:
+        print(f"Tuntematon virhe: {e}")
+    finally:
+        await bot.close()
 
 if __name__ == "__main__":
         asyncio.run(_main())
