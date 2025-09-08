@@ -13,24 +13,9 @@ ROLE_24G_ID = int(os.getenv("ROLE_24G_ID"))
 ROLE_VIP_ID = int(os.getenv("ROLE_VIP_ID"))
 CONSOLE_LOG = int(os.getenv("CONSOLE_LOG"))
 
-CATEGORY_IDS_LIMITED = [
-    int(os.getenv("CATEGORY_LIMITED_1")),
-    int(os.getenv("CATEGORY_LIMITED_2")),
-    int(os.getenv("CATEGORY_LIMITED_3")),
-    int(os.getenv("CATEGORY_LIMITED_4"))
-]
-
-CATEGORY_ID_VIP_HIDE = int(os.getenv("CATEGORY_VIP_HIDE"))
-
-CHANNEL_ID_NIGHT_ONLY = int(os.getenv("CHANNEL_NIGHT_ONLY"))
-
-TASO_ROLE_IDS = [
-    int(os.getenv("ROLE_TASO_1")),
-    int(os.getenv("ROLE_TASO_5")),
-    int(os.getenv("ROLE_TASO_10")),
-    int(os.getenv("ROLE_TASO_15")),
-    int(os.getenv("ROLE_TASO_25")),
-    int(os.getenv("ROLE_TASO_50"))
+CHANNEL_IDS_RESTRICTED = [
+    int(os.getenv("KANAVA_1ID")),
+    int(os.getenv("KANAVA_2ID"))
 ]
 
 class NightVisibilityCog(commands.Cog):
@@ -38,7 +23,7 @@ class NightVisibilityCog(commands.Cog):
         self.bot = bot
         self.restriction_active = None
         self.check_restrictions.start()
-
+    
     @tasks.loop(minutes=1)
     async def check_restrictions(self):
         guild = self.bot.get_guild(GUILD_ID)
@@ -72,40 +57,39 @@ class NightVisibilityCog(commands.Cog):
     @check_restrictions.before_loop
     async def before_check_restrictions(self):
         await self.bot.wait_until_ready()
+        guild = self.bot.get_guild(GUILD_ID)
+        if guild:
+            channel = guild.get_channel(CONSOLE_LOG)
+            if channel:
+                await channel.send("🕒 Yörajoitustoiminto käynnistetty – tarkistetaan tilaa minuutin välein.")
         await self.check_restrictions()
 
     async def update_channel_visibility(self, guild: discord.Guild, in_restriction: bool):
         role_24g = guild.get_role(ROLE_24G_ID)
         role_vip = guild.get_role(ROLE_VIP_ID)
-        everyone = guild.default_role
 
-        for cat_id in CATEGORY_IDS_LIMITED:
-            category = guild.get_channel(cat_id)
-            if category:
-                overwrites = category.overwrites
-                if role_24g:
-                    overwrites[role_24g] = discord.PermissionOverwrite(view_channel=not in_restriction)
-                if role_vip:
-                    overwrites[role_vip] = discord.PermissionOverwrite(view_channel=not in_restriction)
-                await category.edit(overwrites=overwrites)
+        restricted_permissions = {
+            'send_messages': not in_restriction,
+            'send_messages_in_threads': not in_restriction,
+            'create_public_threads': not in_restriction,
+            'create_private_threads': not in_restriction,
+            'add_reactions': not in_restriction,
+            'connect': not in_restriction
+        }
 
-        vip_category = guild.get_channel(CATEGORY_ID_VIP_HIDE)
-        if vip_category:
-            overwrites = vip_category.overwrites
-            for role_id in [ROLE_VIP_ID] + TASO_ROLE_IDS:
-                role = guild.get_role(role_id)
-                if role:
-                    overwrites[role] = discord.PermissionOverwrite(view_channel=not in_restriction)
-            await vip_category.edit(overwrites=overwrites)
+        for channel_id in CHANNEL_IDS_RESTRICTED:
+            channel = guild.get_channel(channel_id)
+            if channel:
+                overwrites = channel.overwrites
 
-        night_channel = guild.get_channel(CHANNEL_ID_NIGHT_ONLY)
-        if night_channel:
-            overwrites = {
-                everyone: discord.PermissionOverwrite(view_channel=False),
-                role_24g: discord.PermissionOverwrite(view_channel=in_restriction),
-                role_vip: discord.PermissionOverwrite(view_channel=in_restriction)
-            }
-            await night_channel.edit(overwrites=overwrites)
+                for role in [role_24g, role_vip]:
+                    if role:
+                        current = overwrites.get(role, discord.PermissionOverwrite())
+                        for perm, value in restricted_permissions.items():
+                            setattr(current, perm, value)
+                        overwrites[role] = current
+
+                await channel.edit(overwrites=overwrites)
 
     async def log_status(self, guild: discord.Guild, in_restriction: bool, now: datetime):
         channel = guild.get_channel(CONSOLE_LOG)
