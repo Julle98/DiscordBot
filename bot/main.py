@@ -16,6 +16,7 @@ from bot.utils.antinuke import check_deletions
 from bot.utils.xp_utils import anna_xp_komennosta
 from bot.utils.ruokailuvuorot_utils import paivita_ruokailuvuorot
 from bot.utils.time_utils import get_current_time_in_helsinki
+from bot.utils.settings_utils import get_user_settings
 
 load_env_and_validate()
 load_dotenv()
@@ -84,6 +85,7 @@ COGS = [
     "bot.cogs.vault",
     "bot.cogs.calender",
     "bot.cogs.weather",
+    "bot.cogs.settings",
     "bot.cogs.games.arvaa_luku",
     "bot.cogs.games.arvaa_sana",
     "bot.cogs.games.game_scores",
@@ -205,6 +207,13 @@ async def on_ready():
 @bot.event
 async def on_app_command_completion(interaction: discord.Interaction, command: discord.app_commands.Command):
     try:
+        user_id = interaction.user.id
+        
+        settings = get_user_settings(user_id)
+
+        if not settings["xp_komennot"]:
+            return
+        
         extras = getattr(interaction, "extras", {})
         if extras.get("cooldown_skip"):
             return

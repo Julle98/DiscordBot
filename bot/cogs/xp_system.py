@@ -13,6 +13,7 @@ from bot.utils.xp_utils import (
 )
 from bot.utils.tiedot_utils import pending_file_sends
 from utils.xp_bonus import käsittele_xp_bonus
+from bot.utils.settings_utils import get_user_settings
 
 komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
 viestit_ja_ajat = {}  # {message_id: (user_id, timestamp)}
@@ -82,8 +83,19 @@ class XPSystem(commands.Cog):
             return
 
         if any(r.name in ROOLI_POIKKEUKSET for r in member.roles):
+            settings = get_user_settings(user_id)
+
+            if not settings["xp_epaaktiivisuus"]:
+                return
+
             await käsittele_xp_bonus(message, user_id, nyt)
             komento_ajastukset[user_id][komento_nimi] = nyt
+
+            settings = get_user_settings(user_id)
+
+            if not settings["xp_viestit"]:
+                return
+
             await käsittele_viesti_xp(self.bot, message)
             await self.bot.process_commands(message)
             return
@@ -126,6 +138,11 @@ class XPSystem(commands.Cog):
         await käsittele_xp_bonus(message, user_id, nyt)
         komento_ajastukset[user_id][komento_nimi] = nyt
         varoituslaskurit[user_id] = 0
+
+        settings = get_user_settings(user_id)
+
+        if not settings["xp_viestit"]:
+            return
 
         await käsittele_viesti_xp(self.bot, message)
         await self.bot.process_commands(message)

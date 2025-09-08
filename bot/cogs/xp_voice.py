@@ -4,6 +4,7 @@ from pathlib import Path
 import discord
 from discord.ext import commands, tasks
 from bot.utils.XPstorage import XPStorage
+from bot.utils.settings_utils import USER_SETTINGS, get_user_settings
 
 from bot.utils.xp_utils import (
     calculate_level,
@@ -129,7 +130,14 @@ class XPVoice(commands.Cog):
                     if curr_state["streaming"]:
                         xp_gain *= 1.5
 
-                    user_info["xp"] += int(xp_gain)
+                    if not USER_SETTINGS.get(int(user_id), {}).get("xp_puhe", True):
+                        continue
+
+                    settings = get_user_settings(int(user_id))
+
+                    if not settings["xp_puhe"]:
+                        continue
+                    
                     new_level = calculate_level(user_info["xp"])
 
                     if new_level > user_info["level"]:
