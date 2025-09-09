@@ -8,6 +8,7 @@ import json
 import os
 import calendar
 import re
+import time
 from typing import Optional
 
 from bot.utils.ruokailuvuorot_utils import parse_schedule
@@ -34,12 +35,17 @@ def puhdista_nimi(nimi):
     return re.sub(r"\s*\([^)]*\)", "", nimi).strip()
 
 def hae_merkinnät(nimi):
-    """Etsii sulkeissa olevat merkinnät nimestä."""
     osumat = re.findall(r"\(([^)]+)\)", nimi)
     return ", ".join(osumat) if osumat else ""
 
 async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", kasvisvaihtoehto=False, merkinnät=False, milloin_viimeksi=False):
     try:
+        if valinta == "päivän ruoka":
+            nykyhetki = datetime.now().time()
+            if nykyhetki > time(11, 50):
+                await interaction.followup.send("⏳ Ruokailu on jo ohi, joten miksi haluat nähdä ruoan?", ephemeral=True)
+                return
+            
         url_map = {
             "päivän ruoka": "https://kouluruoka.fi/page-data/menu/vantaa_tikkurilanlukio/page-data.json",
             "tämän viikon ruokalista": "https://kouluruoka.fi/page-data/menu/vantaa_tikkurilanlukio/page-data.json",
@@ -48,7 +54,7 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
 
         data = await fetch_menu_data(url_map[valinta])
         if not data:
-            await interaction.followup.send("📂 Ruokalistaa ei voitu hakea.")
+            await interaction.followup.send("📂 Ruokalistaa ei voitu hakea.", ephemeral=True)
             return
 
         days = data["result"]["pageContext"]["menu"]["Days"]

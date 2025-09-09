@@ -376,11 +376,12 @@ class TaskListener(discord.ui.View):
         if self.completed or message.author.id != self.user.id:
             return
 
-        now = datetime.now(timezone.utc).time()
         weekday = datetime.now().weekday()
+        utc_plus_2 = timezone(timedelta(hours=2))
+        now = datetime.now(utc_plus_2).time()
 
         if self.task_name == "Lähetä viesti tiettyyn aikaan":
-            if dtime(12, 0) <= now <= dtime(14, 0) and message.channel.id == TASK_CHANNEL_ID:
+            if dtime(10, 0) <= now <= dtime(17, 0) and message.channel.id == TASK_CHANNEL_ID:
                 await self.finish_task()
 
         elif self.task_name == "Käy yleinen kanavalla lähettämässä viesti":
@@ -697,7 +698,7 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
         print(f"[INFO] Poistettiin käyttäjä {uid} aktiivisista tehtävistä (complete_task).")
                  
 TASK_INSTRUCTIONS = {
-    "Lähetä viesti tiettyyn aikaan": "Lähetä viesti <#1339846062281588777> kanavalle klo 12–14 UTC välisenä aikana. Aikaa suoritukseen 30 min.",
+    "Lähetä viesti tiettyyn aikaan": "Lähetä viesti <#1339846062281588777> kanavalle klo 10–17 UTC+2 välisenä aikana. Aikaa suoritukseen 30 min.",
     "Käy yleinen kanavalla lähettämässä viesti": "Lähetä viesti <#1339846062281588777> kanavassa. Viestisi voi olla tekstiä, tiedosto, gif ja/tai tarra. Aikaa suoritukseen 30 min.",
     "Mainitse toinen käyttäjä": "Mainitse joku käyttäjä viestissäsi <#1339846062281588777> kanavalla. Aikaa suoritukseen 30 min.",
     "Käytä bottikomentoja": "Käytä mitä tahansa bottikomentoa <#1339846062281588777> kanavalla. Aikaa suoritukseen 30 min.",
@@ -728,7 +729,6 @@ TASK_INSTRUCTIONS = {
     "Vastaa toisen käyttäjän viestiin": "Vastaa toisen käyttäjän viestiin <#1339846062281588777> kanavalla käyttämällä vastaustoimintoa. Aikaa suoritukseen 30 min.",
     "Lähetä Tenor-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Tenor-palvelun GIF-linkin (esim. tenor.com/view/...). Aikaa suoritukseen 30 min.",
     "Lähetä Giphy-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Giphy-palvelun GIF-linkin (esim. giphy.com/gifs/...). Aikaa suoritukseen 30 min.",
-
 }
 
 class TaskControlView(discord.ui.View):
