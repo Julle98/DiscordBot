@@ -3,6 +3,17 @@ import json
 import os
 import gdown
 import hashlib
+import chardet
+
+def lue_tiedosto_turvallisesti(polku: str) -> str:
+    try:
+        with open(polku, "rb") as f:
+            raw_bytes = f.read()
+            detected = chardet.detect(raw_bytes)
+            encoding = detected["encoding"] or "utf-8"
+            return raw_bytes.decode(encoding, errors="replace")
+    except Exception as e:
+        return f"📛 Virhe tiedoston lukemisessa: {e}"
 
 def get_drive_file_id(url_or_id: str) -> str:
     if re.fullmatch(r"[a-zA-Z0-9_-]{20,}", url_or_id):
