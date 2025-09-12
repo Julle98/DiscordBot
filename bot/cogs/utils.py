@@ -10,6 +10,7 @@ from discord import Interaction
 from discord.ui import Modal, View
 import re
 import uuid
+from typing import Optional, Literal
 from bot.utils.error_handler import CommandErrorHandler
 import json
 
@@ -204,10 +205,11 @@ class HelpDropdown(discord.ui.View):
         await interaction.response.send_modal(HelpModal(valinta=valinta, target_channel=self.channel))
 
 class GiveawayView(discord.ui.View):
-    def __init__(self, palkinto, rooli, kesto, alkuviesti, luoja):
+    def __init__(self, palkinto, rooli, kesto, alkuviesti, luoja, kieltorooli=None):
         super().__init__(timeout=None)
         self.palkinto = palkinto
         self.rooli = rooli
+        self.kieltorooli = kieltorooli  
         self.kesto = kesto
         self.osallistujat = set()
         self.viesti = alkuviesti
@@ -220,9 +222,15 @@ class GiveawayView(discord.ui.View):
         if self.loppunut:
             await interaction.response.send_message("Arvonta on jo päättynyt.", ephemeral=True)
             return
+
+        if self.kieltorooli and self.kieltorooli in interaction.user.roles:
+            await interaction.response.send_message("Sinulla on rooli, joka estää osallistumisen tähän arvontaan.", ephemeral=True)
+            return
+
         if self.rooli not in interaction.user.roles:
             await interaction.response.send_message("Sinulla ei ole oikeaa roolia osallistuaksesi.", ephemeral=True)
             return
+
         if interaction.user in self.osallistujat:
             await interaction.response.send_message("Olet jo osallistunut!", ephemeral=True)
             return
@@ -475,18 +483,27 @@ class Utils(commands.Cog):
     @app_commands.describe(
         palkinto="Mitä arvotaan?",
         kesto="Kesto minuutteina",
-        rooli="Rooli jolla saa osallistua"
+        rooli="Rooli jolla saa osallistua",
+        kieltorooli="Rooli jolla ei saa osallistua"
     )
     @app_commands.checks.has_role("Mestari")
-    async def giveaway(self, interaction: discord.Interaction, palkinto: str, kesto: int, rooli: discord.Role):
+    async def giveaway(
+        self,
+        interaction: discord.Interaction,
+        palkinto: str,
+        kesto: int,
+        rooli: discord.Role,
+        kieltorooli: discord.Role
+    ):
         await kirjaa_komento_lokiin(self.bot, interaction, "/giveaway")
         await kirjaa_ga_event(self.bot, interaction.user.id, "giveaway_komento")
 
-        view = GiveawayView(palkinto, rooli, kesto, None, interaction.user)
+        view = GiveawayView(palkinto, rooli, kesto, kieltorooli, interaction.user)
         await interaction.response.send_message(
             f"🎉 **Arvonta aloitettu!** 🎉\n"
             f"**Palkinto:** {palkinto}\n"
             f"**Osallistumisoikeus:** {rooli.mention}\n"
+            f"**Ei voi osallistua jos kuuluu rooliin:** {kieltorooli.mention}\n"
             f"**Kesto:** {kesto} minuuttia\n\n"
             f"Paina **🎉 Osallistu** -painiketta osallistuaksesi!",
             view=view
@@ -495,6 +512,45 @@ class Utils(commands.Cog):
         view.viesti = await interaction.original_response()
         await asyncio.sleep(kesto * 60)
         await view.lopeta_arvonta(interaction.channel)
+
+    @app_commands.command(name="heitä", description="Heitä kolikkoa tai arvo numero.")
+    @app_commands.describe(
+        tyyppi="Valitse heiton tyyppi: numero, väli tai kolikko",
+        min="Pienin arvo (numero/väli)",
+        max="Suurin arvo (numero/väli)",
+        vaihtoehto1="Kolikon ensimmäinen puoli (esim. 'Kruunu')",
+        vaihtoehto2="Kolikon toinen puoli (esim. 'Klaava')"
+    )
+    async def heitä(
+        self,
+        interaction: discord.Interaction,
+        tyyppi: Literal["numero", "väli", "kolikko"],
+        min: Optional[int] = None,
+        max: Optional[int] = None,
+        vaihtoehto1: Optional[str] = None,
+        vaihtoehto2: Optional[str] = None
+    ):
+        await kirjaa_ga_event(self.bot, interaction.user.id, "heitä_komento")
+        await kirjaa_komento_lokiin(self.bot, interaction, "/heitä")
+
+        if tyyppi in ["numero", "väli"]:
+            if min is None or max is None:
+                await interaction.response.send_message("Anna sekä minimi- että maksimiarvo.", ephemeral=True)
+                return
+            if min > max:
+                await interaction.response.send_message("Minimi ei voi olla suurempi kuin maksimi.", ephemeral=True)
+                return
+
+            tulos = random.randint(min, max)
+            await interaction.response.send_message(f"🎲 Heitettiin numero: **{tulos}** (väliltä {min}–{max})")
+
+        elif tyyppi == "kolikko":
+            valinnat = [vaihtoehto1 or "Kruunu", vaihtoehto2 or "Klaava"]
+            tulos = random.choice(valinnat)
+            await interaction.response.send_message(f"🪙 Kolikko heitettiin: **{tulos}**")
+
+        else:
+            await interaction.response.send_message("Tuntematon heittotyyppi.", ephemeral=True)
 
     @app_commands.command(name="tag", description="Lisää tagin käyttäjän serverinimen perään.")
     @app_commands.describe(tag="Haluttu tagi, 3-6 kirjainta pitkä.")
