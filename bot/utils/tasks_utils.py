@@ -474,17 +474,23 @@ class TaskListener(discord.ui.View):
                     return False
 
                 try:
-                    event = await asyncio.wait_for(
-                        asyncio.gather(
+                    done, pending = await asyncio.wait(
+                        [
                             self.bot.wait_for("message", check=response_or_reaction_check),
                             self.bot.wait_for("reaction_add", check=response_or_reaction_check)
-                        ),
-                        timeout=300
+                        ],
+                        timeout=1800,
+                        return_when=asyncio.FIRST_COMPLETED
                     )
-                    await self.finish_task()
+
+                    for task in pending:
+                        task.cancel()
+
+                    if done:
+                        await self.finish_task()
                 except asyncio.TimeoutError:
                     pass
-        
+
         elif self.task_name == "Mainitse kanava viestissä":
             if message.channel.id == TASK_CHANNEL_ID and message.channel_mentions:
                 await self.finish_task()

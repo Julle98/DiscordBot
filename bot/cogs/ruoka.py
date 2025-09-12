@@ -29,12 +29,34 @@ class RuokaÄänestysView(discord.ui.View):
         super().__init__(timeout=None)
         self.päivä_id = päivä_id
         self.interaction = interaction
-        self.äänet = {"👍": 0, "👎": 0}
+        self.äänet = self.lataa_äänet()
+
+    def lataa_äänet(self):
+        polku = os.getenv("VOTE_DATA_PATH")
+        try:
+            with open(polku, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data.get(self.päivä_id, {"👍": 0, "👎": 0})
+        except:
+            return {"👍": 0, "👎": 0}
+
+    def tallenna_äänet(self):
+        polku = os.getenv("VOTE_DATA_PATH")
+        try:
+            with open(polku, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except:
+            data = {}
+
+        data[self.päivä_id] = self.äänet
+        with open(polku, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
 
     @discord.ui.button(label="👍 0", style=discord.ButtonStyle.success, custom_id="vote_up")
     async def vote_up(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.äänet["👍"] += 1
         button.label = f"👍 {self.äänet['👍']}"
+        self.tallenna_äänet()
         await interaction.response.edit_message(view=self)
         await logita_äänestys(interaction, self.päivä_id, "👍")
 
@@ -42,6 +64,7 @@ class RuokaÄänestysView(discord.ui.View):
     async def vote_down(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.äänet["👎"] += 1
         button.label = f"👎 {self.äänet['👎']}"
+        self.tallenna_äänet()
         await interaction.response.edit_message(view=self)
         await logita_äänestys(interaction, self.päivä_id, "👎")
 
@@ -68,7 +91,7 @@ def hae_merkinnät(nimi):
     osumat = re.findall(r"\(([^)]+)\)", nimi)
     return ", ".join(osumat) if osumat else ""
 
-async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", kasvisvaihtoehto=False, merkinnät=False, milloin_viimeksi=False):
+async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", kasvisvaihtoehto=False, merkinnät=False, milloin_viimeksi=False, näytä_äänet=False):
     try:
         url_map = {
             "päivän ruoka": "https://kouluruoka.fi/page-data/menu/vantaa_tikkurilanlukio/page-data.json",
@@ -125,8 +148,7 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
             ateriat = []
             for meal in day["Meals"]:
                 tyyppi = meal["MealType"].lower()
-                puhdas_nimi = puhdista_nimi(meal["Name"])
-                nimi_key = puhdas_nimi.lower()
+                nimi_key = meal["Name"].lower()
 
                 ruoka_historia.setdefault(nimi_key, [])
                 if tallennettava_pvm not in ruoka_historia[nimi_key]:
@@ -134,10 +156,10 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
 
                 if tyyppi == "lounas" or (kasvisvaihtoehto and "kasvis" in tyyppi):
                     emoji = "🍽️" if tyyppi == "lounas" else "🥦"
-                    nimi = f"{emoji} **{meal['MealType']}**: {puhdas_nimi}"
+                    nimi = f"{emoji} **{meal['MealType']}**: {meal['Name']}"
 
                     if merkinnät:
-                        lisätiedot = ", ".join(meal.get("Labels", [])) or hae_merkinnät(meal["Name"])
+                        lisätiedot = hae_merkinnät(meal["Name"]) or ", ".join(meal.get("Labels", []))
                         if lisätiedot:
                             nimi += f" _(Merkinnät: {lisätiedot})_"
 
@@ -168,6 +190,26 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
 
         päivä_id = f"{valinta}_{datetime.now().strftime('%Y-%m-%d')}"
         view = RuokaÄänestysView(päivä_id, interaction)
+
+        if näytä_äänet:
+            try:
+                polku = os.getenv("VOTE_DATA_PATH")
+                with open(polku, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                tilanne = data.get(päivä_id)
+                if tilanne:
+                    embed.add_field(
+                        name="📊 Äänestystilanne",
+                        value=f"👍 {tilanne['👍']} ääntä\n👎 {tilanne['👎']} ääntä",
+                        inline=False
+                    )
+            except Exception as e:
+                embed.add_field(
+                    name="📊 Äänestystilanne",
+                    value=f"⚠️ Virhe äänien lukemisessa: {e}",
+                    inline=False
+                )
+
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     except Exception as e:
@@ -251,7 +293,8 @@ class ruoka(commands.Cog):
         valinta="Valitse ruokalistan tyyppi",
         kasvisvaihtoehto="Näytä valinnainen kasvisvaihtoehto",
         merkinnät="Näytä aterioiden merkinnät (esim. allergiat)",
-        milloin_viimeksi="Näytä milloin ruoka on viimeksi ollut tarjolla"
+        milloin_viimeksi="Näytä milloin ruoka on viimeksi ollut tarjolla",
+        näytä_äänet="Näytä viimeisin äänestystilanne"
     )
     async def ruoka(
         self,
@@ -259,17 +302,20 @@ class ruoka(commands.Cog):
         valinta: str,
         kasvisvaihtoehto: bool = False,
         merkinnät: bool = False,
-        milloin_viimeksi: bool = False
+        milloin_viimeksi: bool = False,
+        näytä_äänet: bool = False
     ):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ruoka")
         await kirjaa_ga_event(self.bot, interaction.user.id, "ruoka_komento")
         await interaction.response.defer()
+
         await hae_ruoka(
             interaction,
             valinta=valinta.lower(),
             kasvisvaihtoehto=kasvisvaihtoehto,
             merkinnät=merkinnät,
-            milloin_viimeksi=milloin_viimeksi
+            milloin_viimeksi=milloin_viimeksi,
+            näytä_äänet=näytä_äänet
         )
 
     @ruoka.autocomplete("valinta")
