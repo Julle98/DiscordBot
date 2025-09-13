@@ -11,13 +11,41 @@ class SettingsView(discord.ui.View):
         self.default_settings = default_settings
 
         options = [
-            discord.SelectOption(label="Kaikki päälle", value="enable_all", description="Aktivoi kaikki XP-asetukset"),
-            discord.SelectOption(label="Kaikki pois", value="disable_all", description="Poista kaikki XP-asetukset käytöstä"),
-            discord.SelectOption(label="Palauta oletukset", value="reset_defaults", description="Palauta alkuperäiset asetukset"),
-            discord.SelectOption(label="XP viesteistä", value="xp_viestit"),
-            discord.SelectOption(label="XP puhekanavalta", value="xp_puhe"),
-            discord.SelectOption(label="XP komennoista", value="xp_komennot"),
-            discord.SelectOption(label="XP bonus epäaktiivisuudesta", value="xp_epaaktiivisuus"),
+            discord.SelectOption(
+                label="✅ Kaikki päälle",
+                value="enable_all",
+                description="Aktivoi kaikki XP-asetukset"
+            ),
+            discord.SelectOption(
+                label="❌ Kaikki pois",
+                value="disable_all",
+                description="Poista kaikki XP-asetukset käytöstä"
+            ),
+            discord.SelectOption(
+                label="🔄 Palauta oletukset",
+                value="reset_defaults",
+                description="Palauta alkuperäiset XP-asetukset"
+            ),
+            discord.SelectOption(
+                label="💬 XP viesteistä",
+                value="xp_viestit",
+                description="Käyttäjä saa XP:tä tekstiviesteistä"
+            ),
+            discord.SelectOption(
+                label="🎙️ XP puhekanavalta",
+                value="xp_puhe",
+                description="Käyttäjä saa XP:tä puhekanavalla olemisesta"
+            ),
+            discord.SelectOption(
+                label="⚙️ XP komennoista",
+                value="xp_komennot",
+                description="Käyttäjä saa XP:tä komentoja käyttämällä"
+            ),
+            discord.SelectOption(
+                label="🕒 XP bonus epäaktiivisuudesta",
+                value="xp_epaaktiivisuus",
+                description="Käyttäjä saa XP-bonusta palatessaan pitkän tauon jälkeen"
+            ),
         ]
 
         self.select = discord.ui.Select(
@@ -32,24 +60,59 @@ class SettingsView(discord.ui.View):
     async def select_callback(self, interaction: discord.Interaction):
         selected = self.select.values
 
-        if "enable_all" in selected:
-            for key in self.settings:
-                self.settings[key] = True
-            message = "✅ Kaikki asetukset otettu käyttöön."
-        elif "disable_all" in selected:
-            for key in self.settings:
-                self.settings[key] = False
-            message = "❌ Kaikki asetukset poistettu käytöstä."
-        elif "reset_defaults" in selected:
-            self.settings.update(self.default_settings)
-            message = "🔄 Asetukset palautettu oletusarvoihin."
+        if any(v in selected for v in ["enable_all", "disable_all", "reset_defaults"]):
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="⚠️ Vahvista asetusten muutos",
+                    description="Olet tekemässä laajaa muutosta XP-asetuksiin.\nKlikkaa alla olevaa nappia vahvistaaksesi tai peruaksesi.",
+                    color=discord.Color.orange()
+                ),
+                view=ConfirmationView(selected, self.settings, self.update_callback, self.default_settings),
+                ephemeral=True
+            )
         else:
             for key in self.settings:
                 self.settings[key] = key in selected
-            message = "✅ Asetukset päivitetty valintasi mukaan."
+            save_user_settings()
+            await interaction.response.send_message(
+                content="✅ Asetukset päivitetty valintasi mukaan.",
+                ephemeral=True
+            )
+            await self.update_callback(interaction, self.settings, "✅ Asetukset päivitetty valintasi mukaan.")
+
+class ConfirmationView(discord.ui.View):
+    def __init__(self, selected, settings, update_callback, default_settings):
+        super().__init__(timeout=60)
+        self.selected = selected
+        self.settings = settings
+        self.update_callback = update_callback
+        self.default_settings = default_settings
+
+    @discord.ui.button(label="✅ Vahvista muutos", style=discord.ButtonStyle.success)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if "enable_all" in self.selected:
+            for key in self.settings:
+                self.settings[key] = True
+            msg = "✅ Kaikki asetukset otettu käyttöön."
+        elif "disable_all" in self.selected:
+            for key in self.settings:
+                self.settings[key] = False
+            msg = "❌ Kaikki asetukset poistettu käytöstä."
+        elif "reset_defaults" in self.selected:
+            self.settings.update(self.default_settings)
+            msg = "🔄 Asetukset palautettu oletusarvoihin."
+        else:
+            msg = "✅ Asetukset päivitetty."
 
         save_user_settings()
-        await self.update_callback(interaction, self.settings, message)
+        await self.update_callback(interaction, self.settings, msg)
+
+    @discord.ui.button(label="❌ Peruuta", style=discord.ButtonStyle.danger)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            content="⚙️ Muutos peruutettu. Asetuksia ei päivitetty.",
+            ephemeral=True
+        )
 
 class Asetukset(commands.Cog):
     def __init__(self, bot):
@@ -70,6 +133,8 @@ class Asetukset(commands.Cog):
         def format_status(value: bool) -> str:
             return "✅ Päällä" if value else "❌ Pois"
 
+        from datetime import datetime
+
         async def update_embed(inter: discord.Interaction, updated_settings, status_message: str):
             embed = discord.Embed(
                 title="⚙️ XP-asetuksesi (päivitetty)",
@@ -82,7 +147,10 @@ class Asetukset(commands.Cog):
                 "xp_komennot": "XP komennoista",
                 "xp_epaaktiivisuus": "XP bonus epäaktiivisuudesta"
             }.items():
-                embed.add_field(name=label, value=format_status(updated_settings[key]), inline=False)
+                embed.add_field(name=label, value="✅ Päällä" if updated_settings[key] else "❌ Pois", inline=False)
+
+            now = datetime.now().strftime("%d.%m.%Y klo %H:%M")
+            embed.set_footer(text=f"Päivitetty: {now}")
 
             await inter.response.edit_message(embed=embed, view=SettingsView(updated_settings, update_embed, default_settings))
 
