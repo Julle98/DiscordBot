@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.settings_utils import get_user_settings, save_user_settings
 
 class SettingsView(discord.ui.View):
@@ -59,6 +60,20 @@ class SettingsView(discord.ui.View):
 
     async def select_callback(self, interaction: discord.Interaction):
         selected = self.select.values
+
+        if "enable_all" in selected and all(self.settings.values()):
+            await interaction.response.send_message(
+                content="ℹ️ Kaikki asetukset ovat jo päällä. Ei muutettavaa.",
+                ephemeral=True
+            )
+            return
+
+        if "disable_all" in selected and not any(self.settings.values()):
+            await interaction.response.send_message(
+                content="ℹ️ Kaikki asetukset ovat jo pois päältä. Ei muutettavaa.",
+                ephemeral=True
+            )
+            return
 
         if any(v in selected for v in ["enable_all", "disable_all", "reset_defaults"]):
             await interaction.response.send_message(
@@ -120,6 +135,8 @@ class Asetukset(commands.Cog):
 
     @app_commands.command(name="asetukset", description="Muuta XP-asetuksiasi")
     async def asetukset(self, interaction: discord.Interaction):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/asetukset")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "asetukset_komento")
         user_id = str(interaction.user.id)
         settings = get_user_settings(user_id)
 
