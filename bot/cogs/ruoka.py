@@ -156,10 +156,12 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
 
                 if tyyppi == "lounas" or (kasvisvaihtoehto and "kasvis" in tyyppi):
                     emoji = "🍽️" if tyyppi == "lounas" else "🥦"
-                    nimi = f"{emoji} **{meal['MealType']}**: {meal['Name']}"
+                    nimi_raw = meal["Name"]
+                    nimi_näytettävä = puhdista_nimi(nimi_raw) if not merkinnät else nimi_raw
+                    nimi = f"{emoji} **{meal['MealType']}**: {nimi_näytettävä}"
 
                     if merkinnät:
-                        lisätiedot = hae_merkinnät(meal["Name"]) or ", ".join(meal.get("Labels", []))
+                        lisätiedot = hae_merkinnät(nimi_raw) or ", ".join(meal.get("Labels", []))
                         if lisätiedot:
                             nimi += f" _(Merkinnät: {lisätiedot})_"
 
