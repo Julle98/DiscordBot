@@ -79,15 +79,18 @@ class Calendar(commands.Cog):
             start_time = event["start"].get("dateTime") or event["start"].get("date")
             if "dateTime" in event["start"]:
                 dt = datetime.datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-                dt_local = dt.astimezone(tz).strftime("%d.%m.%Y %H:%M")
+                dt_local = dt.astimezone(tz).strftime("%d.%m.%Y klo %H:%M")
+                time_info = f"🕒 {dt_local}"
             else:
-                dt_local = start_time  
+                dt = datetime.datetime.fromisoformat(start_time + "T00:00:00+00:00")
+                dt_local = dt.astimezone(tz).strftime("%d.%m.%Y")
+                time_info = f"📅 {dt_local} (kokopäiväinen)"
 
             html_link = event.get("htmlLink", "")
 
             embed.add_field(
                 name=event.get("summary", "Ei otsikkoa"),
-                value=f"🗓️ {dt_local}\n🔗 [Avaa kalenterissa]({html_link})",
+                value=f"{time_info}\n🔗 [Avaa kalenterissa]({html_link})",
                 inline=False
             )
 

@@ -36,7 +36,7 @@ TIEDOSTOT = {
     "Kuponki": JSON_DIRS / "kuponki.json",
 }
 
-KATEGORIAT = list(TIEDOSTOT.keys()) + ["Moderointi", "Toiminta", "Komennot"]
+KATEGORIAT = list(TIEDOSTOT.keys()) + ["Moderointi", "Osallistumiset", "Toiminta", "Komennot"]
 
 def varmuuskopioi_json_tiedostot():
     BACKUP_JSON_PATH.mkdir(parents=True, exist_ok=True)
@@ -218,6 +218,37 @@ def hae_tuotteen_hinta(nimi: str) -> int:
     except Exception as e:
         print(f"Hinnan haku epäonnistui: {e}")
     return 0
+
+async def hae_osallistumisviestit(user: discord.User | discord.Member):
+    user_id = str(user.id)
+    user_nimi = user.name
+    user_näyttönimi = user.display_name
+
+    console_log = bot.get_channel(int(os.getenv("CONSOLE_LOG")))
+    mod_log = bot.get_channel(MOD_LOG_CHANNEL_ID)
+    viestit = []
+
+    if not isinstance(console_log, discord.TextChannel) or not isinstance(mod_log, discord.TextChannel):
+        print("❌ Kanavaa ei löytynyt tai se ei ole tekstikanava.")
+        return []
+
+    async for msg in console_log.history(limit=1000):
+        if any(nimi in msg.content for nimi in [f"🗳️ {user_näyttönimi}", f"🗳️ {user_nimi}", f"🗳️ {user_id}"]):
+            viestit.append({
+                "tyyppi": "Ruokaäänestys",
+                "sisältö": msg.content,
+                "aika": msg.created_at
+            })
+
+    async for msg in mod_log.history(limit=1000):
+        if "📥 Arvontaan osallistuminen" in msg.content and f"({user_id})" in msg.content:
+            viestit.append({
+                "tyyppi": "Arvonta",
+                "sisältö": msg.content,
+                "aika": msg.created_at
+            })
+
+    return sorted(viestit, key=lambda x: x["aika"], reverse=True)
 
 class JäsenToimintaAnalyysi:
     def __init__(self, jäsen: discord.Member):
@@ -801,6 +832,30 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                     continue
         else:
             embed.add_field(name="✅ Ei help-pyyntöjä", value="Käyttäjältä ei löytynyt pyyntöjä.", inline=False)
+
+    elif kategoria == "Osallistumiset":
+        osallistumiset = await hae_osallistumisviestit(user)
+        if osallistumiset:
+            embed.add_field(
+                name="📊 Osallistumisia yhteensä",
+                value=f"{len(osallistumiset)} kpl",
+                inline=True
+            )
+            for i, data in enumerate(osallistumiset[:5]):
+                aika = data["aika"].strftime("%d.%m.%Y %H:%M")
+                tyyppi = data["tyyppi"]
+                sisältö = data["sisältö"]
+                embed.add_field(
+                    name=f"📥 {tyyppi} {i+1}",
+                    value=f"{sisältö}\n🕒 {aika}",
+                    inline=False
+                )
+        else:
+            embed.add_field(
+                name="📥 Osallistumiset",
+                value="Ei osallistumisia löytynyt.",
+                inline=False
+            )
 
     elif kategoria == "Komennot":
         await interaction.response.defer(ephemeral=True)
