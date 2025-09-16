@@ -313,27 +313,29 @@ def onko_tuote_voimassa(user_id: str, tuotteen_nimi: str) -> Optional[timedelta]
                     return paattymisaika - nyt
     return None
 
-class StreakPalautusModal(Modal, title="Valitse streak palautettavaksi"):
-    def __init__(self, interaction):
+class StreakPalautusModal(discord.ui.Modal, title="Valitse streak palautettavaksi"):
+    def __init__(self):
         super().__init__()
-        self.interaction = interaction
-        self.select = Select(
-            placeholder="Valitse streakin tyyppi",
-            options=[
-                discord.SelectOption(label="Päivittäinen", value="daily"),
-                discord.SelectOption(label="Viikoittainen", value="weekly"),
-                discord.SelectOption(label="Kuukausittainen", value="monthly"),
-                discord.SelectOption(label="Puhe", value="voice")
-            ]
+        self.streak_input = discord.ui.TextInput(
+            label="Streakin tyyppi",
+            placeholder="daily / weekly / monthly / voice",
+            required=True,
+            max_length=20
         )
-        self.add_item(self.select)
+        self.add_item(self.streak_input)
 
     async def on_submit(self, interaction: discord.Interaction):
         from bot.utils.tasks_utils import load_streaks, save_streaks
-        uid = str(interaction.user.id)
-        streaks = load_streaks()
-        valinta = self.select.values[0]
 
+        uid = str(interaction.user.id)
+        valinta = self.streak_input.value.lower()
+        sallitut_tyypit = {"daily", "weekly", "monthly", "voice"}
+
+        if valinta not in sallitut_tyypit:
+            await interaction.response.send_message("❌ Anna jokin seuraavista: daily, weekly, monthly tai voice.", ephemeral=True)
+            return
+
+        streaks = load_streaks()
         if uid not in streaks or valinta not in streaks[uid]:
             await interaction.response.send_message("❌ Tälle streakille ei löytynyt dataa.", ephemeral=True)
             return
@@ -342,12 +344,31 @@ class StreakPalautusModal(Modal, title="Valitse streak palautettavaksi"):
         if data.get("streak", 0) < data.get("max_streak", 0):
             data["streak"] = data["max_streak"]
             save_streaks(streaks)
-            await interaction.response.send_message(
-                f"♻️ {valinta.capitalize()} streak palautettu arvoon {data['max_streak']}! 🔥",
-                ephemeral=True
+
+            embed = discord.Embed(
+                title="♻️ Streak palautettu!",
+                description=f"**{valinta.capitalize()}** streak on nyt arvoissa {data['max_streak']} 🔥",
+                color=discord.Color.green()
             )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
             await interaction.response.send_message("ℹ️ Streak on jo ennätyksessä, ei palautettavaa.", ephemeral=True)
+
+class ModalDropdown(discord.ui.Select):
+    def __init__(self, modal: discord.ui.Modal, otsikko: str):
+        options = [
+            discord.SelectOption(label=otsikko, description="Avaa lisäasetukset")
+        ]
+        super().__init__(placeholder="Valitse toiminto...", min_values=1, max_values=1, options=options)
+        self.modal = modal
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(self.modal)
+
+class ModalDropdownView(discord.ui.View):
+    def __init__(self, modal: discord.ui.Modal, otsikko: str):
+        super().__init__(timeout=None)
+        self.add_item(ModalDropdown(modal, otsikko))
 
 def nykyinen_periodi():
     alku = datetime(2025, 1, 1, tzinfo=timezone.utc)
@@ -480,27 +501,29 @@ class KanavaModal(Modal, title="Luo oma kanava"):
             ephemeral=True
         )
 
-async def kasittele_tuote(interaction, nimi: str) -> str:
+async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord.ui.Modal], Optional[str]]:
     lisatieto = ""
+    modal = None
+    viesti = None
 
     if nimi == "erikoisemoji":
         rooli = discord.utils.get(interaction.guild.roles, name="Erikoisemoji")
         if rooli:
             await interaction.user.add_roles(rooli)
-        await interaction.followup.send("😎 Erikoisemoji on nyt käytössäsi!", ephemeral=True)
+        viesti = "😎 Erikoisemoji on nyt käytössäsi!"
 
     elif nimi == "double xp -päivä":
         rooli = discord.utils.get(interaction.guild.roles, name="Double XP")
         if not rooli:
             rooli = await interaction.guild.create_role(name="Double XP")
         await interaction.user.add_roles(rooli)
-        await interaction.followup.send("⚡ Sait Double XP -roolin!", ephemeral=True)
+        viesti = "⚡ Sait Double XP -roolin!"
 
     elif nimi == "custom rooli":
         roolin_nimi = await kysy_kayttajalta(interaction, "Mikä on roolisi nimi?")
         if not roolin_nimi:
-            await interaction.followup.send("❌ Roolin nimeä ei annettu. Toiminto peruutettu.", ephemeral=True)
-            return ""
+            viesti = "❌ Roolin nimeä ei annettu. Toiminto peruutettu."
+            return "", None, viesti
 
         rooli = await interaction.guild.create_role(name=roolin_nimi, hoist=True)
         referenssi_rooli = discord.utils.get(interaction.guild.roles, name="-- Osto roolit --")
@@ -509,15 +532,16 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
             await interaction.guild.edit_role_positions(positions={rooli: uusi_position})
 
         await interaction.user.add_roles(rooli)
-        await interaction.followup.send(f"🎨 Roolisi **{rooli.name}** on luotu ja lisätty sinulle!", ephemeral=True)
+        viesti = f"🎨 Roolisi **{rooli.name}** on luotu ja lisätty sinulle!"
         lisatieto = f" (rooli: {roolin_nimi})"
 
-    elif nimi == "vip-chat":
+    elif nimi == "vip-rooli":
         rooli = discord.utils.get(interaction.guild.roles, name="VIP")
         if not rooli:
-            rooli = await interaction.guild.create_role(name="VIP")
+            viesti = "⚠️ VIP-roolia ei löytynyt palvelimelta. Luo se ensin manuaalisesti!"
+            return "", None, viesti
         await interaction.user.add_roles(rooli)
-        await interaction.followup.send("💎 Sait pääsyn VIP-chattiin!", ephemeral=True)
+        viesti = "👑 VIP-rooli myönnetty sinulle!"
 
     elif nimi == "oma puhekanava":
         nimi_kanava = await kysy_kayttajalta(interaction, "Mikä on kanavasi nimi?")
@@ -595,20 +619,20 @@ async def kasittele_tuote(interaction, nimi: str) -> str:
         await interaction.followup.send("👑 VIP-rooli myönnetty sinulle!", ephemeral=True)
 
     elif nimi == "streak palautus":
-        await interaction.response.send_modal(StreakPalautusModal(interaction))
-        return ""
+        modal = StreakPalautusModal()
+        return "", modal, "Palauta streak"
 
     elif "kanava" in nimi:
-        await interaction.response.send_modal(KanavaModal())
-        return ""
+        modal = KanavaModal()
+        return "", modal, "Luo kanava"
 
     elif "komento" in nimi:
         komennon_nimi = await kysy_kayttajalta(interaction, "Mikä on komennon nimi?")
         if komennon_nimi:
             lisatieto = f" (nimi: {komennon_nimi})"
-            await interaction.followup.send(f"🛠️ Komento **/{komennon_nimi}** on odottamassa vuoroaan ja tekeillä!", ephemeral=True)
+            viesti = f"🛠️ Komento **/{komennon_nimi}** on odottamassa vuoroaan ja tekeillä!"
 
-    return lisatieto
+    return lisatieto, modal, viesti
         
 from dotenv import load_dotenv
 
@@ -668,17 +692,20 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
 
     kuponkiviesti = f"\n📄 Käytit koodin **{kuponki}** (-{alennus_prosentti}%)" if kuponki else ""
 
+    nimi = puhdista_tuotteen_nimi(tuote["nimi"])
+    lisatieto, modal, dropdown_otsikko = await kasittele_tuote(interaction, nimi)
+
+    view = ModalDropdownView(modal, dropdown_otsikko) if modal else None
+
     await interaction.response.send_message(
         embed=discord.Embed(
             title="✅ Ostettu onnistuneesti!",
             description=f"Ostit tuotteen **{tuote['emoji']} {tuote['nimi']}** ({hinta_alennettu} XP) {kuponkiviesti}\nSe on nyt käytössäsi 🎉",
             color=discord.Color.green()
         ),
+        view=view,
         ephemeral=True
     )
-
-    nimi = puhdista_tuotteen_nimi(tuote["nimi"])
-    lisatieto = await kasittele_tuote(interaction, nimi)
 
     try:
         kanava_id = int(os.getenv("OSTOSLOKI_KANAVA_ID"))
