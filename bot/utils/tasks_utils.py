@@ -224,33 +224,30 @@ async def update_streak(user: discord.Member, task_type: str):
     last_date = datetime.strptime(data["last_completed"], "%Y-%m-%d").date() if data["last_completed"] else None
     streak = data["streak"]
     was_reset = False
-    already_completed = False
+    already_completed = last_date == now
 
     if task_type == "daily":
-        already_completed = last_date == now
         if last_date == now - timedelta(days=1):
             streak += 1
         elif not already_completed:
-            was_reset = True
             streak = 1
+            was_reset = True
 
     elif task_type == "weekly":
-        already_completed = last_date and (now - last_date).days < 7
         if last_date and 7 <= (now - last_date).days <= 13:
             streak += 1
         elif not already_completed:
-            was_reset = True
             streak = 1
+            was_reset = True
 
     elif task_type == "monthly":
-        already_completed = last_date and (now - last_date).days < 28
         if last_date and 28 <= (now - last_date).days <= 45:
             streak += 1
         elif not already_completed:
-            was_reset = True
             streak = 1
+            was_reset = True
 
-    data["last_completed"] = now.strftime("%Y-%m-%d")
+    data["last_completed"] = now.isoformat()
     data["streak"] = streak
     if streak > data.get("max_streak", 0):
         data["max_streak"] = streak

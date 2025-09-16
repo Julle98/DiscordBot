@@ -39,13 +39,8 @@ VALINNAISET_KOMENNOT = {
 
 komento_loki = defaultdict(lambda: deque(maxlen=10))
 JAAHY_KESTO = 15 * 60  
-TAUKO_KOMENNOT = {"tauko", "break", "pause"}
+TAUKO_KOMENNOT = {"kauppa", "tehtävät", "tiedot"}
 SPAM_EXEMPT_ROLE_IDS = [1339853855315197972, 1368228763770294375, 1339846508199022613, 1368538894034800660]
-
-DEFAULT_COOLDOWN = 10
-NOPEA_COOLDOWN = 5
-
-NOPEA_ROOLIT = ["VIP", "Mestari", "Moderaattori", "Admin", "Sannamaija tester"]
 
 komento_ajastukset: dict[int, dict[str, datetime]] = defaultdict(dict)
 
