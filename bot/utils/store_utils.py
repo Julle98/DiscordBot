@@ -313,6 +313,32 @@ def onko_tuote_voimassa(user_id: str, tuotteen_nimi: str) -> Optional[timedelta]
                     return paattymisaika - nyt
     return None
 
+async def onko_modal_kaytetty(bot, user: discord.User, modal_nimi: str) -> bool:
+    log_channel = bot.get_channel(int(os.getenv("MOD_LOG_CHANNEL_ID")))
+    if not log_channel:
+        return False
+
+    async for msg in log_channel.history(limit=100):
+        if msg.embeds:
+            embed = msg.embeds[0]
+            if embed.footer.text == f"ID: {user.id}" and modal_nimi in embed.title:
+                return True
+    return False
+
+async def kirjaa_modal_kaytto(bot, user: discord.User, modal_nimi: str, lisatieto: Optional[str] = None):
+    log_channel = bot.get_channel(int(os.getenv("MOD_LOG_CHANNEL_ID")))
+    if not log_channel:
+        return
+
+    embed = discord.Embed(
+        title=f"🔐 {modal_nimi} käytetty",
+        description=f"**Käyttäjä:** {user.mention}\n**ID:** {user.id}" +
+                    (f"\n**Lisätieto:** {lisatieto}" if lisatieto else ""),
+        color=discord.Color.orange()
+    )
+    embed.set_footer(text=f"ID: {user.id}")
+    await log_channel.send(embed=embed)
+
 class StreakPalautusModal(discord.ui.Modal, title="Valitse streak palautettavaksi"):
     def __init__(self):
         super().__init__()
@@ -344,6 +370,9 @@ class StreakPalautusModal(discord.ui.Modal, title="Valitse streak palautettavaks
         if data.get("streak", 0) < data.get("max_streak", 0):
             data["streak"] = data["max_streak"]
             save_streaks(streaks)
+
+            if hasattr(self, "kirjaa_kaytto"):
+                self.kirjaa_kaytto(valinta)
 
             embed = discord.Embed(
                 title="♻️ Streak palautettu!",
@@ -456,18 +485,18 @@ def tallenna_ostokset(ostot):
     with open(OSTO_TIEDOSTO, "w", encoding="utf-8") as f:
         json.dump(ostot, f, ensure_ascii=False, indent=2)
 
-async def kysy_kayttajalta(interaction, kysymys):
-    await interaction.followup.send(kysymys)
-    try:
-        vastaus = await bot.wait_for(
-            "message",
-            timeout=60.0,
-            check=lambda m: m.author == interaction.user and m.channel == interaction.channel
-        )
-        return vastaus.content
-    except asyncio.TimeoutError:
-        await interaction.followup.send("Aikakatkaisu. Toiminto peruutettu.")
-        return None
+async def kysy_kayttajalta(self, interaction, kysymys):
+        await interaction.followup.send(kysymys)
+        try:
+            vastaus = await self.bot.wait_for(
+                "message",
+                timeout=60.0,
+                check=lambda m: m.author == interaction.user and m.channel == interaction.channel
+            )
+            return vastaus.content
+        except asyncio.TimeoutError:
+            await interaction.followup.send("⏳ Aikakatkaisu. Toiminto peruutettu.", ephemeral=True)
+            return None
 
 def puhdista_tuotteen_nimi(nimi: str) -> str:
     return nimi.replace(" (Tarjous!)", "").strip().lower()
@@ -500,6 +529,9 @@ class KanavaModal(Modal, title="Luo oma kanava"):
             f"📢 Kanava **{kanava.mention}** luotu ⭐VIP kanavat -kategoriaan ja näkyy sinulle!",
             ephemeral=True
         )
+
+        if hasattr(self, "kirjaa_kaytto"):
+            self.kirjaa_kaytto(self.nimi.value)
 
 async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord.ui.Modal], Optional[str]]:
     lisatieto = ""
@@ -619,11 +651,28 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
         await interaction.followup.send("👑 VIP-rooli myönnetty sinulle!", ephemeral=True)
 
     elif nimi == "streak palautus":
+        valittu_streak = "unknown"
+        if await onko_modal_kaytetty(bot, interaction.user, "Streak palautus"):
+            await interaction.response.send_message("🚫 Olet jo käyttänyt streak-palautuksen.", ephemeral=True)
+            return "", None, None
+
         modal = StreakPalautusModal()
+        modal.kirjaa_kaytto = lambda valinta: asyncio.create_task(
+            kirjaa_modal_kaytto(bot, interaction.user, "Streak palautus", f"Streak: {valinta}")
+        )
+
         return "", modal, "Palauta streak"
 
     elif "kanava" in nimi:
+        if await onko_modal_kaytetty(bot, interaction.user, "Kanava luotu"):
+            await interaction.response.send_message("🚫 Olet jo luonut kanavan tällä toiminnolla.", ephemeral=True)
+            return "", None, None
+
         modal = KanavaModal()
+        modal.kirjaa_kaytto = lambda nimi: asyncio.create_task(
+            kirjaa_modal_kaytto(bot, interaction.user, "Kanava luotu", f"Kanava: {nimi}")
+        )
+
         return "", modal, "Luo kanava"
 
     elif "komento" in nimi:
