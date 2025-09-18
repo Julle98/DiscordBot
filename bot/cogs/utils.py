@@ -516,10 +516,10 @@ class Utils(commands.Cog):
     @app_commands.command(name="heitä", description="Heitä kolikkoa tai arvo numero.")
     @app_commands.describe(
         tyyppi="Valitse heiton tyyppi: numero, väli tai kolikko",
-        min="Pienin arvo (numero/väli)",
-        max="Suurin arvo (numero/väli)",
-        vaihtoehto1="Kolikon ensimmäinen puoli (esim. 'Kruunu')",
-        vaihtoehto2="Kolikon toinen puoli (esim. 'Klaava')"
+        min="Pienin arvo (käytetään 'numero' ja 'väli' -tyypeissä)",
+        max="Suurin arvo (käytetään 'numero' ja 'väli' -tyypeissä)",
+        vaihtoehto1="Ensimmäinen vaihtoehto kolikon heittoon (esim. 'Kruunu')",
+        vaihtoehto2="Toinen vaihtoehto kolikon heittoon (esim. 'Klaava')"
     )
     async def heitä(
         self,
@@ -547,7 +547,9 @@ class Utils(commands.Cog):
         elif tyyppi == "kolikko":
             valinnat = [vaihtoehto1 or "Kruunu", vaihtoehto2 or "Klaava"]
             tulos = random.choice(valinnat)
-            await interaction.response.send_message(f"🪙 Kolikko heitettiin: **{tulos}**")
+            await interaction.response.send_message(
+                f"🪙 Kolikko heitettiin: **{tulos}**\nVaihtoehdot olivat: `{valinnat[0]}` ja `{valinnat[1]}`"
+            )
 
         else:
             await interaction.response.send_message("Tuntematon heittotyyppi.", ephemeral=True)
