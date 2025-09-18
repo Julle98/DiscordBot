@@ -214,12 +214,13 @@ async def update_streak(user: discord.Member, task_type: str):
         "monthly": {}
     })
 
-    data = user_data.setdefault(task_type, {
-        "last_completed": None,
-        "streak": 0,
-        "max_streak": 0,
-        "rewards": []
-    })
+    data = user_data.setdefault(task_type, {})
+    data.setdefault("last_completed", None)
+    data.setdefault("streak", 0)
+    data.setdefault("max_streak", 0)
+    data.setdefault("rewards", [])
+
+    print(f"[DEBUG] Käyttäjä {uid}, {task_type}-data ennen päivitystä: {data}")
 
     last_date = datetime.strptime(data["last_completed"], "%Y-%m-%d").date() if data["last_completed"] else None
     streak = data["streak"]
@@ -249,10 +250,12 @@ async def update_streak(user: discord.Member, task_type: str):
 
     data["last_completed"] = now.isoformat()
     data["streak"] = streak
-    if streak > data.get("max_streak", 0):
-        data["max_streak"] = streak
+    data["max_streak"] = max(data["max_streak"], streak)
 
+    user_data[task_type] = data
+    streaks[uid] = user_data
     save_streaks(streaks)
+    print(f"[INFO] Tallennettu streakit käyttäjälle {uid}, tyyppi: {task_type}, streak: {streak}")
 
     task_channel = user.guild.get_channel(TASK_CHANNEL_ID)
     task_log_channel = bot.get_channel(TASK_LOG_CHANNEL_ID)
@@ -263,44 +266,24 @@ async def update_streak(user: discord.Member, task_type: str):
 
     rewards = data["rewards"]
 
-    if task_type == "daily":
-        if streak == 7 and "7_day" not in rewards:
-            await add_xp(bot, user, 200)
-            give_role(user, 1380234239357882450)
-            rewards.append("7_day")
-            await task_channel.send(f"{user.mention} saavutti **7 päivän** päivittäistehtäväputken! +200 XP ja erikoisrooli! 🎉")
+    async def reward(streak_value, reward_key, xp, role_id, message):
+        if streak == streak_value and reward_key not in rewards:
+            await add_xp(bot, user, xp)
+            give_role(user, role_id)
+            rewards.append(reward_key)
+            await task_channel.send(f"{user.mention} {message}")
 
-        elif streak == 30 and "30_day" not in rewards:
-            await add_xp(bot, user, 900)
-            give_role(user, 1380234364826419220)
-            rewards.append("30_day")
-            await task_channel.send(f"{user.mention} saavutti **30 päivän** päivittäistehtäväputken! +900 XP ja erikoisrooli! 🔥")
+    if task_type == "daily":
+        await reward(7, "7_day", 200, 1380234239357882450, "saavutti **7 päivän** päivittäistehtäväputken! +200 XP ja erikoisrooli! 🎉")
+        await reward(30, "30_day", 900, 1380234364826419220, "saavutti **30 päivän** päivittäistehtäväputken! +900 XP ja erikoisrooli! 🔥")
 
     elif task_type == "weekly":
-        if streak == 4 and "4_week" not in rewards:
-            await add_xp(bot, user, 250)
-            give_role(user, 1380234433533055057)
-            rewards.append("4_week")
-            await task_channel.send(f"{user.mention} suoritti **4 viikkoa putkeen** viikkotehtäviä! +250 XP ja erikoisrooli! 🎉")
-
-        elif streak == 12 and "12_month" not in rewards:
-            await add_xp(bot, user, 3000)
-            give_role(user, 1380234668032659509)
-            rewards.append("12_month")
-            await task_channel.send(f"{user.mention} suoritti **12 kuukautta putkeen** viikkotehtäviä! +3000 XP ja erikoisrooli! 🔥")
+        await reward(4, "4_week", 250, 1380234433533055057, "suoritti **4 viikkoa putkeen** viikkotehtäviä! +250 XP ja erikoisrooli! 🎉")
+        await reward(12, "12_month", 3000, 1380234668032659509, "suoritti **12 kuukautta putkeen** viikkotehtäviä! +3000 XP ja erikoisrooli! 🔥")
 
     elif task_type == "monthly":
-        if streak == 3 and "3_month" not in rewards:
-            await add_xp(bot, user, 500)
-            give_role(user, 1386679979634327663)
-            rewards.append("3_month")
-            await task_channel.send(f"{user.mention} suoritti **3 kuukautta putkeen** kuukausitehtäviä! +500 XP ja erikoisrooli! 🏅")
-
-        elif streak == 6 and "6_month" not in rewards:
-            await add_xp(bot, user, 1200)
-            give_role(user, 1386680073486204999)
-            rewards.append("6_month")
-            await task_channel.send(f"{user.mention} suoritti **6 kuukautta putkeen** kuukausitehtäviä! +1200 XP ja erikoisrooli! 🏆")
+        await reward(3, "3_month", 500, 1386679979634327663, "suoritti **3 kuukautta putkeen** kuukausitehtäviä! +500 XP ja erikoisrooli! 🏅")
+        await reward(6, "6_month", 1200, 1386680073486204999, "suoritti **6 kuukautta putkeen** kuukausitehtäviä! +1200 XP ja erikoisrooli! 🏆")
 
     return was_reset
        
