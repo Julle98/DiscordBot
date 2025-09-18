@@ -16,7 +16,7 @@ async def kirjaa_asetusmuutos_lokiin(bot, user: discord.User, muutokset: dict):
         return
 
     from datetime import datetime
-    nyt = datetime.now().strftime("%d.%m.%Y klo %H:%M")
+    nyt = datetime.now().strftime("%d.%m.%Y")
 
     kuvaus = "\n".join([f"🔧 `{key}` → {'✅ Päällä' if val else '❌ Pois'}" for key, val in muutokset.items()])
     embed = discord.Embed(
@@ -37,11 +37,20 @@ class SettingsView(discord.ui.View):
             discord.SelectOption(label="✅ Kaikki päälle", value="enable_all", description="Aktivoi kaikki XP-asetukset"),
             discord.SelectOption(label="❌ Kaikki pois", value="disable_all", description="Poista kaikki XP-asetukset käytöstä"),
             discord.SelectOption(label="🔄 Palauta oletukset", value="reset_defaults", description="Palauta alkuperäiset XP-asetukset"),
-            discord.SelectOption(label="💬 XP viesteistä", value="xp_viestit", description="Käyttäjä saa XP:tä tekstiviesteistä"),
-            discord.SelectOption(label="🎙️ XP puhekanavalta", value="xp_puhe", description="Käyttäjä saa XP:tä puhekanavalla olemisesta"),
-            discord.SelectOption(label="⚙️ XP komennoista", value="xp_komennot", description="Käyttäjä saa XP:tä komentoja käyttämällä"),
-            discord.SelectOption(label="🕒 XP bonus epäaktiivisuudesta", value="xp_epaaktiivisuus", description="Käyttäjä saa XP-bonusta palatessaan pitkän tauon jälkeen"),
         ]
+
+        for key, label, desc in [
+            ("xp_viestit", "💬 XP viesteistä", "Käyttäjä saa XP:tä tekstiviesteistä"),
+            ("xp_puhe", "🎙️ XP puhekanavalta", "Käyttäjä saa XP:tä puhekanavalla olemisesta"),
+            ("xp_komennot", "⚙️ XP komennoista", "Käyttäjä saa XP:tä komentoja käyttämällä"),
+            ("xp_epaaktiivisuus", "🕒 XP bonus epäaktiivisuudesta", "Käyttäjä saa XP-bonusta palatessaan pitkän tauon jälkeen"),
+        ]:
+            tila = "✅ Päällä" if self.settings.get(key) else "❌ Pois"
+            options.append(discord.SelectOption(
+                label=f"{label} ({tila})",
+                value=key,
+                description=desc
+            ))
 
         self.select = discord.ui.Select(
             placeholder="Valitse XP-asetukset",
@@ -51,30 +60,6 @@ class SettingsView(discord.ui.View):
         )
         self.select.callback = self.select_callback
         self.add_item(self.select)
-
-        for key, label in {
-            "xp_viestit": "XP viesteistä",
-            "xp_puhe": "XP puhekanavalta",
-            "xp_komennot": "XP komennoista",
-            "xp_epaaktiivisuus": "XP bonus epäaktiivisuudesta"
-        }.items():
-            self.add_item(self.ToggleButton(key, label, self.settings[key]))
-
-    class ToggleButton(discord.ui.Button):
-        def __init__(self, key, label, state):
-            style = discord.ButtonStyle.success if state else discord.ButtonStyle.danger
-            text = f"{label}: {'Poista käytöstä' if state else 'Ota käyttöön'}"
-            super().__init__(label=text, style=style)
-            self.key = key
-            self.label_base = label
-            self.state = state
-
-        async def callback(self, interaction: discord.Interaction):
-            self.state = not self.state
-            self.view.settings[self.key] = self.state
-            save_user_settings()
-            msg = f"🔧 {self.label_base} {'otettu käyttöön' if self.state else 'poistettu käytöstä'}."
-            await self.view.update_callback(interaction, self.view.settings, msg)
 
     async def select_callback(self, interaction: discord.Interaction):
         selected = self.select.values
@@ -97,8 +82,9 @@ class SettingsView(discord.ui.View):
                 ephemeral=True
             )
         else:
-            for key in self.settings:
-                self.settings[key] = key in selected
+            for key in selected:
+                if key in self.settings:
+                    self.settings[key] = not self.settings[key]
             save_user_settings()
             await self.update_callback(interaction, self.settings, "✅ Asetukset päivitetty valintasi mukaan.")
 
@@ -177,7 +163,16 @@ class Asetukset(commands.Cog):
             embed.set_footer(text=f"Päivitetty: {now}")
 
             await kirjaa_asetusmuutos_lokiin(bot, inter.user, updated_settings)
-            await inter.message.edit(embed=embed, view=SettingsView(updated_settings, update_embed, default_settings))
+            try:
+                await inter.response.edit_message(
+                    embed=embed,
+                    view=SettingsView(updated_settings, update_embed, default_settings)
+                )
+            except discord.InteractionResponded:
+                await inter.message.edit(
+                    embed=embed,
+                    view=SettingsView(updated_settings, update_embed, default_settings)
+                )
 
         embed = discord.Embed(
             title="⚙️ XP-asetuksesi",

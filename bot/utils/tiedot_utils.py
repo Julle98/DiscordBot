@@ -842,12 +842,26 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                 inline=True
             )
             for i, data in enumerate(osallistumiset[:5]):
-                aika = data["aika"].strftime("%d.%m.%Y %H:%M")
+                aika = data["aika"].strftime("%d.%m.%Y")
                 tyyppi = data["tyyppi"]
                 sisältö = data["sisältö"]
+
+                peukut = ""
+                if "👍" in sisältö:
+                    peukut += "👍"
+                if "👎" in sisältö:
+                    peukut += "👎"
+
+                if tyyppi == "Ruokaäänestys":
+                    viesti = f"🍽️ Näytit {peukut} ruokalistalle {aika}"
+                elif tyyppi == "Arvonta":
+                    viesti = f"🎁 Osallistuit arvontaan {aika}"
+                else:
+                    viesti = f"📌 Osallistuminen {aika}"
+
                 embed.add_field(
                     name=f"📥 {tyyppi} {i+1}",
-                    value=f"{sisältö}\n🕒 {aika}",
+                    value=viesti,
                     inline=False
                 )
         else:
