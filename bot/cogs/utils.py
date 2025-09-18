@@ -515,16 +515,16 @@ class Utils(commands.Cog):
 
     @app_commands.command(name="heitä", description="Heitä kolikkoa tai arvo numero.")
     @app_commands.describe(
-        tyyppi="Valitse heiton tyyppi: numero, väli tai kolikko",
-        min="Pienin arvo (käytetään 'numero' ja 'väli' -tyypeissä)",
-        max="Suurin arvo (käytetään 'numero' ja 'väli' -tyypeissä)",
+        tyyppi="Valitse heiton tyyppi: numero tai kolikko (Vakiona kruunu/klaava)",
+        min="Pienin arvo (numero-heitossa)",
+        max="Suurin arvo (numero-heitossa)",
         vaihtoehto1="Ensimmäinen vaihtoehto kolikon heittoon (esim. 'Kruunu')",
         vaihtoehto2="Toinen vaihtoehto kolikon heittoon (esim. 'Klaava')"
     )
     async def heitä(
         self,
         interaction: discord.Interaction,
-        tyyppi: Literal["numero", "väli", "kolikko"],
+        tyyppi: Literal["numero", "kolikko"],
         min: Optional[int] = None,
         max: Optional[int] = None,
         vaihtoehto1: Optional[str] = None,
@@ -533,7 +533,7 @@ class Utils(commands.Cog):
         await kirjaa_ga_event(self.bot, interaction.user.id, "heitä_komento")
         await kirjaa_komento_lokiin(self.bot, interaction, "/heitä")
 
-        if tyyppi in ["numero", "väli"]:
+        if tyyppi == "numero":
             if min is None or max is None:
                 await interaction.response.send_message("Anna sekä minimi- että maksimiarvo.", ephemeral=True)
                 return
@@ -550,9 +550,6 @@ class Utils(commands.Cog):
             await interaction.response.send_message(
                 f"🪙 Kolikko heitettiin: **{tulos}**\nVaihtoehdot olivat: `{valinnat[0]}` ja `{valinnat[1]}`"
             )
-
-        else:
-            await interaction.response.send_message("Tuntematon heittotyyppi.", ephemeral=True)
 
     @app_commands.command(name="tag", description="Lisää tagin käyttäjän serverinimen perään.")
     @app_commands.describe(tag="Haluttu tagi, 3-6 kirjainta pitkä.")
