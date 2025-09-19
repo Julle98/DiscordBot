@@ -145,8 +145,8 @@ def give_role(user: discord.Member, role_id: int):
     if role:
         asyncio.create_task(user.add_roles(role))
 
-def select_random_task(tasks, last_task):
-    choices = [t for t in tasks if t != last_task]
+def select_random_task(tasks, last_task=None, last_last_task=None):
+    choices = [t for t in tasks if t != last_task and t != last_last_task]
     return random.choice(choices) if choices else random.choice(tasks)
 
 JSON_DIR = Path(os.getenv("JSON_DIR"))
@@ -290,8 +290,13 @@ async def update_streak(user: discord.Member, task_type: str):
 @tasks.loop(time=dtime(0, 0))
 async def rotate_daily_tasks():
     data = load_tasks()
-    selected = select_random_task(DAILY_TASKS, data.get("last_daily"))
+    selected = select_random_task(
+        DAILY_TASKS,
+        data.get("last_daily"),
+        data.get("last_last_daily")
+    )
     data["daily_tasks"] = [selected]
+    data["last_last_daily"] = data.get("last_daily")
     data["last_daily"] = selected
     save_tasks(data)
 
@@ -302,11 +307,16 @@ from datetime import datetime, timezone, time as dtime
 @tasks.loop(time=dtime(0, 0))
 async def rotate_weekly_tasks():
     now = datetime.now(timezone.utc)
-    if now.weekday() != 0:  # 1 = tiistai
+    if now.weekday() != 0:
         return
     data = load_tasks()
-    selected = select_random_task(WEEKLY_TASKS, data.get("last_weekly"))
+    selected = select_random_task(
+        WEEKLY_TASKS,
+        data.get("last_weekly"),
+        data.get("last_last_weekly")
+    )
     data["weekly_tasks"] = [selected]
+    data["last_last_weekly"] = data.get("last_weekly")
     data["last_weekly"] = selected
     save_tasks(data)
 
@@ -316,8 +326,13 @@ async def rotate_monthly_tasks():
     if now.day != 1:
         return
     data = load_tasks()
-    selected = select_random_task(MONTHLY_TASKS, data.get("last_monthly"))
+    selected = select_random_task(
+        MONTHLY_TASKS,
+        data.get("last_monthly"),
+        data.get("last_last_monthly")
+    )
     data["monthly_tasks"] = [selected]
+    data["last_last_monthly"] = data.get("last_monthly")
     data["last_monthly"] = selected
     save_tasks(data)
         
@@ -438,26 +453,25 @@ class TaskListener(discord.ui.View):
 
         elif self.task_name == "Jaa kuva, josta syntyy vitsi tai reaktio":
             if message.channel.id == TASK_CHANNEL_ID and (message.attachments or message.embeds):
-                def response_or_reaction_check(event):
-                    if isinstance(event, discord.Message):
-                        return (
-                            event.reference
-                            and event.reference.message_id == message.id
-                            and event.author.id != self.user.id
-                        )
-                    elif isinstance(event, tuple) and len(event) == 2:
-                        reaction, user = event
-                        return (
-                            reaction.message.id == message.id
-                            and user.id != self.user.id
-                        )
-                    return False
+                
+                def check_message_response(m: discord.Message):
+                    return (
+                        m.reference
+                        and m.reference.message_id == message.id
+                        and m.author.id != self.user.id
+                    )
+
+                def check_reaction_response(reaction: discord.Reaction, user: discord.User):
+                    return (
+                        reaction.message.id == message.id
+                        and user.id != self.user.id
+                    )
 
                 try:
                     done, pending = await asyncio.wait(
                         [
-                            self.bot.wait_for("message", check=response_or_reaction_check),
-                            self.bot.wait_for("reaction_add", check=response_or_reaction_check)
+                            asyncio.create_task(self.bot.wait_for("message", check=check_message_response)),
+                            asyncio.create_task(self.bot.wait_for("reaction_add", check=check_reaction_response))
                         ],
                         timeout=1800,
                         return_when=asyncio.FIRST_COMPLETED
@@ -468,8 +482,8 @@ class TaskListener(discord.ui.View):
 
                     if done:
                         await self.finish_task()
-                except asyncio.TimeoutError:
-                    pass
+                except Exception as e:
+                    print(f"[ERROR] Tehtävän tarkistus epäonnistui: {e}")
 
         elif self.task_name == "Mainitse kanava viestissä":
             if message.channel.id == TASK_CHANNEL_ID and message.channel_mentions:
@@ -707,7 +721,7 @@ TASK_INSTRUCTIONS = {
     "Lähetä emoji": "Lähetä viesti, jossa on vähintään yksi emoji <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
     "Kysy jotain toiselta käyttäjältä": "Lähetä kysymys toiselle käyttäjälle <#1339846062281588777> kanavalla. Mainitse käyttäjä ja käytä kysymysmerkkiä viestissä. Aikaa suoritukseen 30 min.",
     "Lisää reaktio toisen viestiin, jota ei ole vielä reagoitu": "Lisää emoji-reaktio viestiin <#1339846062281588777> kanavalla, jossa ei ollut vielä reaktioita. Aikaa suoritukseen 30 min.",
-    "Jaa kuva, josta syntyy vitsi tai reaktio": "Lähetä kuva <#1339846062281588777> kanavalle, johon joku muu vastaa viestillä tai reagoi emojilla. Aikaa suoritukseen 30 min.",
+    "Jaa kuva, josta syntyy vitsi tai reaktio": "Lähetä kuva <#1339846062281588777> kanavalle, johon joku muu vastaa viestillä (reply) tai reagoi emojilla. Aikaa suoritukseen 30 min.",
     "Mainitse kanava viestissä": "Lähetä viesti <#1339846062281588777> kanavalle, jossa mainitset toisen kanavan (esim. #yleinen). Aikaa suoritukseen 30 min.",
     "Lähetä viesti, jossa on yli 10 sanaa": "Lähetä viesti <#1339846062281588777> kanavalle, jossa on yli 10 sanaa. Aikaa suoritukseen 30 min.",
     "Lähetä viesti, jossa on GIF": "Lähetä GIF-kuva <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
