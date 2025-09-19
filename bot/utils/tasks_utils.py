@@ -261,7 +261,7 @@ async def update_streak(user: discord.Member, task_type: str):
     task_log_channel = bot.get_channel(TASK_LOG_CHANNEL_ID)
     if was_reset and task_log_channel:
         await task_log_channel.send(
-            f"{user.mention}, streakisi nollautui ja alkoi alusta tehtävällä **{task_type}**! Uusi putki käynnissä! 🔄"
+            f"{user.mention}, streak nollautui ja alkoi alusta tehtävällä **{task_type}**! Uusi putki käynnissä! 🔄"
         )
 
     rewards = data["rewards"]
