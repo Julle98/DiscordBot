@@ -247,6 +247,21 @@ async def hae_osallistumisviestit(user: discord.User | discord.Member):
                 "sisältö": msg.content,
                 "aika": msg.created_at
             })
+    
+    async for msg in console_log.history(limit=1000):
+        if any(nimi in msg.content for nimi in [f"🗳️ {user_näyttönimi}", f"🗳️ {user_nimi}", f"🗳️ {user_id}"]):
+            if "äänesti" in msg.content and "reaktiolla" in msg.content:
+                viestit.append({
+                    "tyyppi": "Kyselyäänestys",
+                    "sisältö": msg.content,
+                    "aika": msg.created_at
+                })
+            else:
+                viestit.append({
+                    "tyyppi": "Ruokaäänestys",
+                    "sisältö": msg.content,
+                    "aika": msg.created_at
+                })
 
     return sorted(viestit, key=lambda x: x["aika"], reverse=True)
 
@@ -856,6 +871,14 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                     viesti = f"🍽️ Näytit {peukut} ruokalistalle {aika}"
                 elif tyyppi == "Arvonta":
                     viesti = f"🎁 Osallistuit arvontaan {aika}"
+                elif tyyppi == "Kyselyäänestys":
+                    match = re.search(r"äänesti\s+(.*?)\s+reaktiolla\s+(\S+)", sisältö)
+                    if match:
+                        otsikko = match.group(1)
+                        emoji = match.group(2)
+                        viesti = f"🗳️ Äänestit {emoji} kyselyssä {otsikko} {aika}"
+                    else:
+                        viesti = f"🗳️ Osallistuit kyselyyn {aika}"
                 else:
                     viesti = f"📌 Osallistuminen {aika}"
 
