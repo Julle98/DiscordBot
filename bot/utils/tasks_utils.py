@@ -260,8 +260,10 @@ async def update_streak(user: discord.Member, task_type: str):
     task_channel = user.guild.get_channel(TASK_CHANNEL_ID)
     task_log_channel = bot.get_channel(TASK_LOG_CHANNEL_ID)
     if was_reset and task_log_channel:
+        formatted_last = last_date.strftime("%d.%m.%Y klo %H:%M") if last_date else "ei aiempaa suoritusta"
         await task_log_channel.send(
-            f"{user.mention}, streak nollautui ja alkoi alusta tehtävällä **{task_type}**! Uusi putki käynnissä! 🔄"
+            f"{user.mention}, streak nollautui ja alkoi alusta tehtävällä **{task_type}**! 🔄\n"
+            f"Edellinen suoritus oli **{formatted_last}**."
         )
 
     rewards = data["rewards"]
@@ -285,7 +287,7 @@ async def update_streak(user: discord.Member, task_type: str):
         await reward(3, "3_month", 500, 1386679979634327663, "suoritti **3 kuukautta putkeen** kuukausitehtäviä! +500 XP ja erikoisrooli! 🏅")
         await reward(6, "6_month", 1200, 1386680073486204999, "suoritti **6 kuukautta putkeen** kuukausitehtäviä! +1200 XP ja erikoisrooli! 🏆")
 
-    return was_reset
+    return was_reset, last_date
        
 @tasks.loop(time=dtime(0, 0))
 async def rotate_daily_tasks():
@@ -645,7 +647,7 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
     was_reset = False
     if task_type:
         try:
-            was_reset = await update_streak(user, task_type)
+            was_reset, last_date = await update_streak(user, task_type)
         except Exception as e:
             print(f"[ERROR] Streakin päivitys epäonnistui: {e}")
 
@@ -665,9 +667,13 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
     if channel:
         try:
             if was_reset:
+                formatted_last_completed = (
+                    last_date.strftime("%d.%m.%Y klo %H:%M") if last_date else "ei aiempaa suoritusta"
+                )
                 await channel.send(
-                    f"{user.mention} aloitti uuden {task_label} tehtäväputken tehtävällä **{task_name}**! \n"
-                    f"+{xp_amount} XP myönnetty ja streak alkoi lukemasta **1**! 🚀"
+                    f"{user.mention} aloitti uuden {task_label} tehtäväputken tehtävällä **{task_name}**! 🚀\n"
+                    f"+{xp_amount} XP myönnetty ja streak alkoi lukemasta **1**!\n"
+                    f"Edellinen suoritus oli **{formatted_last_completed}**."
                 )
             else:
                 await channel.send(
