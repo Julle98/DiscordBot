@@ -11,7 +11,6 @@ class Moderation_roles(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # SET ROLE
     @app_commands.command(name="set_role", description="Lisää roolin käyttäjälle.")
     @app_commands.checks.has_role("Mestari")
     async def set_role(self, interaction: discord.Interaction, käyttäjä: discord.Member, rooli: discord.Role):
@@ -22,7 +21,6 @@ class Moderation_roles(commands.Cog):
             f"Rooli **{rooli.name}** lisätty käyttäjälle {käyttäjä.mention}.✅", ephemeral=True
         )
 
-    # REMOVE ROLE
     @app_commands.command(name="remove_role", description="Poistaa roolin käyttäjältä.")
     @app_commands.checks.has_role("Mestari")
     async def remove_role(self, interaction: discord.Interaction, käyttäjä: discord.Member, rooli: discord.Role):
@@ -33,7 +31,6 @@ class Moderation_roles(commands.Cog):
             f"Rooli **{rooli.name}** poistettu käyttäjältä {käyttäjä.mention}. 🗑️", ephemeral=True
         )
 
-    # VAIHDA NIMIMERKKI
     @app_commands.command(name="vaihda_nimimerkki", description="Vaihda jäsenen nimimerkki palvelimella.")
     @app_commands.checks.has_permissions(manage_nicknames=True)
     @app_commands.checks.has_role("Mestari")
@@ -48,7 +45,6 @@ class Moderation_roles(commands.Cog):
         except Exception as e:
             await interaction.response.send_message(f"Virhe: {e}", ephemeral=True)
 
-    # VAIHDA ROOLI
     @app_commands.command(name="vaihda_rooli", description="Vaihda jäseneltä rooli toiseen.")
     @app_commands.checks.has_role("Mestari")
     async def vaihda_rooli(self, interaction: discord.Interaction, käyttäjä: discord.Member, vanha_rooli: discord.Role, uusi_rooli: discord.Role):

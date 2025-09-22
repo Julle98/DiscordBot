@@ -35,7 +35,6 @@ class Moderation_channels(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-     # ILMOITUS
     @app_commands.command(name="ilmoitus", description="Luo ilmoitus botin nimissä ja lähetä se valittuun kanavaan.")
     @app_commands.checks.has_role("Mestari")
     @app_commands.checks.has_permissions(manage_channels=True)
@@ -48,7 +47,6 @@ class Moderation_channels(commands.Cog):
         except Exception as e:
             print(f"Task creation failed: {e}")
 
-    # LUKITSE
     @app_commands.command(name="lukitse", description="Lukitsee kanavan kaikilta.")
     @app_commands.checks.has_role("Mestari")
     async def lukitse(self, interaction: discord.Interaction, kanava: discord.TextChannel):
@@ -58,7 +56,6 @@ class Moderation_channels(commands.Cog):
         await kanava.set_permissions(interaction.user, send_messages=True)
         await interaction.response.send_message(f"Kanava {kanava.mention} on lukittu onnistuneesti!", ephemeral=True)
 
-    # REAGOI
     @app_commands.command(name="reagoi", description="Reagoi viestiin, joka sisältää tietyn tekstin.")
     @app_commands.describe(hakusana="Osa viestistä", emoji="Emoji, jolla reagoidaan")
     @app_commands.checks.has_role("Mestari")

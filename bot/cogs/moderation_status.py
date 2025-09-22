@@ -43,7 +43,6 @@ class Moderation_status(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
     
-    # HUOLTO
     @app_commands.command(name="huolto", description="Aseta botti huoltotilaan.")
     @app_commands.checks.has_role("Mestari")
     async def huolto(self, interaction: discord.Interaction):
@@ -54,7 +53,6 @@ class Moderation_status(commands.Cog):
             view=HuoltoView(), ephemeral=True
         )
 
-    # SAMMUTUS
     @app_commands.command(name="sammutus", description="Sammuta botti.")
     @app_commands.checks.has_role("Mestari")
     async def sammutus(self, interaction: discord.Interaction):
@@ -80,7 +78,6 @@ class Moderation_status(commands.Cog):
 
         await self.bot.close()
 
-    # UUDELLEENKÄYNNISTYS
     @app_commands.command(name="uudelleenkäynnistys", description="Käynnistä botti uudelleen.")
     @app_commands.checks.has_role("Mestari")
     async def uudelleenkaynnistys(self, interaction: discord.Interaction):

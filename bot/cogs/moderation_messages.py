@@ -175,7 +175,6 @@ class Moderation_messages(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # TOIMINTA
     @app_commands.command(name="toiminta", description="Näytä aktiivisin kanava per jäsen")
     @app_commands.describe(jäsen="Valitse jäsen")
     @app_commands.checks.has_role("Mestari")
@@ -221,7 +220,6 @@ class Moderation_messages(commands.Cog):
             ephemeral=True
         )
 
-    # VIESTIT
     @app_commands.command(name="viestit", description="Näytä palvelimen koko viestimäärät")
     @app_commands.checks.has_role("Mestari")
     async def viestit(self, interaction: discord.Interaction):
@@ -247,7 +245,6 @@ class Moderation_messages(commands.Cog):
         vastaus = "\n".join(f"{i+1}. {k.display_name} – {m} viestiä" for i, (k, m) in enumerate(top))
         await interaction.followup.send("**Top 5 aktiivisinta käyttäjää:**\n" + vastaus)
 
-    # CLEAR
     @app_commands.command(name="clear", description="Poista viestejä valitusta kanavasta.")
     @app_commands.checks.has_role("Mestari")
     async def clear(self, interaction: discord.Interaction):
@@ -275,7 +272,6 @@ class Moderation_messages(commands.Cog):
             ephemeral=True
         )
 
-    # AKTIIVISIMMAT
     @app_commands.command(name="aktiivisimmat", description="Näytä aktiivisimmat käyttäjät tai aloita viestiseuranta.")
     @app_commands.describe(
         paiva="Muoto YYYY-MM-DD. Tyhjä = nykyhetki",
