@@ -223,45 +223,46 @@ async def hae_osallistumisviestit(user: discord.User | discord.Member):
     user_id = str(user.id)
     user_nimi = user.name
     user_näyttönimi = user.display_name
+    viestit = []
 
     console_log = bot.get_channel(int(os.getenv("CONSOLE_LOG")))
     mod_log = bot.get_channel(MOD_LOG_CHANNEL_ID)
-    viestit = []
 
     if not isinstance(console_log, discord.TextChannel) or not isinstance(mod_log, discord.TextChannel):
         print("❌ Kanavaa ei löytynyt tai se ei ole tekstikanava.")
         return []
 
+    nimet = [user_näyttönimi, user_nimi, user_id]
+
     async for msg in console_log.history(limit=1000):
-        if any(nimi in msg.content for nimi in [f"🗳️ {user_näyttönimi}", f"🗳️ {user_nimi}", f"🗳️ {user_id}"]):
+        content = msg.content
+        if "äänesti" in content and "reaktiolla" in content and any(nimi in content for nimi in nimet):
+            viestit.append({
+                "tyyppi": "Kyselyäänestys",
+                "sisältö": content,
+                "aika": msg.created_at
+            })
+        elif "äänesti" in content and "ruokalistalle" in content and any(nimi in content for nimi in nimet):
             viestit.append({
                 "tyyppi": "Ruokaäänestys",
-                "sisältö": msg.content,
+                "sisältö": content,
                 "aika": msg.created_at
             })
 
     async for msg in mod_log.history(limit=1000):
-        if "📥 Arvontaan osallistuminen" in msg.content and f"({user_id})" in msg.content:
+        content = msg.content
+        if "📥 Arvontaan osallistuminen" in content and any(nimi in content for nimi in nimet):
             viestit.append({
                 "tyyppi": "Arvonta",
-                "sisältö": msg.content,
+                "sisältö": content,
                 "aika": msg.created_at
             })
-    
-    async for msg in console_log.history(limit=1000):
-        if any(nimi in msg.content for nimi in [f"🗳️ {user_näyttönimi}", f"🗳️ {user_nimi}", f"🗳️ {user_id}"]):
-            if "äänesti" in msg.content and "reaktiolla" in msg.content:
-                viestit.append({
-                    "tyyppi": "Kyselyäänestys",
-                    "sisältö": msg.content,
-                    "aika": msg.created_at
-                })
-            else:
-                viestit.append({
-                    "tyyppi": "Ruokaäänestys",
-                    "sisältö": msg.content,
-                    "aika": msg.created_at
-                })
+        elif "🏆 Arvonnan voittaja" in content and any(nimi in content for nimi in nimet):
+            viestit.append({
+                "tyyppi": "Arvontavoitto",
+                "sisältö": content,
+                "aika": msg.created_at
+            })
 
     return sorted(viestit, key=lambda x: x["aika"], reverse=True)
 
@@ -856,6 +857,7 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                 value=f"{len(osallistumiset)} kpl",
                 inline=True
             )
+
             for i, data in enumerate(osallistumiset[:5]):
                 aika = data["aika"].strftime("%d.%m.%Y")
                 tyyppi = data["tyyppi"]
@@ -868,17 +870,30 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                     peukut += "👎"
 
                 if tyyppi == "Ruokaäänestys":
-                    viesti = f"🍽️ Näytit {peukut} ruokalistalle {aika}"
+                    match = re.search(r"äänesti\s+(\S+)\s+ruokalistalle", sisältö)
+                    if match:
+                        emoji = match.group(1)
+                        viesti = f"🍽️ Näytit {emoji} ruokalistalle {aika}"
+                    else:
+                        viesti = f"🍽️ Osallistuit ruokaäänestykseen {aika}"
+
                 elif tyyppi == "Arvonta":
                     viesti = f"🎁 Osallistuit arvontaan {aika}"
+
                 elif tyyppi == "Kyselyäänestys":
                     match = re.search(r"äänesti\s+(.*?)\s+reaktiolla\s+(\S+)", sisältö)
                     if match:
                         otsikko = match.group(1)
                         emoji = match.group(2)
-                        viesti = f"🗳️ Äänestit {emoji} kyselyssä {otsikko} {aika}"
+                        viesti = f"🗳️ Äänestit {emoji} kyselyssä '{otsikko}' {aika}"
                     else:
                         viesti = f"🗳️ Osallistuit kyselyyn {aika}"
+
+                elif tyyppi == "Arvontavoitto":
+                    match = re.search(r"🎁 Palkinto:\s+(.*?)\n", sisältö)
+                    palkinto = match.group(1) if match else "Tuntematon palkinto"
+                    viesti = f"🏆 Voitit arvonnassa – palkinto: {palkinto} ({aika})"
+
                 else:
                     viesti = f"📌 Osallistuminen {aika}"
 
