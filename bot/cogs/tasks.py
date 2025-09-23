@@ -37,87 +37,21 @@ class Tasks(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="tehtävät", description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä.")
+    @app_commands.command(
+    name="tehtävät", 
+    description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä."
+    )
     @app_commands.checks.has_role("24G")
     async def tehtavat(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/tehtävät")
         await kirjaa_ga_event(self.bot, interaction.user.id, "tehtävät_komento")
+
         data = await asyncio.to_thread(load_tasks)
         daily = data.get("daily_tasks", [])
         weekly = data.get("weekly_tasks", [])
         monthly = data.get("monthly_tasks", [])
         done = await load_user_tasks()
         user_done = done.get(str(interaction.user.id), [])
-
-        class TaskButton(discord.ui.Button):
-            def __init__(self, task_name, user_done, user):
-                is_done = onko_tehtava_suoritettu_ajankohtaisesti(task_name, user_done)
-                style = discord.ButtonStyle.secondary if is_done else discord.ButtonStyle.primary
-
-                if task_name in DAILY_TASKS:
-                    task_type = "📅 Päivittäinen"
-                elif task_name in WEEKLY_TASKS:
-                    task_type = "📆 Viikoittainen"
-                elif task_name in MONTHLY_TASKS:
-                    task_type = "🗓️ Kuukausittainen"
-                else:
-                    task_type = "Tehtävä"
-
-                label = f"{task_type}" + (" ✅" if is_done else "")
-                super().__init__(label=label, style=style, disabled=is_done)
-
-                self.task_name = task_name
-                self.task_type = task_type
-                self.user_done = user_done
-                self.user = user  
-
-            async def callback(self, interaction: discord.Interaction):
-                if interaction.user != self.user:
-                    await interaction.response.send_message("Et voi painaa toisen käyttäjän nappia!", ephemeral=True)
-                    return
-
-                if onko_tehtava_suoritettu_ajankohtaisesti(self.task_name, self.user_done):
-                    await interaction.response.send_message(
-                        f"Olet jo suorittanut tehtävän **{self.task_name}**. Odota seuraavaa tehtävää!",
-                        ephemeral=True
-                    )
-                    return
-
-                uid = str(interaction.user.id)
-                if uid in active_listeners:
-                    view = TaskControlView(interaction.user, self.task_name)
-                    await interaction.response.send_message(
-                        f"🔄 Tehtävä **{self.task_name}** on jo käynnissä.\n"
-                        "Voit perua tehtävän tai ilmoittaa virheestä alla olevilla painikkeilla.",
-                        view=view,
-                        ephemeral=True
-                    )
-
-                    log_channel = bot.get_channel(TASK_LOG_CHANNEL_ID)
-                    if log_channel:
-                        await log_channel.send(
-                            f"🔁 {interaction.user.mention} yritti käynnistää jo aktiivisen tehtävän: **{self.task_name}**"
-                        )
-                    return
-
-                instruction = TASK_INSTRUCTIONS.get(self.task_name, "Seuraa ohjeita ja suorita tehtävä.")
-                view = StartTaskView(interaction.user, self.task_name, self.task_type)
-                await interaction.response.send_message(
-                    f"**{self.task_type} tehtävä:** {self.task_name}\n📘 **Ohjeet:** {instruction}",
-                    view=view,
-                    ephemeral=True
-                )
-
-        class TaskButtons(discord.ui.View):
-            def __init__(self, user, daily, weekly, monthly, user_done):
-                super().__init__(timeout=300)
-                self.user = user
-                for task in daily:
-                    self.add_item(TaskButton(task, user_done, user))
-                for task in weekly:
-                    self.add_item(TaskButton(task, user_done, user))
-                for task in monthly:
-                    self.add_item(TaskButton(task, user_done, user))
 
         def seuraava_palkinto(streak, rewards, tyyppi):
             for raja in REWARD_THRESHOLDS.get(tyyppi, []):
@@ -127,32 +61,39 @@ class Tasks(commands.Cog):
             return 0
 
         class TaskMenuDropdown(discord.ui.Select):
-            def __init__(self, user, user_done, task_buttons, parent_view):
+            def __init__(self, user, daily, weekly, monthly, user_done):
                 self.user = user
                 self.user_done = user_done
-                self.task_buttons = task_buttons
-                self.parent_view = parent_view
-                options = [
-                    discord.SelectOption(label="Tehtävävalikko", description="Avaa tehtävien napit", value="menu"),
-                    discord.SelectOption(label="Stats", description="Näytä omat tilastot", value="stats"),
-                ]
-                super().__init__(placeholder="Valitse toiminto...", options=options)
+                options = []
+
+                def add_tasks(tasks, tyyppi_emoji, tyyppi_nimi):
+                    for task in tasks:
+                        is_done = onko_tehtava_suoritettu_ajankohtaisesti(task, user_done)
+                        emoji = "✅ " if is_done else ""
+                        label = f"{emoji}{tyyppi_emoji} {tyyppi_nimi}"
+                        description = f"Suorita {tyyppi_nimi.lower()} tehtävä {task}"
+                        options.append(discord.SelectOption(label=label, description=description, value=task))
+
+                add_tasks(daily, "📅", "Päivittäinen")
+                add_tasks(weekly, "📆", "Viikoittainen")
+                add_tasks(monthly, "🗓️", "Kuukausittainen")
+
+                options.append(discord.SelectOption(
+                    label="📊 Näytä tilastot",
+                    description="Katso omat suoritus- ja streak-tilastot",
+                    value="stats"
+                ))
+
+                super().__init__(placeholder="Valitse toiminto...", options=options, min_values=1, max_values=1)
 
             async def callback(self, interaction: discord.Interaction):
                 if interaction.user != self.user:
                     await interaction.response.send_message("Et voi käyttää toisen valikkoa!", ephemeral=True)
                     return
-                if self.values[0] == "menu":
-                    uusi_nakyma = discord.ui.View(timeout=300)
-                    for item in self.parent_view.task_buttons.children:
-                        uusi_nakyma.add_item(item)
-                    uusi_nakyma.add_item(TaskMenuDropdown(self.user, self.user_done, self.parent_view.task_buttons, self.parent_view))
-                    await interaction.response.edit_message(
-                        content=self.parent_view.task_list,
-                        embed=None,
-                        view=uusi_nakyma
-                    )
-                elif self.values[0] == "stats":
+
+                chosen_value = self.values[0]
+
+                if chosen_value == "stats":
                     uid = str(self.user.id)
                     streaks = load_streaks()
                     total_tasks = len(self.user_done)
@@ -178,7 +119,6 @@ class Tasks(commands.Cog):
                         ),
                         inline=False
                     )
-
                     embed.add_field(
                         name="📆 Viikoittainen streak",
                         value=(
@@ -188,7 +128,6 @@ class Tasks(commands.Cog):
                         ),
                         inline=False
                     )
-
                     embed.add_field(
                         name="🗓️ Kuukausittainen streak",
                         value=(
@@ -198,18 +137,29 @@ class Tasks(commands.Cog):
                         ),
                         inline=False
                     )
-                   
-                    embed.set_footer(text="Pidä streak hengissä – tehtäväpäivitys päivittyy realiajassa.")
-                    await interaction.response.edit_message(content=None, embed=embed, view=self.view)
+                    embed.set_footer(text="Pidä streak hengissä – tehtäväpäivitys päivittyy reaaliajassa.")
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
+                    return
 
+                if onko_tehtava_suoritettu_ajankohtaisesti(chosen_value, self.user_done):
+                    await interaction.response.send_message(f"Olet jo suorittanut tehtävän ✅ **{chosen_value}**", ephemeral=True)
+                    return
+
+                instruction = TASK_INSTRUCTIONS.get(chosen_value, "Seuraa ohjeita ja suorita tehtävä.")
+                view = StartTaskView(interaction.user, chosen_value, "Tehtävä")
+                await interaction.response.send_message(
+                    f"**Tehtävä:** {chosen_value}\n📘 **Ohjeet:** {instruction}",
+                    view=view,
+                    ephemeral=True
+                )
+        
         class TaskSelectorView(discord.ui.View):
             def __init__(self, user, daily, weekly, monthly, user_done, task_list):
                 super().__init__(timeout=300)
                 self.user = user
                 self.user_done = user_done
-                self.task_buttons = TaskButtons(user, daily, weekly, monthly, user_done)
-                self.task_list = task_list  
-                self.add_item(TaskMenuDropdown(user, user_done, self.task_buttons, self))
+                self.task_list = task_list
+                self.add_item(TaskMenuDropdown(user, daily, weekly, monthly, user_done))
 
         now = datetime.now()
         end_of_day = now.replace(hour=23, minute=59).strftime("%d.%m.%Y klo %H:%M")
