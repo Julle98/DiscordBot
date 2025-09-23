@@ -17,6 +17,7 @@ CONSOLE_LOG = int(os.getenv("CONSOLE_LOG", 0))
 class BackupCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.backup_loop.start()
 
     def cog_unload(self):
         self.backup_loop.cancel()
@@ -38,6 +39,14 @@ class BackupCog(commands.Cog):
 
         return dirs
 
+    def format_path(self, path: Path):
+        parts = path.parts
+        try:
+            index = parts.index("DiscordBot-main")
+            return Path(*parts[index:])
+        except ValueError:
+            return path
+
     def backup_json_files(self):
         backup = Path(BACKUP_DIR)
         if not backup.exists():
@@ -47,11 +56,13 @@ class BackupCog(commands.Cog):
         for source in self.get_all_source_dirs():
             for file in source.glob("*.json"):
                 backup_file = backup / file.name
+                display_path = self.format_path(file)
                 if not backup_file.exists() or file.stat().st_mtime > backup_file.stat().st_mtime:
                     shutil.copy2(file, backup_file)
-                    messages.append(f"📁 Kopioitu: `{file.name}` ({source})")
+                    messages.append(f"📁 Kopioitu: `{file.name}` ({display_path.parent})")
                 else:
-                    messages.append(f"⏩ Ohitettu: `{file.name}` ({source})")
+                    messages.append(f"⏩ Ohitettu: `{file.name}` ({display_path.parent})")
+
         if not messages:
             messages.append("ℹ️ Ei JSON-tiedostoja varmuuskopioitavaksi.")
         return messages
