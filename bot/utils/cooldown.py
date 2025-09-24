@@ -10,6 +10,7 @@ NOPEA_COOLDOWN = 5
 NOPEA_ROOLIT = ["VIP", "Mestari", "Moderaattori", "Admin", "Sannamaija tester"]
 MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID", 0))
 
+# Not in use currently
 def cooldown(komento_nimi: str):
     def decorator(func):
         @wraps(func)
