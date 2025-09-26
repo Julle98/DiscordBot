@@ -257,7 +257,7 @@ async def update_streak(user: discord.Member, task_type: str):
     task_channel = user.guild.get_channel(TASK_CHANNEL_ID)
     task_log_channel = bot.get_channel(TASK_LOG_CHANNEL_ID)
     if was_reset and task_log_channel:
-        formatted_last = last_date.strftime("%d.%m.%Y klo %H:%M") if last_date else "ei aiempaa suoritusta"
+        formatted_last = last_date.strftime("%d.%m.%Y") if last_date else "ei aiempaa suoritusta"
         await task_log_channel.send(
             f"{user.mention}, streak nollautui ja alkoi alusta tehtävällä **{task_type}**! 🔄\n"
             f"Edellinen suoritus oli **{formatted_last}**."
