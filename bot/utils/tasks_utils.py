@@ -220,8 +220,6 @@ async def update_streak(user: discord.Member, task_type: str):
     data.setdefault("max_streak", 0)
     data.setdefault("rewards", [])
 
-    print(f"[DEBUG] Käyttäjä {uid}, {task_type}-data ennen päivitystä: {data}")
-
     last_date = datetime.strptime(data["last_completed"], "%Y-%m-%d").date() if data["last_completed"] else None
     streak = data["streak"]
     was_reset = False
@@ -255,7 +253,6 @@ async def update_streak(user: discord.Member, task_type: str):
     user_data[task_type] = data
     streaks[uid] = user_data
     save_streaks(streaks)
-    print(f"[INFO] Tallennettu streakit käyttäjälle {uid}, tyyppi: {task_type}, streak: {streak}")
 
     task_channel = user.guild.get_channel(TASK_CHANNEL_ID)
     task_log_channel = bot.get_channel(TASK_LOG_CHANNEL_ID)
@@ -616,7 +613,6 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
     user_task_list = user_tasks.get(uid, [])
 
     if onko_tehtava_suoritettu_ajankohtaisesti(task_name, user_task_list):
-        print(f"[INFO] Käyttäjä {user} on jo suorittanut tehtävän '{task_name}'.")
         channel = bot.get_channel(TASK_CHANNEL_ID)
         if channel:
             if task_name in DAILY_TASKS:
@@ -701,7 +697,6 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
 
     if active_listeners.get(uid):
         active_listeners.pop(uid, None)
-        print(f"[INFO] Poistettiin käyttäjä {uid} aktiivisista tehtävistä (complete_task).")
                  
 TASK_INSTRUCTIONS = {
     "Lähetä viesti tiettyyn aikaan": "Lähetä viesti <#1339846062281588777> kanavalle klo 10–17 UTC+2 välisenä aikana. Aikaa suoritukseen 30 min.",

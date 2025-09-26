@@ -8,7 +8,8 @@ import os
 import calendar
 import re
 from typing import Optional
-
+from datetime import timedelta
+    
 from bot.utils.ruokailuvuorot_utils import parse_schedule
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.error_handler import CommandErrorHandler
@@ -90,6 +91,15 @@ def puhdista_nimi(nimi):
 def hae_merkinnät(nimi):
     osumat = re.findall(r"\(([^)]+)\)", nimi)
     return ", ".join(osumat) if osumat else ""
+
+def vanha_meunu_yliviivaus(menu_date: str, current_time: datetime, delay_hours: int = 12) -> bool:
+    try:
+        menu_datetime = datetime.strptime(menu_date, "%Y-%m-%d")
+        strike_time = menu_datetime + timedelta(hours=delay_hours)
+        return current_time >= strike_time
+    except Exception as e:
+        print(f"[DEBUG] Virhe yliviivauslogiikassa: {e}")
+        return False
 
 async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", kasvisvaihtoehto=False, merkinnät=False, milloin_viimeksi=False, näytä_äänet=False):
     try:
@@ -173,12 +183,19 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
                             )[-1]
                             viimeisin_dt = datetime.strptime(viimeisin_pvm, "%Y-%m-%d")
                             erotus = (datetime.now().date() - viimeisin_dt.date()).days
-                            nimi += f"\n> _Viimeksi tarjolla: {viimeisin_dt.strftime('%d.%m.%Y')} – {erotus} päivää sitten_"
-                        except:
+
+                            if vanha_meunu_yliviivaus(viimeisin_pvm, datetime.now()):
+                                nimi += f"\n> ~~Viimeksi tarjolla: {viimeisin_dt.strftime('%d.%m.%Y')} – {erotus} päivää sitten~~"
+                                print(f"[DEBUG] Yliviivattu tarjoilupäivä: {viimeisin_pvm}")
+                            else:
+                                nimi += f"\n> _Viimeksi tarjolla: {viimeisin_dt.strftime('%d.%m.%Y')} – {erotus} päivää sitten_"
+                                print(f"[DEBUG] Näytetään tarjoilupäivä normaalisti: {viimeisin_pvm}")
+                        except Exception as e:
                             nimi += "\n> _(Viimeisin tarjoilupäivä ei saatavilla)_"
+                            print(f"[DEBUG] Ei tarjoilupäivää: {e}")
 
                     ateriat.append(nimi)
-
+    
             if ateriat:
                 sisältö = "\n".join(ateriat)
                 embed.add_field(name=otsikko, value=sisältö, inline=False)
