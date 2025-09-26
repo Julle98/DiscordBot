@@ -858,50 +858,60 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                 inline=True
             )
 
-            for i, data in enumerate(osallistumiset[:5]):
-                aika = data["aika"].strftime("%d.%m.%Y")
+            ryhmitelty = {
+                "Ruokaäänestys": [],
+                "Kyselyäänestys": [],
+                "Arvonta": [],
+                "Arvontavoitto": []
+            }
+
+            for data in osallistumiset:
                 tyyppi = data["tyyppi"]
-                sisältö = data["sisältö"]
+                if tyyppi in ryhmitelty:
+                    ryhmitelty[tyyppi].append(data)
 
-                peukut = ""
-                if "👍" in sisältö:
-                    peukut += "👍"
-                if "👎" in sisältö:
-                    peukut += "👎"
-
-                if tyyppi == "Ruokaäänestys":
-                    match = re.search(r"äänesti\s+(\S+)\s+ruokalistalle", sisältö)
-                    if match:
-                        emoji = match.group(1)
-                        viesti = f"🍽️ Näytit {emoji} ruokalistalle {aika}"
-                    else:
-                        viesti = f"🍽️ Osallistuit ruokaäänestykseen {aika}"
-
-                elif tyyppi == "Arvonta":
-                    viesti = f"🎁 Osallistuit arvontaan {aika}"
-
-                elif tyyppi == "Kyselyäänestys":
-                    match = re.search(r"äänesti\s+(.*?)\s+reaktiolla\s+(\S+)", sisältö)
-                    if match:
-                        otsikko = match.group(1)
-                        emoji = match.group(2)
-                        viesti = f"🗳️ Äänestit {emoji} kyselyssä '{otsikko}' {aika}"
-                    else:
-                        viesti = f"🗳️ Osallistuit kyselyyn {aika}"
-
-                elif tyyppi == "Arvontavoitto":
-                    match = re.search(r"🎁 Palkinto:\s+(.*?)\n", sisältö)
-                    palkinto = match.group(1) if match else "Tuntematon palkinto"
-                    viesti = f"🏆 Voitit arvonnassa – palkinto: {palkinto} ({aika})"
-
-                else:
-                    viesti = f"📌 Osallistuminen {aika}"
+            for tyyppi, lista in ryhmitelty.items():
+                määrä = len(lista)
+                if määrä == 0:
+                    continue  
 
                 embed.add_field(
-                    name=f"📥 {tyyppi} {i+1}",
-                    value=viesti,
+                    name=f"📥 {tyyppi} ({määrä} osallistumista, viimeiset 3)",
+                    value=f"Näytetään viimeiset {min(3, määrä)} osallistumista.",
                     inline=False
                 )
+
+                for i, data in enumerate(lista[-3:]):  
+                    aika = data["aika"].strftime("%d.%m.%Y")
+                    sisältö = data["sisältö"]
+
+                    if tyyppi == "Ruokaäänestys":
+                        match = re.search(r"äänesti\s+(\S+)\s+ruokalistalle", sisältö)
+                        emoji = match.group(1) if match else ""
+                        viesti = f"🍽️ Näytit {emoji} ruokalistalle {aika}" if emoji else f"🍽️ Osallistuit ruokaäänestykseen {aika}"
+
+                    elif tyyppi == "Kyselyäänestys":
+                        match = re.search(r"äänesti\s+(.*?)\s+reaktiolla\s+(\S+)", sisältö)
+                        if match:
+                            otsikko = match.group(1)
+                            emoji = match.group(2)
+                            viesti = f"🗳️ Äänestit {emoji} kyselyssä '{otsikko}' {aika}"
+                        else:
+                            viesti = f"🗳️ Osallistuit kyselyyn {aika}"
+
+                    elif tyyppi == "Arvonta":
+                        viesti = f"🎁 Osallistuit arvontaan {aika}"
+
+                    elif tyyppi == "Arvontavoitto":
+                        match = re.search(r"🎁 Palkinto:\s+(.*?)\n", sisältö)
+                        palkinto = match.group(1) if match else "Tuntematon palkinto"
+                        viesti = f"🏆 Voitit arvonnassa – palkinto: {palkinto} ({aika})"
+
+                    embed.add_field(
+                        name=f"{tyyppi} {i+1}",
+                        value=viesti,
+                        inline=False
+                    )
         else:
             embed.add_field(
                 name="📥 Osallistumiset",
