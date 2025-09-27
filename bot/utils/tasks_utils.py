@@ -377,36 +377,52 @@ class TaskListener(discord.ui.View):
         if self.task_name == "Lähetä viesti tiettyyn aikaan":
             if dtime(10, 0) <= now <= dtime(17, 0) and message.channel.id == TASK_CHANNEL_ID:
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)    
 
         elif self.task_name == "Käy yleinen kanavalla lähettämässä viesti":
             if message.channel.id == TASK_CHANNEL_ID and (
                 message.content or message.attachments or message.embeds or message.stickers
             ):
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Mainitse toinen käyttäjä":
             if message.mentions and message.channel.id == TASK_CHANNEL_ID:
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name in ["Lähetä kuva tai liite", "Lähetä tiedosto"]:
             if (message.attachments or message.embeds) and message.channel.id == TASK_CHANNEL_ID:
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä meemi":
             if (message.attachments or message.embeds) and message.channel.id == MEME_CHANNEL_ID:
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä viesti viikonloppuna":
             if message.channel.id == TASK_CHANNEL_ID and weekday in [5, 6]:
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä viesti arkipäivänä":
             if message.channel.id == TASK_CHANNEL_ID and weekday in range(0, 5):
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Tee kysely":
             if message.channel.id == TASK_CHANNEL_ID and len(message.reactions) >= 2:
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Aloita keskustelu":
             def check_response(m):
@@ -415,6 +431,8 @@ class TaskListener(discord.ui.View):
                 response = await self.bot.wait_for("message", timeout=300, check=check_response)
                 if response:
                     await self.finish_task()
+                else:
+                    await self.virheellinen_suoritus(message)
             except asyncio.TimeoutError:
                 pass
 
@@ -425,21 +443,29 @@ class TaskListener(discord.ui.View):
                 reaction, user = await self.bot.wait_for("reaction_add", timeout=300, check=check_reaction)
                 if reaction:
                     await self.finish_task()
+                else:
+                    await self.virheellinen_suoritus(message)
             except asyncio.TimeoutError:
                 pass
         
         elif self.task_name == "Lisää tarra viestiin":
             if message.channel.id == TASK_CHANNEL_ID and message.stickers:
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä viesti, jossa on kysymys":
             if message.channel.id == TASK_CHANNEL_ID and "?" in message.content:
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Kerro viikonpäivä":
             weekdays = ["maanantai", "tiistai", "keskiviikko", "torstai", "perjantai", "lauantai", "sunnuntai"]
             if message.channel.id == TASK_CHANNEL_ID and any(day in message.content.lower() for day in weekdays):
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Kysy jotain toiselta käyttäjältä":
             if (
@@ -449,6 +475,8 @@ class TaskListener(discord.ui.View):
                 and message.author.id == self.user.id
             ):
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Jaa kuva, josta syntyy vitsi tai reaktio":
             if message.channel.id == TASK_CHANNEL_ID and (message.attachments or message.embeds):
@@ -483,26 +511,38 @@ class TaskListener(discord.ui.View):
                         await self.finish_task()
                 except Exception as e:
                     print(f"[ERROR] Tehtävän tarkistus epäonnistui: {e}")
+            else:
+                await self.virheellinen_suoritus(message)        
 
         elif self.task_name == "Mainitse kanava viestissä":
             if message.channel.id == TASK_CHANNEL_ID and message.channel_mentions:
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä viesti, jossa on yli 10 sanaa":
             if message.channel.id == TASK_CHANNEL_ID and len(message.content.split()) > 10:
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä Tenor-linkki":
             if message.channel.id == TASK_CHANNEL_ID and "tenor.com/view" in message.content.lower():
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä Giphy-linkki":
             if message.channel.id == TASK_CHANNEL_ID and "giphy.com/gifs" in message.content.lower():
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä viesti, jossa on linkki":
             if message.channel.id == TASK_CHANNEL_ID and ("http://" in message.content or "https://" in message.content):
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Vastaa toisen käyttäjän viestiin":
             if message.channel.id == TASK_CHANNEL_ID and message.reference and message.author.id == self.user.id:
@@ -512,13 +552,18 @@ class TaskListener(discord.ui.View):
                         await self.finish_task()
                 except:
                     pass
+            else:
+                await self.virheellinen_suoritus(message)
 
     async def on_interaction(self, interaction: discord.Interaction):
         if self.completed or interaction.user.id != self.user.id:
             return
 
-        if self.task_name == "Käytä bottikomentoja" and interaction.channel.id == TASK_CHANNEL_ID:
-            await self.finish_task()
+        if self.task_name == "Käytä bottikomentoja":
+            if interaction.channel.id == TASK_CHANNEL_ID:
+                await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(interaction.response, self.task_name)
 
         elif self.task_name == "Osta jotain kaupasta":
             if (
@@ -528,6 +573,8 @@ class TaskListener(discord.ui.View):
                 and interaction.channel.id == TASK_CHANNEL_ID    
             ):
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(interaction.message)
 
     async def on_voice_state_update(self, member, before, after):
         if self.completed or member.id != self.user.id:
@@ -535,11 +582,17 @@ class TaskListener(discord.ui.View):
 
         voice_channel_id = VOICE_EVENT_CHANNEL_ID
 
-        if self.task_name == "Osallistu puhekanavaan" and after.channel and after.channel.id == voice_channel_id:
-            await self.finish_task()
+        if self.task_name == "Osallistu puhekanavaan":
+            if after.channel and after.channel.id == voice_channel_id:
+                await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(before.guild.system_channel, self.task_name)
 
-        elif self.task_name == "Striimaa peliäsi" and after.channel and after.self_stream:
-            await self.finish_task()
+        elif self.task_name == "Striimaa peliäsi":
+            if after.channel and after.self_stream:
+                await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(before.guild.system_channel, self.task_name)
 
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User):
         if self.completed or user.id != self.user.id:
@@ -549,15 +602,33 @@ class TaskListener(discord.ui.View):
             return
 
         if self.task_name in ["Äänestä reaktioilla", "Reagoi viestiin emojilla"]:
-            await self.finish_task()
-        
+            if reaction.message.channel.id == TASK_CHANNEL_ID:
+                await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(reaction.message, self.task_name)
+
         elif self.task_name == "Lisää reaktio toisen viestiin, jota ei ole vielä reagoitu":
             if (
                 reaction.message.channel.id == TASK_CHANNEL_ID
                 and user.id == self.user.id
-                and len(reaction.message.reactions) == 1  
+                and len(reaction.message.reactions) == 1
             ):
                 await self.finish_task()
+            else:
+                await self.virheellinen_suoritus(reaction.message, self.task_name)
+
+    async def virheellinen_suoritus(self, message: discord.Message):
+        ohje = TASK_INSTRUCTIONS.get(self.task_name, "Tarkista tehtävän muoto ja yritä uudelleen.")
+        
+        virheembed = discord.Embed(
+            title="⚠️ Viestisi ei täsmää oikeata suoritusta",
+            description=(
+                f"Ohjeet uudemman kerran:\n\n{ohje}\n\n"
+                "⏳ Kokeile uudelleen ennen kuin aikasi loppuu!"
+            ),
+            color=discord.Color.blue()
+        )
+        await message.channel.send(embed=virheembed)
 
     async def finish_task(self):
         if self.completed:
