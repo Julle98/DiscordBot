@@ -664,7 +664,7 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
         try:
             if was_reset:
                 formatted_last_completed = (
-                    last_date.strftime("%d.%m.%Y klo %H:%M") if last_date else "ei aiempaa suoritusta"
+                    last_date.strftime("%d.%m.%Y") if last_date else "ei aiempaa suoritusta"
                 )
                 await channel.send(
                     f"{user.mention} aloitti uuden {task_label} tehtäväputken tehtävällä **{task_name}**! 🚀\n"
