@@ -62,5 +62,3 @@ uvicorn
 watchfiles
 websockets
 yarl
-youtube-dl
-yt-dlp
