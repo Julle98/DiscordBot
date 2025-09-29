@@ -485,21 +485,161 @@ def tallenna_ostokset(ostot):
     with open(OSTO_TIEDOSTO, "w", encoding="utf-8") as f:
         json.dump(ostot, f, ensure_ascii=False, indent=2)
 
-async def kysy_kayttajalta(self, interaction, kysymys):
-        await interaction.followup.send(kysymys)
-        try:
-            vastaus = await self.bot.wait_for(
-                "message",
-                timeout=60.0,
-                check=lambda m: m.author == interaction.user and m.channel == interaction.channel
-            )
-            return vastaus.content
-        except asyncio.TimeoutError:
-            await interaction.followup.send("⏳ Aikakatkaisu. Toiminto peruutettu.", ephemeral=True)
-            return None
-
 def puhdista_tuotteen_nimi(nimi: str) -> str:
     return nimi.replace(" (Tarjous!)", "").strip().lower()
+
+class EmojiModal(discord.ui.Modal, title="Valitse emoji"):
+    emoji = discord.ui.TextInput(label="Emoji", placeholder="Esim. 😎, 🔥, 🤖")
+
+    def __init__(self):
+        super().__init__()
+        self.kirjaa_kaytto = None
+
+    async def on_submit(self, interaction: discord.Interaction):
+        valinta = self.emoji.value.strip()
+        if not valinta:
+            await interaction.response.send_message("❌ Emojia ei annettu. Toiminto peruutettu.", ephemeral=True)
+            return
+
+        auto_react_users[str(interaction.user.id)] = valinta
+        if self.kirjaa_kaytto:
+            self.kirjaa_kaytto(valinta)
+
+        await interaction.response.send_message(
+            f"🤖 Bot reagoi viesteihisi emojilla {valinta} seuraavat 7 päivää!",
+            ephemeral=True
+        )
+
+class VariModal(discord.ui.Modal, title="Valitse värisi"):
+    vari = discord.ui.TextInput(label="Väri", placeholder="punainen, sininen, vihreä, jne.")
+
+    def __init__(self):
+        super().__init__()
+        self.kirjaa_kaytto = None
+
+    async def on_submit(self, interaction: discord.Interaction):
+        varit = {
+            "punainen": discord.Colour.red(),
+            "sininen": discord.Colour.blue(),
+            "vihreä": discord.Colour.green(),
+            "keltainen": discord.Colour.gold(),
+            "violetti": discord.Colour.purple(),
+            "oranssi": discord.Colour.orange(),
+            "musta": discord.Colour.dark_theme(),
+            "valkoinen": discord.Colour.light_grey()
+        }
+
+        valinta = self.vari.value.strip().lower()
+        vari = varit.get(valinta)
+
+        if not vari:
+            await interaction.response.send_message("❌ Väriä ei tunnistettu. Toiminto peruutettu.", ephemeral=True)
+            return
+
+        rooli = await interaction.guild.create_role(name=f"{interaction.user.name}-{valinta}", colour=vari, hoist=True)
+        referenssi_rooli = discord.utils.get(interaction.guild.roles, name="-- Osto roolit --")
+        if referenssi_rooli:
+            uusi_position = referenssi_rooli.position + 1
+            await interaction.guild.edit_role_positions(positions={rooli: uusi_position})
+
+        await interaction.user.add_roles(rooli)
+        if self.kirjaa_kaytto:
+            self.kirjaa_kaytto(valinta)
+
+        await interaction.response.send_message(
+            f"🧬 Roolisi **{rooli.name}** luotiin värillä {valinta} ja sijoitettiin 24G-roolisi yläpuolelle!",
+            ephemeral=True
+        )
+
+class CustomRooliModal(discord.ui.Modal, title="Anna roolisi nimi"):
+    roolin_nimi = discord.ui.TextInput(label="Roolin nimi", placeholder="Esim. Legendaarinen Käyttäjä")
+
+    def __init__(self):
+        super().__init__()
+        self.kirjaa_kaytto = None
+
+    async def on_submit(self, interaction: discord.Interaction):
+        nimi = self.roolin_nimi.value.strip()
+        if not nimi:
+            await interaction.response.send_message("❌ Roolin nimeä ei annettu. Toiminto peruutettu.", ephemeral=True)
+            return
+
+        rooli = await interaction.guild.create_role(name=nimi, hoist=True)
+        referenssi_rooli = discord.utils.get(interaction.guild.roles, name="-- Osto roolit --")
+        if referenssi_rooli:
+            uusi_position = referenssi_rooli.position + 1
+            await interaction.guild.edit_role_positions(positions={rooli: uusi_position})
+
+        await interaction.user.add_roles(rooli)
+        if self.kirjaa_kaytto:
+            self.kirjaa_kaytto(nimi)
+
+        await interaction.response.send_message(
+            f"🎨 Roolisi **{rooli.name}** on luotu ja lisätty sinulle!",
+            ephemeral=True
+        )
+
+class KomentoModal(discord.ui.Modal, title="Anna komennon nimi"):
+    komento = discord.ui.TextInput(label="Komento", placeholder="Esim. status, info, ping")
+
+    def __init__(self):
+        super().__init__()
+        self.kirjaa_kaytto = None
+
+    async def on_submit(self, interaction: discord.Interaction):
+        komennon_nimi = self.komento.value.strip()
+        if not komennon_nimi:
+            await interaction.response.send_message("❌ Komennon nimeä ei annettu. Toiminto peruutettu.", ephemeral=True)
+            return
+
+        if self.kirjaa_kaytto:
+            self.kirjaa_kaytto(komennon_nimi)
+
+        await interaction.response.send_message(
+            f"🛠️ Komento **/{komennon_nimi}** on odottamassa vuoroaan ja tekeillä!",
+            ephemeral=True
+        )
+
+class OmaPuhekanavaModal(discord.ui.Modal, title="Anna puhekanavan nimi"):
+    kanavan_nimi = discord.ui.TextInput(label="Kanavan nimi", placeholder="Esim. Julius Lounge")
+
+    def __init__(self):
+        super().__init__()
+        self.kirjaa_kaytto = None
+
+    async def on_submit(self, interaction: discord.Interaction):
+        nimi = self.kanavan_nimi.value.strip()
+        if not nimi:
+            await interaction.response.send_message("❌ Kanavan nimeä ei annettu. Toiminto peruutettu.", ephemeral=True)
+            return
+
+        vip_kategoria = discord.utils.get(interaction.guild.categories, name="⭐VIP kanavat")
+        if not vip_kategoria:
+            await interaction.response.send_message("❌ VIP-kategoriaa ei löytynyt. Toiminto peruutettu.", ephemeral=True)
+            return
+
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(connect=False),
+            interaction.user: discord.PermissionOverwrite(connect=True)
+        }
+
+        kanava = await interaction.guild.create_voice_channel(
+            name=nimi,
+            overwrites=overwrites,
+            category=vip_kategoria
+        )
+
+        kanavat_kategoriassa = vip_kategoria.channels
+        alin_position = max([c.position for c in kanavat_kategoriassa], default=0)
+        await kanava.edit(position=alin_position + 1)
+
+        if self.kirjaa_kaytto:
+            self.kirjaa_kaytto(nimi)
+
+        await interaction.response.send_message(
+            f"🎙️ Oma puhekanavasi **{kanava.name}** luotiin ⭐VIP kanavat kategoriaan!",
+            ephemeral=True
+        )
 
 class KanavaModal(Modal, title="Luo oma kanava"):
     nimi = TextInput(label="Kanavan nimi", placeholder="esim. oma-kanava")
@@ -551,21 +691,16 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
         await interaction.user.add_roles(rooli)
         viesti = "⚡ Sait Double XP -roolin!"
 
-    elif nimi == "custom rooli":
-        roolin_nimi = await kysy_kayttajalta(interaction, "Mikä on roolisi nimi?")
-        if not roolin_nimi:
-            viesti = "❌ Roolin nimeä ei annettu. Toiminto peruutettu."
-            return "", None, viesti
+    elif "custom rooli" in nimi:
+        if await onko_modal_kaytetty(bot, interaction.user, "Custom rooli luotu"):
+            await interaction.response.send_message("🚫 Olet jo luonut roolin tällä toiminnolla.", ephemeral=True)
+            return "", None, None
 
-        rooli = await interaction.guild.create_role(name=roolin_nimi, hoist=True)
-        referenssi_rooli = discord.utils.get(interaction.guild.roles, name="-- Osto roolit --")
-        if referenssi_rooli:
-            uusi_position = referenssi_rooli.position + 1
-            await interaction.guild.edit_role_positions(positions={rooli: uusi_position})
-
-        await interaction.user.add_roles(rooli)
-        viesti = f"🎨 Roolisi **{rooli.name}** on luotu ja lisätty sinulle!"
-        lisatieto = f" (rooli: {roolin_nimi})"
+        modal = CustomRooliModal()
+        modal.kirjaa_kaytto = lambda nimi: asyncio.create_task(
+            kirjaa_modal_kaytto(bot, interaction.user, "Custom rooli luotu", f"Rooli: {nimi}")
+        )
+        return "", modal, "Luo rooli"
 
     elif nimi == "vip-rooli":
         rooli = discord.utils.get(interaction.guild.roles, name="VIP")
@@ -576,64 +711,37 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
         viesti = "👑 VIP-rooli myönnetty sinulle!"
 
     elif nimi == "oma puhekanava":
-        nimi_kanava = await kysy_kayttajalta(interaction, "Mikä on kanavasi nimi?")
-        vip_kategoria = discord.utils.get(interaction.guild.categories, name="⭐VIP kanavat")
+        if await onko_modal_kaytetty(bot, interaction.user, "Puhekanava luotu"):
+            await interaction.response.send_message("🚫 Olet jo luonut puhekanavan tällä toiminnolla.", ephemeral=True)
+            return "", None, None
 
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(connect=False),
-            interaction.user: discord.PermissionOverwrite(connect=True)
-        }
-
-        kanava = await interaction.guild.create_voice_channel(
-            name=nimi_kanava,
-            overwrites=overwrites,
-            category=vip_kategoria
+        modal = OmaPuhekanavaModal()
+        modal.kirjaa_kaytto = lambda nimi: asyncio.create_task(
+            kirjaa_modal_kaytto(bot, interaction.user, "Puhekanava luotu", f"Kanava: {nimi}")
         )
+        return "", modal, "Luo puhekanava"
 
-        kanavat_kategoriassa = vip_kategoria.channels
-        alin_position = max([c.position for c in kanavat_kategoriassa], default=0)
-        await kanava.edit(position=alin_position + 1)
+    elif "valitse emoji" in nimi:
+        if await onko_modal_kaytetty(bot, interaction.user, "Emoji valittu"):
+            await interaction.response.send_message("🚫 Olet jo valinnut emojin tällä toiminnolla.", ephemeral=True)
+            return "", None, None
 
-        await interaction.followup.send(
-            f"🎙️ Oma puhekanavasi **{kanava.name}** luotiin ⭐VIP kanavat kategoriaan!",
-            ephemeral=True
+        modal = EmojiModal()
+        modal.kirjaa_kaytto = lambda emoji: asyncio.create_task(
+            kirjaa_modal_kaytto(bot, interaction.user, "Emoji valittu", f"Emoji: {emoji}")
         )
+        return "", modal, "Valitse emoji"
 
-    elif nimi == "valitse värisi":
-        varit = {
-            "punainen": discord.Colour.red(),
-            "sininen": discord.Colour.blue(),
-            "vihreä": discord.Colour.green(),
-            "keltainen": discord.Colour.gold(),
-            "violetti": discord.Colour.purple(),
-            "oranssi": discord.Colour.orange(),
-            "musta": discord.Colour.dark_theme(),
-            "valkoinen": discord.Colour.light_grey()
-        }
+    elif "valitse värisi" in nimi:
+        if await onko_modal_kaytetty(bot, interaction.user, "Väri valittu"):
+            await interaction.response.send_message("🚫 Olet jo valinnut värin tällä toiminnolla.", ephemeral=True)
+            return "", None, None
 
-        varivalinta = await kysy_kayttajalta(interaction, "Valitse väri (sininen, punainen, vihreä, keltainen, violetti, oranssi, musta tai valkoinen):")
-        vari = varit.get(varivalinta.lower())
-
-        if vari:
-            rooli = await interaction.guild.create_role(name=f"{interaction.user.name}-{varivalinta}", colour=vari, hoist=True)
-
-            referenssi_rooli = discord.utils.get(interaction.guild.roles, name="-- Osto roolit --")
-            if referenssi_rooli:
-                uusi_position = referenssi_rooli.position + 1
-                await interaction.guild.edit_role_positions(positions={rooli: uusi_position})
-
-            await interaction.user.add_roles(rooli)
-            await interaction.followup.send(f"🧬 Roolisi **{rooli.name}** luotiin värillä {varivalinta} ja sijoitettiin 24G-roolisi yläpuolelle!", ephemeral=True)
-            lisatieto = f" (väri: {varivalinta})"
-        else:
-            await interaction.followup.send("❌ Väriä ei tunnistettu. Toiminto peruutettu.", ephemeral=True)
-
-    elif nimi == "valitse emoji":
-        emoji_valinta = await kysy_kayttajalta(interaction, "Millä emojilla botin tulisi reagoida viesteihisi?")
-        if emoji_valinta:
-            auto_react_users[str(interaction.user.id)] = emoji_valinta
-            await interaction.followup.send(f"🤖 Bot reagoi viesteihisi emojilla {emoji_valinta} seuraavat 7 päivää!", ephemeral=True)
-            lisatieto = f" (emoji: {emoji_valinta})"
+        modal = VariModal()
+        modal.kirjaa_kaytto = lambda vari: asyncio.create_task(
+            kirjaa_modal_kaytto(bot, interaction.user, "Väri valittu", f"Väri: {vari}")
+        )
+        return "", modal, "Valitse väri"
 
     elif nimi == "soundboard-oikeus":
         rooli = discord.utils.get(interaction.guild.roles, name="SoundboardAccess")
@@ -676,12 +784,15 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
         return "", modal, "Luo kanava"
 
     elif "komento" in nimi:
-        komennon_nimi = await kysy_kayttajalta(interaction, "Mikä on komennon nimi?")
-        if komennon_nimi:
-            lisatieto = f" (nimi: {komennon_nimi})"
-            viesti = f"🛠️ Komento **/{komennon_nimi}** on odottamassa vuoroaan ja tekeillä!"
+        if await onko_modal_kaytetty(bot, interaction.user, "Komento luotu"):
+            await interaction.response.send_message("🚫 Olet jo luonut komennon tällä toiminnolla.", ephemeral=True)
+            return "", None, None
 
-    return lisatieto, modal, viesti
+        modal = KomentoModal()
+        modal.kirjaa_kaytto = lambda nimi: asyncio.create_task(
+            kirjaa_modal_kaytto(bot, interaction.user, "Komento luotu", f"Komento: {nimi}")
+        )
+        return "", modal, "Luo komento"
         
 from dotenv import load_dotenv
 
