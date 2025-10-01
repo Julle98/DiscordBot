@@ -342,6 +342,7 @@ class TaskListener(discord.ui.View):
         self.channel = channel
         self.task_name = task_name
         self.completed = False
+        self.failure_count = 0
 
     async def start(self):
         self.bot = self._get_bot()
@@ -618,17 +619,27 @@ class TaskListener(discord.ui.View):
                 await self.virheellinen_suoritus(reaction.message, self.task_name)
 
     async def virheellinen_suoritus(self, message: discord.Message):
-        ohje = TASK_INSTRUCTIONS.get(self.task_name, "Tarkista tehtävän muoto ja yritä uudelleen.")
-        
-        virheembed = discord.Embed(
-            title="⚠️ Viestisi ei täsmää oikeata suoritusta",
-            description=(
-                f"Ohjeet uudemman kerran:\n\n{ohje}\n\n"
-                "⏳ Kokeile uudelleen ennen kuin aikasi loppuu!"
-            ),
-            color=discord.Color.blue()
-        )
-        await message.channel.send(embed=virheembed)
+        self.failure_count += 1
+
+        if self.failure_count == 1:
+            ohje = TASK_INSTRUCTIONS.get(self.task_name, "Tarkista tehtävän muoto ja yritä uudelleen.")
+            virheembed = discord.Embed(
+                title="⚠️ Viestisi ei täsmää oikeata suoritusta",
+                description=(
+                    f"Ohjeet uudemman kerran:\n\n{ohje}\n\n"
+                    "⏳ Kokeile uudelleen ennen kuin aikasi loppuu!"
+                ),
+                color=discord.Color.blue()
+            )
+            await message.channel.send(embed=virheembed)
+        else:
+            peruutus_embed = discord.Embed(
+                title="❌ Tehtävän teko yritys on peruutettu",
+                description="Voit aloittaa tehtävän uudelleen myöhemmin.",
+                color=discord.Color.red()
+            )
+            await message.channel.send(embed=peruutus_embed)
+            await self.cancel(show_timeout_message=False)
 
     async def finish_task(self):
         if self.completed:

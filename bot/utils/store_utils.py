@@ -860,7 +860,7 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
     await interaction.response.send_message(
         embed=discord.Embed(
             title="✅ Ostettu onnistuneesti!",
-            description=f"Ostit tuotteen **{tuote['emoji']} {tuote['nimi']}** ({hinta_alennettu} XP) {kuponkiviesti}\nSe on nyt käytössäsi 🎉",
+            description=f"Ostit tuotteen **{tuote['emoji']} {tuote['nimi']}** ({hinta_alennettu} XP) {kuponkiviesti}\nSe on nyt käytössäsi! Jos haluat perua ostoksen, ota yhteyttä ``/help``.",
             color=discord.Color.green()
         ),
         view=view,
