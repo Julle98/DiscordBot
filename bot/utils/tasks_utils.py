@@ -285,7 +285,13 @@ async def update_streak(user: discord.Member, task_type: str):
         await reward(6, "6_month", 1200, 1386680073486204999, "suoritti **6 kuukautta putkeen** kuukausitehtäviä! +1200 XP ja erikoisrooli! 🏆")
 
     return was_reset, last_date
-       
+
+def select_random_task(task_list, last=None, last_last=None):
+    filtered = [task for task in task_list if task != last and task != last_last]
+    if not filtered:
+        filtered = task_list
+    return random.choice(filtered)
+    
 @tasks.loop(time=dtime(0, 0))
 async def rotate_daily_tasks():
     data = load_tasks()
@@ -298,10 +304,6 @@ async def rotate_daily_tasks():
     data["last_last_daily"] = data.get("last_daily")
     data["last_daily"] = selected
     save_tasks(data)
-
-from discord.ext import tasks
-from datetime import datetime, timezone
-from datetime import datetime, timezone, time as dtime
 
 @tasks.loop(time=dtime(0, 0))
 async def rotate_weekly_tasks():
