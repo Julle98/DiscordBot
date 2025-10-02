@@ -69,8 +69,9 @@ def parse_schedule(text: str) -> dict:
                 continue
 
         codes = re.findall(
-            r"\b[A-ZÅÄÖ]{1,}[0-9.]*\b", line
-        )
+            r"\b[A-Za-zÅÄÖåäö0-9.+]+\b", line
+            )
+
         if codes and current_weekday and current_vuoro:
             for code in codes:
                 code = code.strip().upper()
