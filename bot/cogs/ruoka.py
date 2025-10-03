@@ -26,11 +26,11 @@ async def logita_äänestys(interaction: discord.Interaction, päivä_id: str, �
         )
 
 class RuokaÄänestysView(discord.ui.View):
-    def __init__(self, päivä_id: str, interaction: discord.Interaction):
+    def __init__(self, päivä_id: str):
         super().__init__(timeout=None)
         self.päivä_id = päivä_id
-        self.interaction = interaction
         self.äänet = self.lataa_äänet()
+        self.käyttäjä_äänet = self.lataa_käyttäjä_äänet()
 
     def lataa_äänet(self):
         polku = os.getenv("VOTE_DATA_PATH")
@@ -41,6 +41,15 @@ class RuokaÄänestysView(discord.ui.View):
         except:
             return {"👍": 0, "👎": 0}
 
+    def lataa_käyttäjä_äänet(self):
+        polku = os.getenv("VOTE_USER_PATH")
+        try:
+            with open(polku, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data.get(self.päivä_id, {})
+        except:
+            return {}
+
     def tallenna_äänet(self):
         polku = os.getenv("VOTE_DATA_PATH")
         try:
@@ -48,26 +57,42 @@ class RuokaÄänestysView(discord.ui.View):
                 data = json.load(f)
         except:
             data = {}
-
         data[self.päivä_id] = self.äänet
         with open(polku, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
+    def tallenna_käyttäjä_äänet(self):
+        polku = os.getenv("VOTE_USER_PATH")
+        try:
+            with open(polku, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except:
+            data = {}
+        data[self.päivä_id] = self.käyttäjä_äänet
+        with open(polku, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    async def käsittele_ääni(self, interaction: discord.Interaction, ääni: str, button: discord.ui.Button):
+        käyttäjä_id = str(interaction.user.id)
+        if käyttäjä_id in self.käyttäjä_äänet:
+            await interaction.response.send_message("⚠️ Voit äänestää vain kerran!", ephemeral=True)
+            return
+
+        self.äänet[ääni] += 1
+        self.käyttäjä_äänet[käyttäjä_id] = ääni
+        button.label = f"{ääni} {self.äänet[ääni]}"
+        self.tallenna_äänet()
+        self.tallenna_käyttäjä_äänet()
+        await interaction.response.edit_message(view=self)
+        await logita_äänestys(interaction, self.päivä_id, ääni)
+
     @discord.ui.button(label="👍 0", style=discord.ButtonStyle.success, custom_id="vote_up")
     async def vote_up(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.äänet["👍"] += 1
-        button.label = f"👍 {self.äänet['👍']}"
-        self.tallenna_äänet()
-        await interaction.response.edit_message(view=self)
-        await logita_äänestys(interaction, self.päivä_id, "👍")
+        await self.käsittele_ääni(interaction, "👍", button)
 
     @discord.ui.button(label="👎 0", style=discord.ButtonStyle.danger, custom_id="vote_down")
     async def vote_down(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.äänet["👎"] += 1
-        button.label = f"👎 {self.äänet['👎']}"
-        self.tallenna_äänet()
-        await interaction.response.edit_message(view=self)
-        await logita_äänestys(interaction, self.päivä_id, "👎")
+        await self.käsittele_ääni(interaction, "👎", button)
 
 async def fetch_menu_data(url):
     async with aiohttp.ClientSession() as session:

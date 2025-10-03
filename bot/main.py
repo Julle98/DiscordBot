@@ -17,6 +17,7 @@ from bot.utils.xp_utils import anna_xp_komennosta
 from bot.utils.ruokailuvuorot_utils import paivita_ruokailuvuorot
 from bot.utils.time_utils import get_current_time_in_helsinki
 from bot.utils.settings_utils import get_user_settings
+from bot.cogs.ruoka import RuokaÄänestysView
 
 load_env_and_validate()
 load_dotenv()
@@ -167,6 +168,13 @@ async def on_ready():
     start_store_loops()
     start_tasks_loops()
     paivita_ruokailuvuorot()
+
+    try:
+        päivä_id = get_current_time_in_helsinki() 
+        bot.add_view(RuokaÄänestysView(päivä_id))
+        print(f"✅ Persistent view rekisteröity päivälle {päivä_id}")
+    except Exception as exc:
+        print(f"❌ View-rekisteröinti epäonnistui: {exc}")
 
     try:
         xp_path = os.getenv("XP_JSON_PATH")

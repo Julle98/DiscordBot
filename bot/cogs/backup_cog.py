@@ -10,6 +10,7 @@ load_dotenv()
 
 SOURCE_DIR = os.getenv("XP_JSON_PATH")
 SOURCE_DIRS_SINGLE = os.getenv("JSON_DIR")
+SOURCE_DIRSS_SINGLE = os.getenv("JSON_DIRSS")
 SOURCE_DIRS_MULTI = os.getenv("JSON_DIRS")
 BACKUP_DIR = os.getenv("BACKUP_JSON_PATH")
 CONSOLE_LOG = int(os.getenv("CONSOLE_LOG", 0))
@@ -30,6 +31,9 @@ class BackupCog(commands.Cog):
 
         if SOURCE_DIRS_SINGLE and Path(SOURCE_DIRS_SINGLE).exists():
             dirs.append(Path(SOURCE_DIRS_SINGLE))
+
+        if SOURCE_DIRSS_SINGLE and Path(SOURCE_DIRSS_SINGLE).exists():
+            dirs.append(Path(SOURCE_DIRSS_SINGLE))
 
         if SOURCE_DIRS_MULTI:
             for d in SOURCE_DIRS_MULTI.split(","):
