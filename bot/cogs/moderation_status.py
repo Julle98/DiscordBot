@@ -3,6 +3,8 @@ from discord import app_commands
 from discord.ext import commands
 from bot.utils.logger import kirjaa_ga_event, kirjaa_komento_lokiin
 from bot.utils.error_handler import CommandErrorHandler
+from typing import Optional
+from discord import Embed, Colour
 import pytz
 import datetime
 
@@ -37,6 +39,27 @@ class HuoltoView(discord.ui.View):
         modal.on_submit = modal_submit
         await interaction.response.send_modal(modal)
 
+class BotHallinta(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    async def ilmoita_statuskanavalle(self, interaction: discord.Interaction, otsikko: str, kuvaus: str, vari: Colour):
+        status_kanava = discord.utils.get(interaction.guild.text_channels, name="🛜bot-status")
+        if not status_kanava:
+            status_kanava = await interaction.guild.create_text_channel(name="🛜bot-status")
+
+        async for msg in status_kanava.history(limit=100):
+            await msg.delete()
+
+        timezone = pytz.timezone('Europe/Helsinki')
+        aika = datetime.now(timezone).strftime('%d-%m-%Y %H:%M:%S')
+
+        embed = Embed(title=otsikko, description=kuvaus, colour=vari)
+        embed.set_footer(text=f"Aika: {aika}")
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+
+        await status_kanava.send(embed=embed)
+
 ajastin_aktiiviset = {}
 
 class Moderation_status(commands.Cog):
@@ -53,45 +76,46 @@ class Moderation_status(commands.Cog):
             view=HuoltoView(), ephemeral=True
         )
 
-    @app_commands.command(name="sammutus", description="Sammuta botti.")
+    @app_commands.command(name="sammutus", description="Ilmoita botin sammutuksesta.")
+    @app_commands.describe(syy="Valinnainen syy sammutukselle")
     @app_commands.checks.has_role("Mestari")
-    async def sammutus(self, interaction: discord.Interaction):
+    async def sammutus(self, interaction: discord.Interaction, syy: Optional[str] = None):
         await kirjaa_komento_lokiin(self.bot, interaction, "/sammutus")
         await kirjaa_ga_event(self.bot, interaction.user.id, "sammutus_komento")
 
-        status_kanava = discord.utils.get(interaction.guild.text_channels, name="🛜bot-status")
-        if not status_kanava:
-            status_kanava = await interaction.guild.create_text_channel(name="bot-status")
+        kuvaus = "Botti on asetettu sammuneeksi."
+        if syy:
+            kuvaus += f"\n**Syy:** {syy}"
 
-        async for message in status_kanava.history(limit=100):
-            await message.delete()
+        await self.ilmoita_statuskanavalle(
+            interaction,
+            otsikko="🔴 Botti sammutettu",
+            kuvaus=kuvaus,
+            vari=Colour.red()
+        )
 
-        timezone = pytz.timezone('Europe/Helsinki')
-        sammutusaika = datetime.now(timezone).strftime('%d-%m-%Y %H:%M:%S')
-        await status_kanava.send(f"Botti sammutettu {sammutusaika}.")
-        await interaction.response.send_message("Botti sammuu...", ephemeral=True)
+        await interaction.response.send_message("Sammutustieto lähetetty statuskanavalle.", ephemeral=True)
 
-        for user_id, task in ajastin_aktiiviset.items():
-            if not task.done():
-                task.cancel()
-        ajastin_aktiiviset.clear()
-
-        await self.bot.close()
-
-    @app_commands.command(name="uudelleenkäynnistys", description="Käynnistä botti uudelleen.")
+    @app_commands.command(name="uudelleenkäynnistys", description="Ilmoita botin uudelleenkäynnistyksestä.")
+    @app_commands.describe(syy="Valinnainen syy uudelleenkäynnistykselle")
     @app_commands.checks.has_role("Mestari")
-    async def uudelleenkaynnistys(self, interaction: discord.Interaction):
+    async def uudelleenkaynnistys(self, interaction: discord.Interaction, syy: Optional[str] = None):
         await kirjaa_komento_lokiin(self.bot, interaction, "/uudelleenkäynnistys")
         await kirjaa_ga_event(self.bot, interaction.user.id, "uudelleenkäynnistys_komento")
 
-        status_kanava = discord.utils.get(interaction.guild.text_channels, name="🛜bot-status") or await interaction.guild.create_text_channel(name="bot-status")
-        async for msg in status_kanava.history(limit=100):
-            await msg.delete()
+        kuvaus = "Botti on asetettu uudelleenkäynnistystilaan."
+        if syy:
+            kuvaus += f"\n**Syy:** {syy}"
 
-        await status_kanava.send("Botti käynnistyy uudelleen...")
-        await interaction.response.send_message("Botti käynnistetään uudelleen...", ephemeral=True)
-        await self.bot.close()
-    
+        await self.ilmoita_statuskanavalle(
+            interaction,
+            otsikko="🟡 Botti käynnistyy uudelleen",
+            kuvaus=kuvaus,
+            vari=Colour.gold()
+        )
+
+        await interaction.response.send_message("Uudelleenkäynnistystieto lähetetty statuskanavalle.", ephemeral=True)
+
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
         await CommandErrorHandler(self.bot, interaction, error)
