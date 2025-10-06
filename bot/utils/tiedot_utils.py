@@ -10,6 +10,7 @@ from discord import ui
 from dotenv import load_dotenv
 from collections import Counter
 from bot.utils.bot_setup import bot
+from discord.ext import commands
 from datetime import datetime
 import re
 
@@ -219,7 +220,7 @@ def hae_tuotteen_hinta(nimi: str) -> int:
         print(f"Hinnan haku epäonnistui: {e}")
     return 0
 
-async def hae_osallistumisviestit(user: discord.User | discord.Member):
+async def hae_osallistumisviestit(user: discord.User | discord.Member, bot: commands.Bot):
     user_id = str(user.id)
     user_nimi = user.name
     user_näyttönimi = user.display_name
@@ -850,7 +851,7 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
             embed.add_field(name="✅ Ei help-pyyntöjä", value="Käyttäjältä ei löytynyt pyyntöjä.", inline=False)
 
     elif kategoria == "Osallistumiset":
-        osallistumiset = await hae_osallistumisviestit(user)
+        osallistumiset = await hae_osallistumisviestit(user, bot)
         if osallistumiset:
             embed.add_field(
                 name="📊 Osallistumisia yhteensä",
@@ -912,6 +913,9 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
                         value=viesti,
                         inline=False
                     )
+        if not osallistumiset:
+            embed.add_field(name="📥 Osallistumiset", value="Ei osallistumisia löytynyt.", inline=False)
+
         else:
             embed.add_field(
                 name="📥 Osallistumiset",
