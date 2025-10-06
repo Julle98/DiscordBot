@@ -26,9 +26,10 @@ async def logita_äänestys(interaction: discord.Interaction, päivä_id: str, �
         )
 
 class RuokaÄänestysView(discord.ui.View):
-    def __init__(self, päivä_id: str):
+    def __init__(self, päivä_id: str, interaction: discord.Interaction = None):
         super().__init__(timeout=None)
         self.päivä_id = päivä_id
+        self.interaction = interaction 
         self.äänet = self.lataa_äänet()
         self.käyttäjä_äänet = self.lataa_käyttäjä_äänet()
 
