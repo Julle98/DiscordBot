@@ -235,16 +235,17 @@ async def update_streak(user: discord.Member, task_type: str):
     elif task_type == "weekly":
         if last_date and 1 <= (now - last_date).days <= 13:
             streak += 1
-        elif not already_completed:
+        elif last_date is None or (now - last_date).days > 13:
             streak = 1
             was_reset = True
 
     elif task_type == "monthly":
         if last_date and 1 <= (now - last_date).days <= 45:
             streak += 1
-        elif not already_completed:
+        elif last_date is None or (now - last_date).days > 45:
             streak = 1
             was_reset = True
+
 
     data["last_completed"] = now.isoformat()
     data["streak"] = streak
