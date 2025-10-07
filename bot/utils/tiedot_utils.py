@@ -851,77 +851,51 @@ async def muodosta_kategoria_embed(kategoria: str, user: discord.User, bot, inte
             embed.add_field(name="✅ Ei help-pyyntöjä", value="Käyttäjältä ei löytynyt pyyntöjä.", inline=False)
 
     elif kategoria == "Osallistumiset":
+        await interaction.response.defer(ephemeral=True)
+
+        lataus_embed = discord.Embed(
+            title="⏳ Ladataan osallistumistietoja...",
+            description="• Haetaan osallistumisviestejä\n• Ryhmitellään tyypeittäin\n\n_Tämä voi kestää hetken..._",
+            color=discord.Color.orange()
+        )
+        msg = await interaction.followup.send(embed=lataus_embed, ephemeral=True)
+
         osallistumiset = await hae_osallistumisviestit(user, bot)
-        if osallistumiset:
-            embed.add_field(
-                name="📊 Osallistumisia yhteensä",
-                value=f"{len(osallistumiset)} kpl",
-                inline=True
-            )
+        tyyppilaskuri = Counter()
 
-            ryhmitelty = {
-                "Ruokaäänestys": [],
-                "Kyselyäänestys": [],
-                "Arvonta": [],
-                "Arvontavoitto": []
-            }
+        for data in osallistumiset:
+            tyyppilaskuri[data["tyyppi"]] += 1
 
-            for data in osallistumiset:
-                tyyppi = data["tyyppi"]
-                if tyyppi in ryhmitelty:
-                    ryhmitelty[tyyppi].append(data)
+        yhteensä = sum(tyyppilaskuri.values())
+        embed = discord.Embed(
+            title=f"📥 Osallistumisraportti – {user.display_name}",
+            description=f"Yhteensä {yhteensä} osallistumista",
+            color=discord.Color.blue()
+        )
 
-            for tyyppi, lista in ryhmitelty.items():
-                määrä = len(lista)
-                if määrä == 0:
-                    continue  
-
-                embed.add_field(
-                    name=f"📥 {tyyppi} ({määrä} osallistumista, viimeiset 3)",
-                    value=f"Näytetään viimeiset {min(3, määrä)} osallistumista.",
-                    inline=False
-                )
-
-                for i, data in enumerate(lista[-3:]):  
-                    aika = data["aika"].strftime("%d.%m.%Y")
-                    sisältö = data["sisältö"]
-
-                    if tyyppi == "Ruokaäänestys":
-                        match = re.search(r"äänesti\s+(\S+)\s+ruokalistalle", sisältö)
-                        emoji = match.group(1) if match else ""
-                        viesti = f"🍽️ Näytit {emoji} ruokalistalle {aika}" if emoji else f"🍽️ Osallistuit ruokaäänestykseen {aika}"
-
-                    elif tyyppi == "Kyselyäänestys":
-                        match = re.search(r"äänesti\s+(.*?)\s+reaktiolla\s+(\S+)", sisältö)
-                        if match:
-                            otsikko = match.group(1)
-                            emoji = match.group(2)
-                            viesti = f"🗳️ Äänestit {emoji} kyselyssä '{otsikko}' {aika}"
-                        else:
-                            viesti = f"🗳️ Osallistuit kyselyyn {aika}"
-
-                    elif tyyppi == "Arvonta":
-                        viesti = f"🎁 Osallistuit arvontaan {aika}"
-
-                    elif tyyppi == "Arvontavoitto":
-                        match = re.search(r"🎁 Palkinto:\s+(.*?)\n", sisältö)
-                        palkinto = match.group(1) if match else "Tuntematon palkinto"
-                        viesti = f"🏆 Voitit arvonnassa – palkinto: {palkinto} ({aika})"
-
-                    embed.add_field(
-                        name=f"{tyyppi} {i+1}",
-                        value=viesti,
-                        inline=False
-                    )
-        if not osallistumiset:
-            embed.add_field(name="📥 Osallistumiset", value="Ei osallistumisia löytynyt.", inline=False)
-
-        else:
+        if yhteensä == 0:
             embed.add_field(
                 name="📥 Osallistumiset",
                 value="Ei osallistumisia löytynyt.",
                 inline=False
             )
+        else:
+            for tyyppi, määrä in tyyppilaskuri.items():
+                emoji = {
+                    "Ruokaäänestys": "🍽️",
+                    "Kyselyäänestys": "🗳️",
+                    "Arvonta": "🎁",
+                    "Arvontavoitto": "🏆"
+                }.get(tyyppi, "📥")
+
+                embed.add_field(
+                    name=f"{emoji} {tyyppi}",
+                    value=f"{määrä} osallistumista",
+                    inline=True
+                )
+
+        embed.set_footer(text="✅ Lataus valmis • Voit sulkea tämän viestin, kun olet valmis.")
+        await msg.edit(embed=embed, view=KategoriaView(user, "Osallistumiset", alkuperäinen_käyttäjä=interaction.user, erillinen_viesti=True))
 
     elif kategoria == "Komennot":
         await interaction.response.defer(ephemeral=True)
@@ -1123,7 +1097,7 @@ class KategoriaView(ui.View):
             for nimi in KATEGORIAT:
                 self.add_item(KategoriaNappi(nimi, user, alkuperäinen_käyttäjä=self.alkuperäinen_käyttäjä))
         else:
-            if not erillinen_viesti or valittu not in ["Moderointi", "Komennot", "Toiminta"]:
+            if not erillinen_viesti or valittu not in ["Moderointi", "Osallistumiset", "Komennot", "Toiminta"]:
                 self.add_item(PalaaNappi(user))
 
             self.add_item(LataaNappi(valittu, user, AVAIMET_KATEGORIALLE.get(valittu, [])))
