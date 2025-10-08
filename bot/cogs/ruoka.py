@@ -187,8 +187,10 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
                 nimi_key = meal["Name"].lower()
 
                 ruoka_historia.setdefault(nimi_key, [])
-                if tallennettava_pvm not in ruoka_historia[nimi_key]:
-                    ruoka_historia[nimi_key].append(tallennettava_pvm)
+                ruoka_historia[nimi_key] = sorted(
+                    list(set(ruoka_historia[nimi_key] + [tallennettava_pvm])),
+                    key=lambda x: datetime.strptime(x, "%Y-%m-%d")
+                )
 
                 if tyyppi == "lounas" or (kasvisvaihtoehto and "kasvis" in tyyppi):
                     emoji = "🍽️" if tyyppi == "lounas" else "🥦"
@@ -203,19 +205,28 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
 
                     if milloin_viimeksi:
                         try:
-                            viimeisin_pvm = sorted(
+                            tarjoilupäivät = sorted(
                                 ruoka_historia[nimi_key],
                                 key=lambda x: datetime.strptime(x, "%Y-%m-%d")
-                            )[-1]
-                            viimeisin_dt = datetime.strptime(viimeisin_pvm, "%Y-%m-%d")
-                            erotus = (datetime.now().date() - viimeisin_dt.date()).days
+                            )
 
-                            if vanha_meunu_yliviivaus(viimeisin_pvm, datetime.now()):
-                                nimi += f"\n> ~~Viimeksi tarjolla: {viimeisin_dt.strftime('%d.%m.%Y')} – {erotus} päivää sitten~~"
-                                print(f"[DEBUG] Yliviivattu tarjoilupäivä: {viimeisin_pvm}")
+                            nykyinen_pvm = datetime.now().date()
+                            edelliset = [
+                                datetime.strptime(p, "%Y-%m-%d")
+                                for p in tarjoilupäivät
+                                if datetime.strptime(p, "%Y-%m-%d").date() < nykyinen_pvm
+                            ]
+
+                            if edelliset:
+                                viimeisin_dt = edelliset[-1]
+                                erotus = (nykyinen_pvm - viimeisin_dt.date()).days
+
+                                if vanha_meunu_yliviivaus(viimeisin_dt.strftime("%Y-%m-%d"), datetime.now()):
+                                    nimi += f"\n> ~~Viimeksi tarjolla: {viimeisin_dt.strftime('%d.%m.%Y')} – {erotus} päivää sitten~~"
+                                else:
+                                    nimi += f"\n> _Viimeksi tarjolla: {viimeisin_dt.strftime('%d.%m.%Y')} – {erotus} päivää sitten_"
                             else:
-                                nimi += f"\n> _Viimeksi tarjolla: {viimeisin_dt.strftime('%d.%m.%Y')} – {erotus} päivää sitten_"
-                                print(f"[DEBUG] Näytetään tarjoilupäivä normaalisti: {viimeisin_pvm}")
+                                nimi += "\n> _(Ei aiempia tarjoilupäiviä ennen tätä päivää)_"
                         except Exception as e:
                             nimi += "\n> _(Viimeisin tarjoilupäivä ei saatavilla)_"
                             print(f"[DEBUG] Ei tarjoilupäivää: {e}")
