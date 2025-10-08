@@ -9,6 +9,7 @@ import calendar
 import re
 from typing import Optional
 from datetime import timedelta
+import threading
     
 from bot.utils.ruokailuvuorot_utils import parse_schedule
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
@@ -25,53 +26,57 @@ async def logita_äänestys(interaction: discord.Interaction, päivä_id: str, �
             f"🗳️ {interaction.user.name} äänesti {ääni} ruokalistalle ({päivä_id})"
         )
 
+lukko = threading.Lock()
+
+def lue_json(polku):
+    try:
+        with open(polku, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {}
+
+def tallenna_json(polku, data):
+    with lukko:
+        tmp_polku = polku + ".tmp"
+        with open(tmp_polku, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_polku, polku)
+
 class RuokaÄänestysView(discord.ui.View):
     def __init__(self, päivä_id: str, interaction: discord.Interaction = None):
         super().__init__(timeout=None)
         self.päivä_id = päivä_id
-        self.interaction = interaction 
+        self.interaction = interaction
+
         self.äänet = self.lataa_äänet()
         self.käyttäjä_äänet = self.lataa_käyttäjä_äänet()
+        self.päivitä_button_labelit()
+
+    def päivitä_button_labelit(self):
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                emoji = child.label.split()[0]
+                child.label = f"{emoji} {self.äänet.get(emoji, 0)}"
 
     def lataa_äänet(self):
-        polku = os.getenv("VOTE_DATA_PATH")
-        try:
-            with open(polku, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return data.get(self.päivä_id, {"👍": 0, "👎": 0})
-        except:
-            return {"👍": 0, "👎": 0}
+        data = lue_json(os.getenv("VOTE_DATA_PATH"))
+        return data.get(self.päivä_id, {"👍": 0, "👎": 0})
 
     def lataa_käyttäjä_äänet(self):
-        polku = os.getenv("VOTE_USER_PATH")
-        try:
-            with open(polku, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return data.get(self.päivä_id, {})
-        except:
-            return {}
+        data = lue_json(os.getenv("VOTE_USER_PATH"))
+        return data.get(self.päivä_id, {})
 
     def tallenna_äänet(self):
         polku = os.getenv("VOTE_DATA_PATH")
-        try:
-            with open(polku, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except:
-            data = {}
+        data = lue_json(polku)
         data[self.päivä_id] = self.äänet
-        with open(polku, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        tallenna_json(polku, data)
 
     def tallenna_käyttäjä_äänet(self):
         polku = os.getenv("VOTE_USER_PATH")
-        try:
-            with open(polku, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except:
-            data = {}
+        data = lue_json(polku)
         data[self.päivä_id] = self.käyttäjä_äänet
-        with open(polku, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        tallenna_json(polku, data)
 
     async def käsittele_ääni(self, interaction: discord.Interaction, ääni: str, button: discord.ui.Button):
         käyttäjä_id = str(interaction.user.id)
@@ -84,6 +89,7 @@ class RuokaÄänestysView(discord.ui.View):
         button.label = f"{ääni} {self.äänet[ääni]}"
         self.tallenna_äänet()
         self.tallenna_käyttäjä_äänet()
+
         await interaction.response.edit_message(view=self)
         await logita_äänestys(interaction, self.päivä_id, ääni)
 
