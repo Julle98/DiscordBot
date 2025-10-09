@@ -8,6 +8,8 @@ from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.vault_utils import salaa, pura
 from bot.utils.error_handler import CommandErrorHandler
 from discord.ui import Modal, View, Button
+import secrets
+import string
 
 MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID"))
 
@@ -63,6 +65,10 @@ def tallenna_holvi(data):
     with open(HOLVI_POLKU, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+def generoi_salasana(pituus=10):
+    merkit = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(merkit) for _ in range(pituus))
+
 class Vault(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -70,11 +76,17 @@ class Vault(commands.Cog):
         self.kirjautuneet = set()
 
     @app_commands.command(name="holvi_tallenna", description="Tallenna sisältö holviin salasanalla.")
-    @app_commands.describe(salasana="Salasana holviin", sisalto="Tallennettava sisältö")
+    @app_commands.describe(salasana="Salasana holviin (kirjoita 'automaattinen' jos haluat botin luovan sen)", sisalto="Tallennettava sisältö")
     @app_commands.checks.has_role("24G")
     async def holvi_tallenna(self, interaction: discord.Interaction, salasana: str, sisalto: str):
         await kirjaa_komento_lokiin(self.bot, interaction, "/holvi_tallenna")
         await kirjaa_ga_event(self.bot, interaction.user.id, "holvi_tallenna_komento")
+
+        if salasana.lower() == "automaattinen":
+            salasana = generoi_salasana()
+            automaattinen = True
+        else:
+            automaattinen = False
 
         kayttajan_holvit = [key for key, val in self.holvi.items() if val["kayttaja"] == interaction.user.id]
 
@@ -84,7 +96,7 @@ class Vault(commands.Cog):
             ("Moderaattori", 10),
             ("VIP", 5)
         ]
-        max_holvit = 3  
+        max_holvit = 3
 
         member = interaction.guild.get_member(interaction.user.id)
         if member:
@@ -108,10 +120,13 @@ class Vault(commands.Cog):
         tallenna_holvi(self.holvi)
 
         await laheta_lokiviesti(self.bot, f"Holvi luotu käyttäjältä <@{interaction.user.id}> salasanalla `{salasana}`. 📂")
-        await interaction.response.send_message(
-            f"Sisältö tallennettu holviin onnistuneesti! ✅\nMuista salasanasi: `{salasana}` 🔐",
-            ephemeral=True
-        )
+        viesti = "Sisältö tallennettu holviin onnistuneesti! ✅\n"
+        if automaattinen:
+            viesti += f"Botti loi sinulle salasanan: `{salasana}` 🔐"
+        else:
+            viesti += f"Muista salasanasi: `{salasana}` 🔐"
+
+        await interaction.response.send_message(viesti, ephemeral=True)
 
     @app_commands.command(name="holvi_paivita", description="Lisää tai poista tekstiä holvista.")
     @app_commands.describe(
