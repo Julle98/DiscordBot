@@ -46,6 +46,16 @@ class XPSystem(commands.Cog):
             await käsittele_dm_viesti(self.bot, message)
             return
 
+        if self.bot.user.mentioned_in(message):
+            content = message.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
+            if content:
+                response = await self.get_response(content)
+                await message.reply(f"{response}")
+            else:
+                await message.reply("Hei! Kysy minulta jotain tai kerro, mitä haluat tietää 🙂")
+            await self.bot.process_commands(message)
+            return
+
         request = pending_file_sends.get(message.author.id)
         if request:
             del pending_file_sends[message.author.id]
