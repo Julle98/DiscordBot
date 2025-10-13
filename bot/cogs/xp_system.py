@@ -1,10 +1,8 @@
-import discord, asyncio
-from discord.ext import commands, tasks
-from datetime import datetime, timedelta, timezone, date
+import discord
+from discord.ext import commands
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
-import random
 from io import BytesIO
-import os
 
 from bot.utils.bot_setup import bot
 from bot.utils.xp_utils import (
@@ -17,21 +15,8 @@ from bot.utils.settings_utils import get_user_settings
 
 komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
 viestit_ja_ajat = {}  # {message_id: (user_id, timestamp)}
-viime_viestit = {}    # {user_id: datetime}
-
-varoituslaskurit = {}
-
-JÄÄHY_KESTO = 15 * 60
-
-MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID"))
 
 ROOLI_POIKKEUKSET = ["Moderaattori", "Admin", "Mestari"]
-
-varoitusviestit = [
-    "🐌 Hei {mention}, viestit tulevat turhan nopeasti. Hidasta hieman, niin kaikki toimii sulavasti.",
-    "📢 {mention}, tämä on toinen huomautus. Etanatila on olemassa syystä – anna muillekin tilaa hengittää.",
-    "⚠️ {mention}, viimeinen varoitus! Jos viestittely jatkuu näin, joudun asettamaan sinut jäähylle."
-]
 
 class XPSystem(commands.Cog):
     def __init__(self, bot):
@@ -90,7 +75,7 @@ class XPSystem(commands.Cog):
         nyt = datetime.now(timezone.utc)
 
         komento_ajastukset.setdefault(user_id, {})
-        viimeinen = komento_ajastukset[user_id].get(komento_nimi)
+        komento_ajastukset[user_id][komento_nimi] = nyt
 
         member = message.guild.get_member(user_id)
         if not member:
@@ -103,7 +88,6 @@ class XPSystem(commands.Cog):
                 return
 
             await käsittele_xp_bonus(message, user_id, nyt)
-            komento_ajastukset[user_id][komento_nimi] = nyt
 
             settings = get_user_settings(user_id)
 
@@ -114,44 +98,7 @@ class XPSystem(commands.Cog):
             await self.bot.process_commands(message)
             return
 
-        raja = timedelta(seconds=2)
-        if viimeinen and nyt - viimeinen < raja:
-            await message.delete()
-
-            laskuri = varoituslaskurit.get(user_id, 0)
-
-            if laskuri < len(varoitusviestit):
-                msg = await message.channel.send(varoitusviestit[laskuri].format(mention=message.author.mention))
-                await asyncio.sleep(5)
-                await msg.delete()
-                varoituslaskurit[user_id] = laskuri + 1
-            else:
-                try:
-                    syy = "Etanatilan väärinkäyttö"
-                    await member.timeout(datetime.utcnow() + timedelta(seconds=JÄÄHY_KESTO), reason=syy)
-
-                    await member.send(
-                        f"🔇 Sinut on asetettu jäähylle palvelimella {message.guild.name} ajaksi 15 minuuttia.\nSyy: {syy}"
-                    )
-
-                    modlog_channel = message.guild.get_channel(MODLOG_CHANNEL_ID)
-                    if modlog_channel:
-                        await modlog_channel.send(
-                            f"🔇 Jäähy asetettu (automaattinen)\n"
-                            f"👤 Käyttäjä: {member.mention}\n"
-                            f"⏱ Kesto: 15 minuuttia\n"
-                            f"📝 Syy: {syy}\n"
-                            f"👮 Asetti: Sannamaija"
-                        )
-                except Exception as e:
-                    print(f"Jäähyn asettaminen epäonnistui: {e}")
-
-                varoituslaskurit[user_id] = 0
-            return
-
         await käsittele_xp_bonus(message, user_id, nyt)
-        komento_ajastukset[user_id][komento_nimi] = nyt
-        varoituslaskurit[user_id] = 0
 
         settings = get_user_settings(user_id)
 
