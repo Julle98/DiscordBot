@@ -26,6 +26,10 @@ class XPSystem(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author.bot:
             return
+        
+        slowmode_cog = self.bot.get_cog("SlowmodeTracker")
+        if slowmode_cog:
+            slowmode_cog.log_message(message)
 
         if isinstance(message.channel, discord.DMChannel):
             await käsittele_dm_viesti(self.bot, message)

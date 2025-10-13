@@ -82,6 +82,7 @@ COGS = [
     "bot.cogs.calender",
     "bot.cogs.weather",
     "bot.cogs.settings",
+    "bot.cogs.slowmode",
     "bot.cogs.games.arvaa_luku",
     "bot.cogs.games.arvaa_sana",
     "bot.cogs.games.game_scores",
