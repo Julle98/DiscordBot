@@ -3,6 +3,7 @@ from discord.ext import commands
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from io import BytesIO
+import os
 
 from bot.utils.bot_setup import bot
 from bot.utils.xp_utils import (
@@ -21,6 +22,7 @@ ROOLI_POIKKEUKSET = ["Moderaattori", "Admin", "Mestari"]
 class XPSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.slowmode_channel_id = int(os.getenv("SLOWMODE_CHANNEL_ID"))
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):

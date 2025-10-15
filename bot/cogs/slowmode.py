@@ -36,7 +36,6 @@ class SlowmodeTracker(commands.Cog):
 
         try:
             if not recent:
-                print("[SlowmodeTracker] Ei viestejä viime aikoina, ei muutoksia.")
                 return
 
             new_delay = self.high_slowmode if len(recent) >= self.threshold_count else self.low_slowmode
