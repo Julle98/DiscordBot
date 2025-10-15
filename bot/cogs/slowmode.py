@@ -16,6 +16,7 @@ class SlowmodeTracker(commands.Cog):
         self.high_slowmode = 5
         self.low_slowmode = 2
         self.check_interval = 10
+        self.last_slowmode = None 
         self.slowmode_task.start()
 
     def cog_unload(self):
@@ -34,14 +35,19 @@ class SlowmodeTracker(commands.Cog):
             return
 
         try:
-            if len(recent) >= self.threshold_count:
-                if channel.slowmode_delay != self.high_slowmode:
-                    await channel.edit(slowmode_delay=self.high_slowmode)
-                    await self.send_embed(channel, self.high_slowmode, True)
-            else:
-                if channel.slowmode_delay != self.low_slowmode:
-                    await channel.edit(slowmode_delay=self.low_slowmode)
-                    await self.send_embed(channel, self.low_slowmode, False)
+            if not recent:
+                print("[SlowmodeTracker] Ei viestejä viime aikoina, ei muutoksia.")
+                return
+
+            new_delay = self.high_slowmode if len(recent) >= self.threshold_count else self.low_slowmode
+
+            if new_delay != channel.slowmode_delay:
+                await channel.edit(slowmode_delay=new_delay)
+
+            if new_delay != self.last_slowmode:
+                await self.send_embed(channel, new_delay, new_delay == self.high_slowmode)
+                self.last_slowmode = new_delay
+
         except discord.Forbidden:
             pass
         except discord.HTTPException:

@@ -27,9 +27,13 @@ class XPSystem(commands.Cog):
         if message.author.bot:
             return
         
-        slowmode_cog = self.bot.get_cog("SlowmodeTracker")
-        if slowmode_cog:
-            slowmode_cog.log_message(message)
+        if message.channel.id == self.slowmode_channel_id:
+            slowmode_cog = self.bot.get_cog("SlowmodeTracker")
+            if slowmode_cog:
+                try:
+                    slowmode_cog.log_message(message)
+                except Exception as e:
+                    print(f"[XPSystem] SlowmodeTracker log_message virhe: {e}")
 
         if isinstance(message.channel, discord.DMChannel):
             await käsittele_dm_viesti(self.bot, message)
