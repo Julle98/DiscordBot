@@ -24,4 +24,4 @@ See the [LICENSE](LICENSE) file for full details.
 # Credits
 
 Created by **Julle98** using beginner skills and occasional help from GitHub Copilot.  
-Feel free to reach out on Discord: `Julle98#0`
+Feel free to reach out on Discord: `Julle98#0` (Or any my socials in my profile)
