@@ -10,14 +10,31 @@ class SlowmodeTracker(commands.Cog):
         self.bot = bot
         load_dotenv()
         self.channel_id = int(os.getenv("SLOWMODE_CHANNEL_ID"))
+        self.console_log_channel_id = int(os.getenv("CONSOLE_LOG_CHANNEL_ID"))
         self.message_log = deque(maxlen=20)
         self.threshold_count = 10
         self.time_window = 30
         self.high_slowmode = 5
         self.low_slowmode = 2
         self.check_interval = 10
-        self.last_slowmode = None 
+        self.last_slowmode = None
+
+        bot.loop.create_task(self.initialize_slowmode_state())
+
         self.slowmode_task.start()
+
+    async def initialize_slowmode_state(self):
+        await self.bot.wait_until_ready()
+        channel = self.bot.get_channel(self.channel_id)
+        console_channel = self.bot.get_channel(self.console_log_channel_id)
+        if channel:
+            current_delay = channel.slowmode_delay
+            if current_delay in (self.low_slowmode, self.high_slowmode):
+                self.last_slowmode = current_delay
+            else:
+                if console_channel:
+                    await self.send_embed(console_channel, current_delay, raised=None)
+                self.last_slowmode = current_delay
 
     def cog_unload(self):
         self.slowmode_task.cancel()
@@ -53,8 +70,13 @@ class SlowmodeTracker(commands.Cog):
             pass
 
     async def send_embed(self, channel, delay, raised):
-        color = discord.Color.red() if raised else discord.Color.green()
-        title = "🐌 Etanatila nostettu" if raised else "🐌 Etanatila laskettu"
+        if raised is None:
+            title = "🐌 Etanatila asetettu"
+            color = discord.Color.orange()
+        else:
+            title = "🐌 Etanatila nostettu" if raised else "🐌 Etanatila laskettu"
+            color = discord.Color.red() if raised else discord.Color.green()
+
         embed = discord.Embed(
             title=title,
             description=f"Uusi viestirajoitus: **{delay} sekuntia**",
