@@ -82,7 +82,6 @@ COGS = [
     "bot.cogs.calender",
     "bot.cogs.weather",
     "bot.cogs.settings",
-    "bot.cogs.slowmode",
     "bot.cogs.games.arvaa_luku",
     "bot.cogs.games.arvaa_sana",
     "bot.cogs.games.game_scores",
@@ -103,7 +102,6 @@ async def load_cogs():
 @bot.command()
 @commands.is_owner()
 async def sync(ctx: commands.Context, global_sync: bool = False):
-    """Synkronoi slash‑komennot. Käytä `/sync true` julkaistaksesi globaalisti."""
     await ctx.defer()
     try:
         if global_sync or TEST_GUILD_ID == 0:
@@ -116,7 +114,6 @@ async def sync(ctx: commands.Context, global_sync: bool = False):
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} käynnissä")
     await bot.wait_until_ready()
 
     if bot.user:

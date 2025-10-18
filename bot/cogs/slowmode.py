@@ -10,7 +10,7 @@ class SlowmodeTracker(commands.Cog):
         self.bot = bot
         load_dotenv()
         self.channel_id = int(os.getenv("SLOWMODE_CHANNEL_ID"))
-        self.console_log_channel_id = int(os.getenv("CONSOLE_LOG_CHANNEL_ID"))
+        self.console_log_channel_id = int(os.getenv("CONSOLE_LOG"))
         self.message_log = deque(maxlen=20)
         self.threshold_count = 10
         self.time_window = 30
@@ -18,9 +18,11 @@ class SlowmodeTracker(commands.Cog):
         self.low_slowmode = 2
         self.check_interval = 10
         self.last_slowmode = None
+        print("SlowmodeTracker cog alustettu")
 
-        bot.loop.create_task(self.initialize_slowmode_state())
-
+    async def cog_load(self):
+        await self.bot.wait_until_ready()
+        await self.initialize_slowmode_state()
         self.slowmode_task.start()
 
     async def initialize_slowmode_state(self):
@@ -42,6 +44,14 @@ class SlowmodeTracker(commands.Cog):
     def log_message(self, message: discord.Message):
         if message.channel.id == self.channel_id and not message.author.bot:
             self.message_log.append(message.created_at.timestamp())
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        if not hasattr(self, "slowmode_task_started"):
+            await self.initialize_slowmode_state()
+            self.slowmode_task.start()
+            self.slowmode_task_started = True
+            print("✅ SlowmodeTracker cog valmis ja loop käynnistetty") 
 
     @tasks.loop(seconds=10)
     async def slowmode_task(self):
