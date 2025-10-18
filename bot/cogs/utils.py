@@ -370,6 +370,16 @@ KOMENTOJEN_ROOLIT = {
     "holvi_tallenna": ["VIP", "Mestari"],
     "holvi_hae": ["VIP", "Mestari"],
     "ennustus": ["VIP", "Mestari"],
+    "holvi_tallenna": "24G",
+    "holvi_hae": "24G",
+    "holvi_lista": "24G",
+    "holvi_paivita": "24G",
+    "sää": "24G",
+    "valuutta": "24G",
+    "asetukset": "24G",
+    "heitä": "24G",
+    "kalenteri": "24G",
+    "status": "24G",
 }
 
 KOMENTOJEN_KUVAUKSET = {
@@ -426,6 +436,16 @@ KOMENTOJEN_KUVAUKSET = {
     "holvi_hae": "Hae sisältö holvista salasanalla.",
     "holvi_tallenna": "Tallenna sisältö holviin salasanalla.",
     "ennustus": "Saat mystisen ennustuksen Sannamaijalta.",
+    "holvi_tallenna": "Tallenna sisältö holviin salasanalla.",
+    "holvi_hae": "Hae sisältö holvista salasanalla ja hallitse holvia.",
+    "holvi_lista": "Näytä holviesi tiedot ja mihin olet kutsuttu.",
+    "holvi_paivita": "Lisää tai poista tekstiä holvistasi.",
+    "sää": "Näyttää säätiedot valitulta paikkakunnalta.",
+    "valuutta": "Muunna valuuttaa eri valuuttojen välillä.",
+    "asetukset": "Vaihda omia XP asetuksiasi.",
+    "heitä": "Heitä kolikkoa tai arvo numero.",
+    "kalenteri": "Näyttää kalenteritapahtumia Tilun lukuvuosikalenterista.",
+    "status": "Näytä botin nykyinen status ja suorituskykytiedot.",
 }
 
 def luo_embedit(user_roles):
