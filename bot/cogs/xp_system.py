@@ -42,18 +42,22 @@ class XPSystem(commands.Cog):
             return
 
         maininta = self.bot.user.mentioned_in(message)
-        reply_to_bot = message.reference and isinstance(message.reference.resolved, discord.Message) and message.reference.resolved.author == self.bot.user
+        reply_to_bot = (
+            message.reference
+            and isinstance(message.reference.resolved, discord.Message)
+            and message.reference.resolved.author == self.bot.user
+        )
 
         if maininta or reply_to_bot:
             content = message.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
+
             if content:
                 response = await self.get_response(content)
-                await message.reply(response, mention_author=False)
             else:
-                await message.reply("Hei! Kysy minulta jotain tai kerro, mitä haluat tietää 🙂", mention_author=False)
+                response = "Hei! Kysy minulta jotain tai kerro, mitä haluat tietää 🙂"
 
-            await self.bot.process_commands(message)
-            return
+            await message.reply(response, mention_author=False)
+            return 
 
         request = pending_file_sends.get(message.author.id)
         if request:
