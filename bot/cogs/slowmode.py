@@ -4,72 +4,78 @@ from collections import deque
 import os
 from dotenv import load_dotenv
 import asyncio
+import time
+from datetime import datetime
 
 class SlowmodeTracker(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         load_dotenv()
-        self.channel_id = int(os.getenv("SLOWMODE_CHANNEL_ID"))
+        self.slowmode_channel_id = int(os.getenv("SLOWMODE_CHANNEL_ID"))
         self.console_log_channel_id = int(os.getenv("CONSOLE_LOG"))
-        self.message_log = deque(maxlen=20)
-        self.threshold_count = 10
-        self.time_window = 30
+        self.message_log = deque(maxlen=100)
+        self.threshold_count = 10     # viestiraja
+        self.time_window = 10         # sekuntia
         self.high_slowmode = 5
         self.low_slowmode = 2
-        self.check_interval = 10
         self.last_slowmode = None
 
         bot.loop.create_task(self.initialize_slowmode_state())
-
         self.slowmode_task.start()
 
     async def initialize_slowmode_state(self):
         await self.bot.wait_until_ready()
-        channel = self.bot.get_channel(self.channel_id)
+        channel = self.bot.get_channel(self.slowmode_channel_id)
         console_channel = self.bot.get_channel(self.console_log_channel_id)
-        if channel:
-            current_delay = channel.slowmode_delay
-            if current_delay in (self.low_slowmode, self.high_slowmode):
-                self.last_slowmode = current_delay
-            else:
-                if console_channel:
-                    await self.send_embed(console_channel, current_delay, raised=None)
-                self.last_slowmode = current_delay
+
+        if not channel:
+            return
+
+        current_delay = channel.slowmode_delay
+
+        if current_delay == self.high_slowmode:
+            await channel.edit(slowmode_delay=self.low_slowmode)
+            await self.send_embed(console_channel or channel, self.low_slowmode, raised=False, count=0)
+
+        self.last_slowmode = channel.slowmode_delay
 
     def cog_unload(self):
         self.slowmode_task.cancel()
 
     def log_message(self, message: discord.Message):
-        if message.channel.id == self.channel_id and not message.author.bot:
-            self.message_log.append(message.created_at.timestamp())
+        if message.channel.id == self.slowmode_channel_id and not message.author.bot:
+            self.message_log.append(time.time())
 
-    @tasks.loop(seconds=10)
+    @tasks.loop(seconds=2)
     async def slowmode_task(self):
-        now = asyncio.get_event_loop().time()
-        recent = [t for t in self.message_log if now - t < self.time_window]
-        channel = self.bot.get_channel(self.channel_id)
+        now = time.time()
+        while self.message_log and now - self.message_log[0] > self.time_window:
+            self.message_log.popleft()
+
+        channel = self.bot.get_channel(self.slowmode_channel_id)
+        console_channel = self.bot.get_channel(self.console_log_channel_id)
         if not channel:
             return
 
-        try:
-            if not recent:
-                return
+        count = len(self.message_log)
 
-            new_delay = self.high_slowmode if len(recent) >= self.threshold_count else self.low_slowmode
+        if count >= self.threshold_count and channel.slowmode_delay != self.high_slowmode:
+            await channel.edit(slowmode_delay=self.high_slowmode)
+            await self.send_embed(channel, self.high_slowmode, raised=True, count=count)
+            if console_channel:
+                await self.send_embed(console_channel, self.high_slowmode, raised=True, count=count)
+            self.last_slowmode = self.high_slowmode
 
-            if new_delay != channel.slowmode_delay:
-                await channel.edit(slowmode_delay=new_delay)
+        elif count < self.threshold_count and channel.slowmode_delay != self.low_slowmode:
+            await channel.edit(slowmode_delay=self.low_slowmode)
+            await self.send_embed(channel, self.low_slowmode, raised=False, count=count)
+            if console_channel:
+                await self.send_embed(console_channel, self.low_slowmode, raised=False, count=count)
+            self.last_slowmode = self.low_slowmode
 
-            if new_delay != self.last_slowmode:
-                await self.send_embed(channel, new_delay, new_delay == self.high_slowmode)
-                self.last_slowmode = new_delay
+    async def send_embed(self, channel, delay, raised, count):
+        now = datetime.now().strftime("%H:%M:%S")
 
-        except discord.Forbidden:
-            pass
-        except discord.HTTPException:
-            pass
-
-    async def send_embed(self, channel, delay, raised):
         if raised is None:
             title = "🐌 Etanatila asetettu"
             color = discord.Color.orange()
@@ -77,11 +83,14 @@ class SlowmodeTracker(commands.Cog):
             title = "🐌 Etanatila nostettu" if raised else "🐌 Etanatila laskettu"
             color = discord.Color.red() if raised else discord.Color.green()
 
-        embed = discord.Embed(
-            title=title,
-            description=f"Uusi viestirajoitus: **{delay} sekuntia**",
-            color=color
+        direction = "🔺 Nousi" if raised else "🔻 Laski"
+        description = (
+            f"**{direction}** – uusi viestirajoitus: **{delay} sekuntia**\n"
+            f"💬 Viestejä viimeisen {self.time_window}s aikana: **{count}/{self.threshold_count}**\n"
+            f"⏰ Aikaleima: `{now}`"
         )
+
+        embed = discord.Embed(title=title, description=description, color=color)
         embed.set_footer(text="Automaattinen säätö viestimäärän perusteella")
         await channel.send(embed=embed)
 
