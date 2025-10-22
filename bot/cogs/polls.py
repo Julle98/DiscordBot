@@ -17,6 +17,22 @@ load_dotenv()
 DB_PATH = os.getenv("POLLS_JSON_PATH")
 LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID"))
 
+class FeedbackModal(ui.Modal, title="📝 Anna palautetta"):
+    palaute = ui.TextInput(label="Palaute", style=discord.TextStyle.paragraph, required=False)
+
+    async def on_submit(self, interaction: Interaction):
+        await interaction.response.send_message("Kiitos palautteestasi! 💙", ephemeral=True)
+
+        log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
+        if log_channel:
+            embed = discord.Embed(
+                title="📝 Uusi palaute äänestyksestä",
+                description=self.palaute.value or "*Ei sisältöä*",
+                color=discord.Color.blue()
+            )
+            embed.set_footer(text=f"Lähettäjä: {interaction.user} • ID: {interaction.user.id}")
+            await log_channel.send(embed=embed)
+
 class AanestysModal(ui.Modal):
     def __init__(self):
         super().__init__(title="📊 Luo uusi äänestys")
@@ -69,7 +85,18 @@ class AanestysModal(ui.Modal):
         embed = Embed(title="📊 Äänestys", description=self.kysymys.value, color=Color.blurple())
         for i, opt in enumerate(options):
             embed.add_field(name=emojis[i], value=opt, inline=False)
-        embed.set_footer(text=f"Päättyy {minutes} minuutissa.")
+        hours, minutes_rem = divmod(minutes, 60)
+        aika_str = f"{hours}h {minutes_rem}min" if hours else f"{minutes_rem}min"
+
+        rajoitus_str = ""
+        if allowed_roles:
+            rajoitus_str += f"Sallitut roolit: {', '.join(str(r) for r in allowed_roles)}. "
+        if denied_roles:
+            rajoitus_str += f"Kielletyt roolit: {', '.join(str(r) for r in denied_roles)}. "
+
+        laatija_str = f"Luoja: {interaction.user.display_name}"
+
+        embed.set_footer(text=f"Päättyy {aika_str}. {rajoitus_str}{laatija_str}")
 
         poll_msg = await interaction.channel.send(embed=embed)
         for emoji in emojis[:len(options)]:
@@ -111,13 +138,6 @@ class AanestysModal(ui.Modal):
         member = interaction.user
         user_role_ids = [r.id for r in member.roles]
 
-        if any(rid in user_role_ids for rid in denied_roles):
-            await interaction.response.send_message("🚫 Sinulla on rooli, joka estää äänestämisen.", ephemeral=True)
-            return
-
-        if allowed_roles and not any(rid in user_role_ids for rid in allowed_roles):
-            await interaction.response.send_message("🚫 Sinulla ei ole vaadittua roolia äänestämiseen.", ephemeral=True)
-            return
 
         poll_data = {
             "message_id": poll_msg.id,
@@ -127,7 +147,8 @@ class AanestysModal(ui.Modal):
             "emojis": emojis[:len(options)],
             "active": True,
             "allowed_roles": allowed_roles,
-            "denied_roles": denied_roles
+            "denied_roles": denied_roles,
+            "creator_id": interaction.user.id
         }
 
         try:
@@ -142,6 +163,14 @@ class AanestysModal(ui.Modal):
 
         await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
         asyncio.create_task(wait_and_end_poll(interaction.client, poll_msg.id, minutes))
+
+        if any(rid in user_role_ids for rid in denied_roles):
+            await interaction.response.send_message("🚫 Sinulla on rooli, joka estää äänestämisen.", ephemeral=True)
+            return
+
+        if allowed_roles and not any(rid in user_role_ids for rid in allowed_roles):
+            await interaction.response.send_message("🚫 Sinulla ei ole vaadittua roolia äänestämiseen.", ephemeral=True)
+            return
 
 async def wait_and_end_poll(client, message_id, minutes):
     await asyncio.sleep(minutes * 60)
@@ -273,15 +302,29 @@ async def on_raw_reaction_add(payload):
     if member and not member.bot:
         user_role_ids = [role.id for role in member.roles]
 
-        if poll.get("denied_roles") and any(role_id in user_role_ids for role_id in poll["denied_roles"]):
-            await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta on estetty roolien perusteella.")
-            return
+        if member.id != poll.get("creator_id"):
+            if poll.get("denied_roles") and any(role_id in user_role_ids for role_id in poll["denied_roles"]):
+                await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta on estetty roolien perusteella.")
+                return
 
-        if poll.get("allowed_roles") and not any(role_id in user_role_ids for role_id in poll["allowed_roles"]):
-            await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta ei ole sallittujen roolien joukossa.")
-            return
+            if poll.get("allowed_roles") and not any(role_id in user_role_ids for role_id in poll["allowed_roles"]):
+                await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta ei ole sallittujen roolien joukossa.")
+                return
 
         await log_channel.send(f"🗳️ {member.mention} äänesti **{poll['question']}** reaktiolla {payload.emoji.name}")
+
+        user = await guild.fetch_member(payload.user_id)
+        if user:
+            channel = bot.get_channel(payload.channel_id)
+            if isinstance(channel, discord.TextChannel):
+                try:
+                    await channel.send(
+                        content=f"{user.mention} ✅ Äänesi on rekisteröity!",
+                        view=FeedbackModal(),
+                        delete_after=30
+                    )
+                except discord.Forbidden:
+                    pass  
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Aanestys(bot))
