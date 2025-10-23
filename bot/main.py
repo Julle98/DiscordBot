@@ -25,19 +25,6 @@ TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 TEST_GUILD_ID = int(os.getenv("TEST_GUILD_ID", 0))
 MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID"))   
 
-VALINNAISET_KOMENNOT = {
-    "kauppa": lambda interaction: hasattr(interaction, "namespace") and (
-        getattr(interaction.namespace, "tuote", None) is not None or
-        getattr(interaction.namespace, "kuponki", None) is not None
-    ),
-    "laskin": lambda interaction: hasattr(interaction, "namespace") and (
-        getattr(interaction.namespace, "selitys", None) is not None
-    ),
-    "tiedot": lambda interaction: hasattr(interaction, "namespace") and (
-        getattr(interaction.namespace, "käyttäjä", None) is not None
-    )
-}
-
 komento_loki = defaultdict(lambda: deque(maxlen=10))
 JAAHY_KESTO = 15 * 60  
 TAUKO_KOMENNOT = {"kauppa", "tehtävät", "tiedot"}
@@ -221,9 +208,6 @@ async def on_app_command_completion(interaction: discord.Interaction, command: d
             return
 
         komento_nimi = command.name
-        ehto = VALINNAISET_KOMENNOT.get(komento_nimi)
-        if ehto and not ehto(interaction):
-            return
 
         if callable(anna_xp_komennosta):
             await anna_xp_komennosta(bot, interaction)
