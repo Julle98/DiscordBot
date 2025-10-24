@@ -13,6 +13,9 @@ from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.error_handler import CommandErrorHandler
 from discord.ui import View, Button
 from discord import ButtonStyle, Embed
+import os
+
+SERVER_INVITE_LINK = os.getenv("SERVER_INVITE_LINK")
 
 UTC_CITIES = {
     -12: "Baker Island",
@@ -285,8 +288,12 @@ class Misc(commands.Cog):
     async def kutsumalinkki(self, interaction: discord.Interaction, käyttökerrat: int = None):
         await kirjaa_komento_lokiin(self.bot, interaction, "/kutsumalinkki")
         await kirjaa_ga_event(self.bot, interaction.user.id, "kutsumalinkki_komento")
+        
         if käyttökerrat is None:
-            await interaction.response.send_message("https://discord.com/invite/xpu7cdGESg", ephemeral=True)
+            if SERVER_INVITE_LINK:
+                await interaction.response.send_message(SERVER_INVITE_LINK, ephemeral=True)
+            else:
+                await interaction.response.send_message("Valmista kutsulinkkiä ei ole asetettu.", ephemeral=True)
         else:
             try:
                 invite = await interaction.channel.create_invite(max_uses=käyttökerrat, unique=True)
