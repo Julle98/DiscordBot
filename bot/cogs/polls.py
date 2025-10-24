@@ -85,18 +85,6 @@ class AanestysModal(ui.Modal):
         embed = Embed(title="📊 Äänestys", description=self.kysymys.value, color=Color.blurple())
         for i, opt in enumerate(options):
             embed.add_field(name=emojis[i], value=opt, inline=False)
-        hours, minutes_rem = divmod(minutes, 60)
-        aika_str = f"{hours}h {minutes_rem}min" if hours else f"{minutes_rem}min"
-
-        rajoitus_str = ""
-        if allowed_roles:
-            rajoitus_str += f"Sallitut roolit: {', '.join(str(r) for r in allowed_roles)}. "
-        if denied_roles:
-            rajoitus_str += f"Kielletyt roolit: {', '.join(str(r) for r in denied_roles)}. "
-
-        laatija_str = f"Luoja: {interaction.user.display_name}"
-
-        embed.set_footer(text=f"Päättyy {aika_str}. {rajoitus_str}{laatija_str}")
 
         poll_msg = await interaction.channel.send(embed=embed)
         for emoji in emojis[:len(options)]:
@@ -117,10 +105,12 @@ class AanestysModal(ui.Modal):
                 await interaction.response.send_message("⚠️ Roolia ei löytynyt tai sitä ei voi tägätä.", ephemeral=True)
                 return
 
+        hours, minutes_rem = divmod(minutes, 60)
+        aika_str = f"{hours}h {minutes_rem}min" if hours else f"{minutes_rem}min"
+
         allowed_roles = []
         denied_roles = []
         raw = self.jasenrajoitukset.value.strip()
-
         try:
             if raw:
                 parts = raw.split("|")
@@ -129,15 +119,20 @@ class AanestysModal(ui.Modal):
                 if len(parts) > 1 and parts[1].strip():
                     denied_roles = [int(i.strip()) for i in parts[1].split(",") if i.strip().isdigit()]
         except Exception:
-            await interaction.response.send_message(
-                "⚠️ Virheellinen jäsenrajoitusten muoto. Käytä: ID,ID | ID,ID tai pelkkä | kielletyt",
-                ephemeral=True
-            )
+            await interaction.response.send_message("⚠️ Virheellinen jäsenrajoitusten muoto.", ephemeral=True)
             return
+
+        rajoitus_str = ""
+        if allowed_roles:
+            rajoitus_str += f"Sallitut roolit: {', '.join(str(r) for r in allowed_roles)}. "
+        if denied_roles:
+            rajoitus_str += f"Kielletyt roolit: {', '.join(str(r) for r in denied_roles)}. "
+        laatija_str = f"Luoja: {interaction.user.display_name}"
+
+        embed.set_footer(text=f"Päättyy {aika_str}. {rajoitus_str}{laatija_str}")
 
         member = interaction.user
         user_role_ids = [r.id for r in member.roles]
-
 
         poll_data = {
             "message_id": poll_msg.id,
@@ -163,14 +158,6 @@ class AanestysModal(ui.Modal):
 
         await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
         asyncio.create_task(wait_and_end_poll(interaction.client, poll_msg.id, minutes))
-
-        if any(rid in user_role_ids for rid in denied_roles):
-            await interaction.response.send_message("🚫 Sinulla on rooli, joka estää äänestämisen.", ephemeral=True)
-            return
-
-        if allowed_roles and not any(rid in user_role_ids for rid in allowed_roles):
-            await interaction.response.send_message("🚫 Sinulla ei ole vaadittua roolia äänestämiseen.", ephemeral=True)
-            return
 
 async def wait_and_end_poll(client, message_id, minutes):
     await asyncio.sleep(minutes * 60)
