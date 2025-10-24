@@ -86,7 +86,13 @@ class AanestysModal(ui.Modal):
         for i, opt in enumerate(options):
             embed.add_field(name=emojis[i], value=opt, inline=False)
 
+        hours, minutes_rem = divmod(minutes, 60)
+        aika_str = f"{hours}h {minutes_rem}min" if hours else f"{minutes_rem}min"
+        laatija_str = f"Luoja: {interaction.user.display_name}"
+        embed.set_footer(text=f"Päättyy {aika_str}. {laatija_str}")
+
         poll_msg = await interaction.channel.send(embed=embed)
+
         for emoji in emojis[:len(options)]:
             await poll_msg.add_reaction(emoji)
 
@@ -301,17 +307,16 @@ async def on_raw_reaction_add(payload):
         await log_channel.send(f"🗳️ {member.mention} äänesti **{poll['question']}** reaktiolla {payload.emoji.name}")
 
         user = await guild.fetch_member(payload.user_id)
-        if user:
-            channel = bot.get_channel(payload.channel_id)
-            if isinstance(channel, discord.TextChannel):
-                try:
-                    await channel.send(
-                        content=f"{user.mention} ✅ Äänesi on rekisteröity!",
-                        view=FeedbackModal(),
-                        delete_after=30
-                    )
-                except discord.Forbidden:
-                    pass  
+        channel = bot.get_channel(payload.channel_id)
+        if user and isinstance(channel, discord.TextChannel):
+            try:
+                await channel.send(
+                    content=f"{user.mention} ✅ Äänesi on rekisteröity!",
+                    view=FeedbackModal(),
+                    delete_after=30
+                )
+            except discord.Forbidden:
+                pass
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Aanestys(bot))
