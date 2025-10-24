@@ -128,15 +128,6 @@ class AanestysModal(ui.Modal):
             await interaction.response.send_message("⚠️ Virheellinen jäsenrajoitusten muoto.", ephemeral=True)
             return
 
-        rajoitus_str = ""
-        if allowed_roles:
-            rajoitus_str += f"Sallitut roolit: {', '.join(str(r) for r in allowed_roles)}. "
-        if denied_roles:
-            rajoitus_str += f"Kielletyt roolit: {', '.join(str(r) for r in denied_roles)}. "
-        laatija_str = f"Luoja: {interaction.user.display_name}"
-
-        embed.set_footer(text=f"Päättyy {aika_str}. {rajoitus_str}{laatija_str}")
-
         member = interaction.user
         user_role_ids = [r.id for r in member.roles]
 
