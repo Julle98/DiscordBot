@@ -13,6 +13,7 @@ from bot.utils.xp_utils import (
 from bot.utils.tiedot_utils import pending_file_sends
 from utils.xp_bonus import käsittele_xp_bonus
 from bot.utils.settings_utils import get_user_settings
+from bot.cogs.ai import AI
 
 komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
 viestit_ja_ajat = {}  # {message_id: (user_id, timestamp)}
@@ -23,6 +24,7 @@ class XPSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.slowmode_channel_id = int(os.getenv("SLOWMODE_CHANNEL_ID"))
+        self.ai = AI()
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -52,7 +54,7 @@ class XPSystem(commands.Cog):
             content = message.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
 
             if content:
-                response = await self.get_response(content)
+                response = await self.ai.get_response(content)
             else:
                 response = "Hei! Kysy minulta jotain tai kerro, mitä haluat tietää 🙂"
 
