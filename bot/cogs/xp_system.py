@@ -24,7 +24,7 @@ class XPSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.slowmode_channel_id = int(os.getenv("SLOWMODE_CHANNEL_ID"))
-        self.ai = AI()
+        self.ai = AI(bot)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
