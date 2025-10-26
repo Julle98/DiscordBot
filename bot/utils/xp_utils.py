@@ -170,7 +170,7 @@ async def tarkista_tasonousu(bot, message, old_level, new_level):
         guild = message.guild
         for lvl, role_id in LEVEL_ROLES.items():
             role = guild.get_role(role_id)
-            if role and role in message.author.roles and lvl > new_level:
+            if role and role in message.author.roles and lvl != new_level:
                 await message.author.remove_roles(role)
 
         if new_level in LEVEL_ROLES:
