@@ -6,6 +6,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 import logging
+from utils.time_utils import get_current_time_in_helsinki
 
 load_dotenv()
 RESPONSES_PATH = os.getenv("RESPONSES_PATH")
@@ -17,26 +18,60 @@ async def send_to_channel(channel_id: int, message: str):
         if channel:
             await channel.send(message)
 
+SUOMI_PÄIVÄT = {
+    "Monday": "maanantai",
+    "Tuesday": "tiistai",
+    "Wednesday": "keskiviikko",
+    "Thursday": "torstai",
+    "Friday": "perjantai",
+    "Saturday": "lauantai",
+    "Sunday": "sunnuntai"
+}
+
+SUOMI_KUUKAUDET = {
+    1: "tammikuu",
+    2: "helmikuu",
+    3: "maaliskuu",
+    4: "huhtikuu",
+    5: "toukokuu",
+    6: "kesäkuu",
+    7: "heinäkuu",
+    8: "elokuu",
+    9: "syyskuu",
+    10: "lokakuu",
+    11: "marraskuu",
+    12: "joulukuu"
+}
+
 class AI(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         with open(RESPONSES_PATH, "r", encoding="utf-8") as f:
             self.responses = json.load(f)
 
-    def get_time_response(self, text: str) -> str:
-        now = datetime.now()
+    def get_time_response(self, text: str) -> str | None:
         text = text.lower()
+        now = get_current_time_in_helsinki()  
 
         if "aika" in text:
             return f"Nyt on kello {now.strftime('%H:%M')}."
+        
         elif "päivä" in text:
-            return f"Tänään on {now.strftime('%A')} ({now.strftime('%d.%m.%Y')})."
+            viikonpäivä = SUOMI_PÄIVÄT[now.strftime('%A')]
+            pvm = now.strftime('%d.%m.%Y')
+            return f"Tänään on {viikonpäivä}, {pvm}."
+        
         elif "vuosi" in text:
             return f"Nyt on vuosi {now.year}."
+        
         elif "kuukausi" in text:
-            return f"Nyt on {now.strftime('%B')}."
+            kuukausi = SUOMI_KUUKAUDET[now.month]
+            return f"Nyt on {kuukausi}."
+        
         elif "viikkonumero" in text or "viikko" in text:
-            return f"Nyt on viikko {now.isocalendar().week}."
+            viikko = now.isocalendar().week
+            return f"Nyt on viikko {viikko}."
+        
         elif "vuorokausi" in text:
             hour = now.hour
             if 5 <= hour < 12:
@@ -47,6 +82,7 @@ class AI(commands.Cog):
                 return "Nyt on ilta."
             else:
                 return "Nyt on yö."
+        
         return None
 
     async def get_response(self, text: str) -> str:
