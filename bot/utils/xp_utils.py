@@ -159,19 +159,31 @@ async def tarkista_tasonousu(bot, message, old_level, new_level):
     uid = message.author.id
 
     if viestitetyt_tasonousut.get(uid) == new_level:
-        return  
+        return
 
     if new_level > old_level:
-        if new_level in LEVEL_MESSAGES:
+        if old_level == 0 and new_level == 1:
+            await message.channel.send(LEVEL_MESSAGES[1].format(user=message.author.mention))
+        elif new_level in LEVEL_MESSAGES:
             await message.channel.send(LEVEL_MESSAGES[new_level].format(user=message.author.mention))
         else:
             await message.channel.send(f"{message.author.mention} nousi tasolle {new_level}! 🎉")
 
         guild = message.guild
+
+        nykyinen_rooli_taso = None
         for lvl, role_id in LEVEL_ROLES.items():
             role = guild.get_role(role_id)
-            if role and role in message.author.roles and lvl != new_level:
-                await message.author.remove_roles(role)
+            if role and role in message.author.roles:
+                nykyinen_rooli_taso = lvl
+                break
+
+        if nykyinen_rooli_taso is not None:
+            seuraavat_tasot = sorted([lvl for lvl in LEVEL_ROLES if lvl > nykyinen_rooli_taso])
+            if seuraavat_tasot and new_level >= seuraavat_tasot[0]:
+                vanha_rooli = guild.get_role(LEVEL_ROLES[nykyinen_rooli_taso])
+                if vanha_rooli:
+                    await message.author.remove_roles(vanha_rooli)
 
         if new_level in LEVEL_ROLES:
             uusi_rooli = guild.get_role(LEVEL_ROLES[new_level])
