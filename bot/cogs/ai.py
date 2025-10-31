@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 import logging
-from utils.time_utils import get_current_time_in_helsinki
+from utils.time_utils import get_current_time_in_utc_plus_2
 
 load_dotenv()
 RESPONSES_PATH = os.getenv("RESPONSES_PATH")
@@ -51,27 +51,30 @@ class AI(commands.Cog):
 
     def get_time_response(self, text: str) -> str | None:
         text = text.lower()
-        now = get_current_time_in_helsinki()  
+        try:
+            now_str = get_current_time_in_utc_plus_2()
+            now = datetime.strptime(now_str, "%d-%m-%Y %H:%M:%S")
+        except Exception as e:
+            logger.error(f"Aikaparsoitus epäonnistui: {e}")
+            return "Ajan hakemisessa tapahtui virhe 😕"
 
         if "aika" in text:
             return f"Nyt on kello {now.strftime('%H:%M')}."
-        
+
         elif "päivä" in text:
-            viikonpäivä = SUOMI_PÄIVÄT[now.strftime('%A')]
-            pvm = now.strftime('%d.%m.%Y')
-            return f"Tänään on {viikonpäivä}, {pvm}."
-        
+            return f"Tänään on {now.strftime('%A')} ({now.strftime('%d.%m.%Y')})."
+
         elif "vuosi" in text:
             return f"Nyt on vuosi {now.year}."
-        
+
         elif "kuukausi" in text:
             kuukausi = SUOMI_KUUKAUDET[now.month]
             return f"Nyt on {kuukausi}."
-        
+
         elif "viikkonumero" in text or "viikko" in text:
             viikko = now.isocalendar().week
             return f"Nyt on viikko {viikko}."
-        
+
         elif "vuorokausi" in text:
             hour = now.hour
             if 5 <= hour < 12:
@@ -82,7 +85,7 @@ class AI(commands.Cog):
                 return "Nyt on ilta."
             else:
                 return "Nyt on yö."
-        
+
         return None
 
     async def get_response(self, text: str) -> str:
