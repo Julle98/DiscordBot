@@ -33,9 +33,130 @@ class FeedbackModal(ui.Modal, title="📝 Anna palautetta"):
             embed.set_footer(text=f"Lähettäjä: {interaction.user} • ID: {interaction.user.id}")
             await log_channel.send(embed=embed)
 
-class AanestysModal(ui.Modal):
+class FeedbackButton(discord.ui.Button):
     def __init__(self):
+        super().__init__(label="Anna palautetta", style=discord.ButtonStyle.secondary)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(FeedbackModal())
+
+class VoteButton(discord.ui.Button):
+    def __init__(self, index: int, poll_data: dict, parent_view: discord.ui.View):
+        self.index = index
+        self.poll_data = poll_data
+        self.parent_view = parent_view
+        super().__init__(label=self._label_with_count(), style=discord.ButtonStyle.primary)
+
+    def _label_with_count(self):
+        count = sum(1 for v in self.poll_data["votes"].values() if v == self.index)
+        return f"{self.index + 1} ({count} ääntä)"
+
+    def refresh_label(self):
+        self.label = self._label_with_count()
+
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            user_id = str(interaction.user.id)
+            user_role_ids = [r.id for r in interaction.user.roles]
+
+            if any(r in self.poll_data["denied_roles"] for r in user_role_ids):
+                msg = "🚫 Et saa äänestää tässä äänestyksessä."
+            elif self.poll_data["allowed_roles"] and not any(r in self.poll_data["allowed_roles"] for r in user_role_ids):
+                msg = "🚫 Et saa äänestää tässä äänestyksessä."
+            elif user_id in self.poll_data["votes"]:
+                msg = "ℹ️ Olet jo äänestänyt."
+            else:
+                self.poll_data["votes"][user_id] = self.index
+                self._update_db()
+                self._refresh_all_buttons()
+                msg = "✅ Äänesi on rekisteröity!"
+
+                log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
+                if log_channel:
+                    embed = discord.Embed(
+                        title="✅ Ääni rekisteröity",
+                        description=f"{interaction.user} äänesti vaihtoehtoa {self.index + 1}",
+                        color=discord.Color.green()
+                    )
+                    embed.set_footer(text=f"ID: {interaction.user.id}")
+                    await log_channel.send(embed=embed)
+
+            view = discord.ui.View()
+            view.add_item(FeedbackButton())
+            view.add_item(UnvoteButton(self.poll_data, self.parent_view))
+            await interaction.response.send_message(msg, ephemeral=True, view=view)
+        except Exception as e:
+            print(f"VoteButton virhe: {e}")
+            await interaction.response.send_message("⚠️ Tapahtui virhe nappulan käsittelyssä.", ephemeral=True)
+
+    def _refresh_all_buttons(self):
+        for item in self.parent_view.children:
+            if isinstance(item, VoteButton):
+                item.refresh_label()
+        message = self.parent_view.message
+        if message:
+            asyncio.create_task(message.edit(view=self.parent_view))
+
+    def _update_db(self):
+        try:
+            with open(DB_PATH, "r") as f:
+                db = json.load(f)
+            for p in db:
+                if p["message_id"] == self.poll_data["message_id"]:
+                    p["votes"] = self.poll_data["votes"]
+            with open(DB_PATH, "w") as f:
+                json.dump(db, f, indent=2)
+        except Exception:
+            pass
+
+class UnvoteButton(discord.ui.Button):
+    def __init__(self, poll_data: dict, parent_view: discord.ui.View):
+        super().__init__(label="Peru ääni", style=discord.ButtonStyle.danger)
+        self.poll_data = poll_data
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        user_id = str(interaction.user.id)
+        if user_id in self.poll_data["votes"]:
+            del self.poll_data["votes"][user_id]
+            self._update_db()
+            self._refresh_all_buttons()
+            msg = "❎ Äänesi on peruttu."
+        else:
+            msg = "ℹ️ Sinulla ei ole aktiivista ääntä."
+
+        view = discord.ui.View()
+        view.add_item(FeedbackButton())
+        await interaction.response.send_message(msg, ephemeral=True, view=view)
+
+    def _refresh_all_buttons(self):
+        for item in self.parent_view.children:
+            if isinstance(item, VoteButton):
+                item.refresh_label()
+
+    def _update_db(self):
+        try:
+            with open(DB_PATH, "r") as f:
+                db = json.load(f)
+            for p in db:
+                if p["message_id"] == self.poll_data["message_id"]:
+                    p["votes"] = self.poll_data["votes"]
+            with open(DB_PATH, "w") as f:
+                json.dump(db, f, indent=2)
+        except Exception:
+            pass
+
+class VoteButtonView(discord.ui.View):
+    def __init__(self, options: list[str], poll_data: dict):
+        super().__init__(timeout=None)
+        self.message = None  
+        for i in range(len(options)):
+            self.add_item(VoteButton(index=i, poll_data=poll_data, parent_view=self))
+
+class AanestysModal(ui.Modal):
+    def __init__(self, bot: commands.Bot):
         super().__init__(title="📊 Luo uusi äänestys")
+        self.bot = bot
 
         self.kysymys = ui.TextInput(label="Äänestyksen otsikko", max_length=100)
         self.vaihtoehdot = ui.TextInput(
@@ -77,7 +198,6 @@ class AanestysModal(ui.Modal):
             return
 
         options = [opt.strip() for opt in self.vaihtoehdot.value.split(",") if opt.strip()]
-        emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
         if not 2 <= len(options) <= 5:
             await interaction.response.send_message("⚠️ Anna 2–5 vaihtoehtoa pilkulla eroteltuna.", ephemeral=True)
             return
@@ -114,23 +234,44 @@ class AanestysModal(ui.Modal):
         else:
             rajoitus_str = "🌐 Kaikki voivat äänestää\n"
 
+        numerotemojit = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+
         embed = Embed(
             title="📊 Äänestys",
-            description=f"{rajoitus_str}\n{self.kysymys.value}",
+            description=f"{self.kysymys.value}\n{rajoitus_str}",
             color=Color.blurple()
         )
+
         for i, opt in enumerate(options):
-            embed.add_field(name=emojis[i], value=opt, inline=False)
+            emoji = numerotemojit[i]
+            embed.add_field(name=f"{emoji} {opt}", value="\u200b", inline=False)
 
         hours, minutes_rem = divmod(minutes, 60)
         aika_str = f"{hours}h {minutes_rem}min" if hours else f"{minutes_rem}min"
         laatija_str = f"Luoja: {interaction.user.display_name}"
         embed.set_footer(text=f"Päättyy {aika_str}. {laatija_str}")
 
-        poll_msg = await interaction.channel.send(embed=embed)
+        poll_data = {
+            "message_id": None,
+            "channel_id": interaction.channel.id,
+            "question": self.kysymys.value,
+            "options": options,
+            "active": True,
+            "allowed_roles": allowed_roles,
+            "denied_roles": denied_roles,
+            "creator_id": interaction.user.id,
+            "votes": {}
+        }
 
-        for emoji in emojis[:len(options)]:
-            await poll_msg.add_reaction(emoji)
+        dummy_view = discord.ui.View()
+
+        poll_msg = await interaction.channel.send(embed=embed)
+        poll_data["message_id"] = poll_msg.id
+
+        view = VoteButtonView(options, poll_data)
+        view.message = poll_msg
+        await self.bot.add_view(view)
+        await poll_msg.edit(view=view)
 
         role_id_str = self.rooli_id.value.strip()
         role = None
@@ -154,15 +295,15 @@ class AanestysModal(ui.Modal):
         user_role_ids = [r.id for r in member.roles]
 
         poll_data = {
-            "message_id": poll_msg.id,
-            "channel_id": poll_msg.channel.id,
+            "message_id": None,
+            "channel_id": interaction.channel.id,
             "question": self.kysymys.value,
             "options": options,
-            "emojis": emojis[:len(options)],
             "active": True,
             "allowed_roles": allowed_roles,
             "denied_roles": denied_roles,
-            "creator_id": interaction.user.id
+            "creator_id": interaction.user.id,
+            "votes": {}
         }
 
         try:
@@ -176,7 +317,7 @@ class AanestysModal(ui.Modal):
             json.dump(db, f, indent=2)
 
         await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
-        asyncio.create_task(wait_and_end_poll(interaction.client, poll_msg.id, minutes))
+        asyncio.create_task(wait_and_end_poll(self.bot, poll_msg.id, minutes))
 
 async def wait_and_end_poll(client, message_id, minutes):
     await asyncio.sleep(minutes * 60)
@@ -194,20 +335,25 @@ async def end_poll(bot: commands.Bot, message_id: int):
         return
 
     channel = bot.get_channel(poll["channel_id"])
-    message = await channel.fetch_message(poll["message_id"])
-    counts = {emoji: 0 for emoji in poll["emojis"]}
+    if not channel:
+        return
 
-    for reaction in message.reactions:
-        if str(reaction.emoji) in counts:
-            counts[str(reaction.emoji)] = reaction.count - 1
+    counts = {i: 0 for i in range(len(poll["options"]))}
+    for user_id, opt_index in poll.get("votes", {}).items():
+        counts[opt_index] += 1
 
-    max_votes = max(counts.values())
-    winners = [poll["options"][poll["emojis"].index(e)] for e, c in counts.items() if c == max_votes]
+    max_votes = max(counts.values(), default=0)
+    winners = [poll["options"][i] for i, c in counts.items() if c == max_votes and max_votes > 0]
 
     result = discord.Embed(title="📊 Äänestyksen tulokset", description=poll["question"], color=discord.Color.green())
-    for emoji, count in counts.items():
-        result.add_field(name=emoji, value=f"{count} ääntä", inline=True)
-    result.add_field(name="🏆 Voittaja(t)", value=", ".join(winners), inline=False)
+    for i, count in counts.items():
+        option = poll["options"][i]
+        result.add_field(name=option, value=f"{count} ääntä", inline=True)
+
+    if winners:
+        result.add_field(name="🏆 Voittaja(t)", value=", ".join(winners), inline=False)
+    else:
+        result.add_field(name="🏆 Voittaja(t)", value="Ei ääniä", inline=False)
 
     await channel.send(embed=result)
 
@@ -223,7 +369,7 @@ class VarmistusView(ui.View):
     @ui.button(label="✅ Jatka ja luo äänestys", style=discord.ButtonStyle.green)
     async def jatka(self, interaction: Interaction, button: ui.Button):
         try:
-            await interaction.response.send_modal(AanestysModal())
+            await interaction.response.send_modal(AanestysModal(self.bot))
         except Exception as e:
             print(f"Modalin avaus epäonnistui: {e}")
             await interaction.followup.send(f"⚠️ Modalin avaaminen epäonnistui: {e}", ephemeral=True)
@@ -250,32 +396,33 @@ class Aanestys(commands.GroupCog, name="äänestys"):
         await interaction.response.defer(thinking=True)
         await kirjaa_komento_lokiin(self.bot, interaction, "/äänestys tulokset")
         await kirjaa_ga_event(self.bot, interaction.user.id, "tulokset_äänestys_komento")
+
         try:
             with open(DB_PATH, "r") as f:
                 db = json.load(f)
         except FileNotFoundError:
-            await interaction.response.send_message("❌ Äänestystietokantaa ei löytynyt.", ephemeral=True)
+            await interaction.followup.send("❌ Äänestystietokantaa ei löytynyt.", ephemeral=True)
             return
 
-        poll = next((p for p in db if str(p["message_id"]) == message_id), None)
+        poll = next((p for p in db if str(p["message_id"]) == str(message_id)), None)
         if not poll:
-            await interaction.response.send_message("❌ Äänestystä ei löytynyt.", ephemeral=True)
+            await interaction.followup.send("❌ Äänestystä ei löytynyt.", ephemeral=True)
             return
 
-        channel = self.bot.get_channel(poll["channel_id"])
-        message = await channel.fetch_message(poll["message_id"])
-        counts = {emoji: 0 for emoji in poll["emojis"]}
+        counts = {i: 0 for i in range(len(poll["options"]))}
+        for user_id, opt_index in poll.get("votes", {}).items():
+            counts[opt_index] += 1
 
-        for reaction in message.reactions:
-            if str(reaction.emoji) in counts:
-                counts[str(reaction.emoji)] = reaction.count - 1  
+        result = discord.Embed(
+            title="📊 Äänestyksen nykytilanne",
+            description=poll["question"],
+            color=discord.Color.orange()
+        )
 
-        result = discord.Embed(title="📊 Äänestyksen nykytilanne", description=poll["question"], color=discord.Color.orange())
-        for emoji, count in counts.items():
-            option = poll["options"][poll["emojis"].index(emoji)]
-            result.add_field(name=f"{emoji} {option}", value=f"{count} ääntä", inline=False)
+        for i, count in counts.items():
+            result.add_field(name=f"{i + 1}", value=f"{poll['options'][i]} — {count} ääntä", inline=False)
 
-        await interaction.response.send_message(embed=result, ephemeral=True)
+        await interaction.followup.send(embed=result, ephemeral=True)
 
     @app_commands.command(name="lopetus", description="Lopeta äänestys ennen aikarajaa")
     async def lopetus(self, interaction: discord.Interaction, message_id: str):
@@ -288,49 +435,6 @@ class Aanestys(commands.GroupCog, name="äänestys"):
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
         await CommandErrorHandler(self.bot, interaction, error)
-
-@bot.event
-async def on_raw_reaction_add(payload):
-    try:
-        with open(DB_PATH, "r") as f:
-            db = json.load(f)
-    except FileNotFoundError:
-        return
-
-    poll = next((p for p in db if p["message_id"] == payload.message_id and p["active"]), None)
-    if not poll or str(payload.emoji.name) not in poll["emojis"]:
-        return
-
-    guild = bot.get_guild(payload.guild_id)
-    member = guild.get_member(payload.user_id)
-    log_channel = bot.get_channel(LOG_CHANNEL_ID)
-
-    if member and not member.bot:
-        user_role_ids = [role.id for role in member.roles]
-
-        if member.id != poll.get("creator_id"):
-            if poll.get("denied_roles") and any(role_id in user_role_ids for role_id in poll["denied_roles"]):
-                await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta on estetty roolien perusteella.")
-                return
-
-            if poll.get("allowed_roles") and not any(role_id in user_role_ids for role_id in poll["allowed_roles"]):
-                await log_channel.send(f"🚫 {member.mention} yritti äänestää, mutta ei ole sallittujen roolien joukossa.")
-                return
-
-        await log_channel.send(f"🗳️ {member.mention} äänesti **{poll['question']}** reaktiolla {payload.emoji.name}")
-
-        user = await guild.fetch_member(payload.user_id)
-        channel = bot.get_channel(payload.channel_id)
-
-        if user and isinstance(channel, discord.TextChannel):
-            try:
-                await channel.send(
-                    content=f"{user.mention} ✅ Äänesi on rekisteröity!",
-                    view=FeedbackModal(),
-                    delete_after=30
-                )
-            except discord.Forbidden:
-                pass
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Aanestys(bot))
