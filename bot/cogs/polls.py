@@ -85,11 +85,26 @@ class AanestysModal(ui.Modal):
         rajoitus_str = ""
         if allowed_roles or denied_roles:
             if allowed_roles:
-                rajoitus_str += f"✅ Sallitut roolit: {', '.join(str(r) for r in allowed_roles)}\n"
-            if denied_roles:
-                rajoitus_str += f"🚫 Estetyt roolit: {', '.join(str(r) for r in denied_roles)}\n"
+                nimet = []
+                for r_id in allowed_roles:
+                    rooli = interaction.guild.get_role(r_id)
+                    nimet.append(rooli.mention if rooli else f"<@&{r_id}>")
+                rajoitus_str += f"✅ Sallitut roolit: {', '.join(nimet)}\n"
 
-        embed = Embed(title="📊 Äänestys", description=f"{rajoitus_str}\n{self.kysymys.value}", color=Color.blurple())
+            if denied_roles:
+                nimet = []
+                for r_id in denied_roles:
+                    rooli = interaction.guild.get_role(r_id)
+                    nimet.append(rooli.mention if rooli else f"<@&{r_id}>")
+                rajoitus_str += f"🚫 Estetyt roolit: {', '.join(nimet)}\n"
+        else:
+            rajoitus_str = "🌐 Kaikki voivat äänestää\n"
+
+        embed = Embed(
+            title="📊 Äänestys",
+            description=f"{rajoitus_str}\n{self.kysymys.value}",
+            color=Color.blurple()
+        )
         for i, opt in enumerate(options):
             embed.add_field(name=emojis[i], value=opt, inline=False)
 
