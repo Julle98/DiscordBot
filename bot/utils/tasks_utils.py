@@ -379,7 +379,7 @@ class TaskListener(discord.ui.View):
         now = datetime.now(utc_plus_2).time()
 
         if self.task_name == "Lähetä viesti tiettyyn aikaan":
-            if dtime(10, 0) <= now <= dtime(17, 0) and message.channel.id == TASK_CHANNEL_ID:
+            if dtime(10, 0) <= now <= dtime(21, 0) and message.channel.id == TASK_CHANNEL_ID:
                 await self.finish_task()
             else:
                 await self.virheellinen_suoritus(message)    
@@ -423,10 +423,20 @@ class TaskListener(discord.ui.View):
                 await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Tee kysely":
-            if message.channel.id == TASK_CHANNEL_ID and len(message.reactions) >= 2:
-                await self.finish_task()
-            else:
-                await self.virheellinen_suoritus(message)
+            if message.channel.id == TASK_CHANNEL_ID:
+                def check(reaction, user):
+                    return reaction.message.id == message.id and not user.bot
+
+                try:
+                    reaction1, user1 = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
+                    reaction2, user2 = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
+
+                    if reaction1.emoji == "✅" and reaction2.emoji == "❌":
+                        await self.finish_task()
+                    else:
+                        await self.virheellinen_suoritus(message)
+                except asyncio.TimeoutError:
+                    await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Aloita keskustelu":
             def check_response(m):
@@ -784,7 +794,7 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
         active_listeners.pop(uid, None)
                  
 TASK_INSTRUCTIONS = {
-    "Lähetä viesti tiettyyn aikaan": "Lähetä viesti <#1339846062281588777> kanavalle klo 10–17 UTC+2 välisenä aikana. Aikaa suoritukseen 30 min.",
+    "Lähetä viesti tiettyyn aikaan": "Lähetä viesti <#1339846062281588777> kanavalle klo 10–21 UTC+2 välisenä aikana. Aikaa suoritukseen 30 min.",
     "Käy yleinen kanavalla lähettämässä viesti": "Lähetä viesti <#1339846062281588777> kanavassa. Viestisi voi olla tekstiä, tiedosto, gif ja/tai tarra. Aikaa suoritukseen 30 min.",
     "Mainitse toinen käyttäjä": "Mainitse joku käyttäjä viestissäsi <#1339846062281588777> kanavalla. Aikaa suoritukseen 30 min.",
     "Käytä bottikomentoja": "Käytä mitä tahansa bottikomentoa <#1339846062281588777> kanavalla. Aikaa suoritukseen 30 min.",
@@ -796,7 +806,7 @@ TASK_INSTRUCTIONS = {
     "Lähetä tiedosto": "Lähetä mikä tahansa tiedosto tai kuva <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
     "Lähetä meemi": "Lähetä hauska meemi <#1339856017277714474> kanavalle. Aikaa suoritukseen 30 min.",
     "Striimaa peliäsi": "Aloita pelistriimi <#1339856090036174908> kanavalla. Aikaa suoritukseen 30 min.",
-    "Tee kysely": "Luo viesti, johon lisäät vähintään kaksi reaktiota <#1339846062281588777> kanavalla. Aikaa suoritukseen 30 min.",
+    "Tee kysely": "Luo viesti, johon lisäät vähintään kaksi reaktiota, joiden täytyy olla ✅ ja ❌ <#1339846062281588777> kanavalla. Aikaa suoritukseen 30 min.",
     "Osta jotain kaupasta": "Käytä komentoa `/kauppa [tuotteen nimi]` ostaaksesi tuotteen <#1339846062281588777> kanavalla. Aikaa suoritukseen 30 min.",
     "Lähetä viesti arkipäivänä": "Lähetä viesti <#1339846062281588777> kanavalle maanantaista perjantaihin. Aikaa suoritukseen 30 min.",
     "Aloita keskustelu": "Lähetä viesti <#1339846062281588777> kanavalle ja saa joku vastaamaan siihen vastauksena (reply). Aikaa suoritukseen 30 min.",
