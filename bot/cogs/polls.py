@@ -82,7 +82,14 @@ class AanestysModal(ui.Modal):
             await interaction.response.send_message("⚠️ Anna 2–5 vaihtoehtoa pilkulla eroteltuna.", ephemeral=True)
             return
 
-        embed = Embed(title="📊 Äänestys", description=self.kysymys.value, color=Color.blurple())
+        rajoitus_str = ""
+        if allowed_roles or denied_roles:
+            if allowed_roles:
+                rajoitus_str += f"✅ Sallitut roolit: {', '.join(str(r) for r in allowed_roles)}\n"
+            if denied_roles:
+                rajoitus_str += f"🚫 Estetyt roolit: {', '.join(str(r) for r in denied_roles)}\n"
+
+        embed = Embed(title="📊 Äänestys", description=f"{rajoitus_str}\n{self.kysymys.value}", color=Color.blurple())
         for i, opt in enumerate(options):
             embed.add_field(name=emojis[i], value=opt, inline=False)
 
@@ -299,6 +306,7 @@ async def on_raw_reaction_add(payload):
 
         user = await guild.fetch_member(payload.user_id)
         channel = bot.get_channel(payload.channel_id)
+
         if user and isinstance(channel, discord.TextChannel):
             try:
                 await channel.send(
