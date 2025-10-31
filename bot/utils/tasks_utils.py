@@ -219,44 +219,65 @@ async def update_streak(user: discord.Member, task_type: str):
     data.setdefault("streak", 0)
     data.setdefault("max_streak", 0)
     data.setdefault("rewards", [])
+    data.setdefault("grace_fails", 0)
 
     last_date = datetime.strptime(data["last_completed"], "%Y-%m-%d").date() if data["last_completed"] else None
     streak = data["streak"]
+    grace_fails = data["grace_fails"]
     was_reset = False
+    grace_used = False
     already_completed = last_date == now
 
+    normal_reset = False
     if task_type == "daily":
         if last_date == now - timedelta(days=1):
             streak += 1
+            grace_fails = 0
         elif not already_completed:
-            streak = 1
-            was_reset = True
+            normal_reset = True
 
     elif task_type == "weekly":
         if last_date and 1 <= (now - last_date).days <= 13:
             streak += 1
+            grace_fails = 0
         elif last_date is None or (now - last_date).days > 13:
-            streak = 1
-            was_reset = True
+            normal_reset = True
 
     elif task_type == "monthly":
         if last_date and 1 <= (now - last_date).days <= 45:
             streak += 1
+            grace_fails = 0
         elif last_date is None or (now - last_date).days > 45:
-            streak = 1
-            was_reset = True
+            normal_reset = True
 
+    task_log_channel = bot.get_channel(TASK_LOG_CHANNEL_ID)
+    if normal_reset and not already_completed:
+        if grace_fails < 3:
+            streak += 1
+            grace_fails += 1
+            formatted_last = last_date.strftime("%d.%m.%Y") if last_date else "ei aiempaa suoritusta"
+            if task_log_channel:
+                await task_log_channel.send(
+                    f"{user.mention}, streak olisi normaalisti katkennut tehtävällä **{task_type}**, "
+                    f"mutta sait armollisen jatkon! ✨ ({grace_fails}/3 käytetty)\n"
+                    f"Edellinen suoritus oli **{formatted_last}**."
+                )
+                grace_used = True
+        else:
+            streak = 1
+            grace_fails = 0
+            was_reset = True
 
     data["last_completed"] = now.isoformat()
     data["streak"] = streak
     data["max_streak"] = max(data["max_streak"], streak)
+    data["grace_fails"] = grace_fails
 
     user_data[task_type] = data
     streaks[uid] = user_data
     save_streaks(streaks)
 
     task_channel = user.guild.get_channel(TASK_CHANNEL_ID)
-    task_log_channel = bot.get_channel(TASK_LOG_CHANNEL_ID)
     if was_reset and task_log_channel:
         formatted_last = last_date.strftime("%d.%m.%Y") if last_date else "ei aiempaa suoritusta"
         await task_log_channel.send(
@@ -285,7 +306,7 @@ async def update_streak(user: discord.Member, task_type: str):
         await reward(3, "3_month", 500, 1386679979634327663, "suoritti **3 kuukautta putkeen** kuukausitehtäviä! +500 XP ja erikoisrooli! 🏅")
         await reward(6, "6_month", 1200, 1386680073486204999, "suoritti **6 kuukautta putkeen** kuukausitehtäviä! +1200 XP ja erikoisrooli! 🏆")
 
-    return was_reset, last_date
+    return was_reset, last_date, grace_used 
 
 def select_random_task(task_list, last=None, last_last=None):
     filtered = [task for task in task_list if task != last and task != last_last]
@@ -735,10 +756,9 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
         task_type = None
         xp_amount = 0
 
-    was_reset = False
     if task_type:
         try:
-            was_reset, last_date = await update_streak(user, task_type)
+            was_reset, last_date, grace_used = await update_streak(user, task_type)
         except Exception as e:
             print(f"[ERROR] Streakin päivitys epäonnistui: {e}")
 
@@ -771,6 +791,15 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
                     f"{user.mention} suoritti {task_label} tehtävän **{task_name}** ja sai +{xp_amount} XP! ✅\n"
                     f"Streak nousi lukemaan **{current_streak}** ({task_label} tehtävissä). Pisin streak: **{max_streak}** 🔥"
                 )
+                if grace_used:
+                    grace_fails = user_streak_data.get("grace_fails", 0)
+                    formatted_last_completed = (
+                        last_date.strftime("%d.%m.%Y") if last_date else "ei aiempaa suoritusta"
+                    )
+                    await channel.send(
+                        f"✨ {user.mention}, streak olisi normaalisti katkennut, mutta sait armollisen jatkon! ({grace_fails}/3 käytetty)\n"
+                        f"Edellinen suoritus oli **{formatted_last_completed}**."
+                    )
         except Exception as e:
             print(f"[ERROR] Viestin lähetys epäonnistui: {e}")
 
