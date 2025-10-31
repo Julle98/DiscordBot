@@ -82,6 +82,20 @@ class AanestysModal(ui.Modal):
             await interaction.response.send_message("⚠️ Anna 2–5 vaihtoehtoa pilkulla eroteltuna.", ephemeral=True)
             return
 
+        allowed_roles = []
+        denied_roles = []
+        raw = self.jasenrajoitukset.value.strip()
+        try:
+            if raw:
+                parts = raw.split("|")
+                if parts[0].strip():
+                    allowed_roles = [int(i.strip()) for i in parts[0].split(",") if i.strip().isdigit()]
+                if len(parts) > 1 and parts[1].strip():
+                    denied_roles = [int(i.strip()) for i in parts[1].split(",") if i.strip().isdigit()]
+        except Exception:
+            await interaction.response.send_message("⚠️ Virheellinen jäsenrajoitusten muoto.", ephemeral=True)
+            return
+
         rajoitus_str = ""
         if allowed_roles or denied_roles:
             if allowed_roles:
@@ -135,20 +149,6 @@ class AanestysModal(ui.Modal):
 
         hours, minutes_rem = divmod(minutes, 60)
         aika_str = f"{hours}h {minutes_rem}min" if hours else f"{minutes_rem}min"
-
-        allowed_roles = []
-        denied_roles = []
-        raw = self.jasenrajoitukset.value.strip()
-        try:
-            if raw:
-                parts = raw.split("|")
-                if parts[0].strip():
-                    allowed_roles = [int(i.strip()) for i in parts[0].split(",") if i.strip().isdigit()]
-                if len(parts) > 1 and parts[1].strip():
-                    denied_roles = [int(i.strip()) for i in parts[1].split(",") if i.strip().isdigit()]
-        except Exception:
-            await interaction.response.send_message("⚠️ Virheellinen jäsenrajoitusten muoto.", ephemeral=True)
-            return
 
         member = interaction.user
         user_role_ids = [r.id for r in member.roles]
