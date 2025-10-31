@@ -77,7 +77,6 @@ class StatusUpdater(commands.Cog):
             return
         await self.bot.change_presence(activity=activity)
         self.last_status = full
-        print("Status vaihdettu:", full)
 
     async def update_status_once(self) -> None:
         activity, full = self._choose_status()
