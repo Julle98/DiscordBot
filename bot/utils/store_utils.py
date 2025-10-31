@@ -56,7 +56,6 @@ TUOTELOGIIKKA = {
     "Oma komento": {"rooli": "KomentoKäyttäjä", "kesto": timedelta(days=14)},
     "Custom rooli": {"rooli": "CustomRooli", "kesto": timedelta(days=30)},
     "Soundboard-oikeus": {"rooli": "Soundboard", "kesto": timedelta(days=7)},
-    # Lisää tarvittaessa muita tuotteita
 }
 
 if not tuotteet_polku.exists():
@@ -619,59 +618,79 @@ class OmaPuhekanavaModal(discord.ui.Modal, title="Anna puhekanavan nimi"):
             return
 
         overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(connect=False),
-            interaction.user: discord.PermissionOverwrite(connect=True)
+            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
+            interaction.user: discord.PermissionOverwrite(view_channel=True, connect=True)
         }
 
-        kanava = await interaction.guild.create_voice_channel(
-            name=nimi,
-            overwrites=overwrites,
-            category=vip_kategoria
-        )
+        try:
+            kanava = await interaction.guild.create_voice_channel(
+                name=nimi,
+                overwrites=overwrites,
+                category=vip_kategoria
+            )
 
-        kanavat_kategoriassa = vip_kategoria.channels
-        alin_position = max([c.position for c in kanavat_kategoriassa], default=0)
-        await kanava.edit(position=alin_position + 1)
+            alin_position = max([c.position for c in vip_kategoria.channels], default=0)
+            await kanava.edit(position=alin_position + 1)
 
-        if self.kirjaa_kaytto:
-            self.kirjaa_kaytto(nimi)
+            if self.kirjaa_kaytto:
+                self.kirjaa_kaytto(nimi)
 
-        await interaction.response.send_message(
-            f"🎙️ Oma puhekanavasi **{kanava.name}** luotiin ⭐VIP kanavat kategoriaan!",
-            ephemeral=True
-        )
+            await interaction.response.send_message(
+                f"🎙️ Oma puhekanavasi **{kanava.name}** luotiin ⭐VIP kanavat -kategoriaan!",
+                ephemeral=True
+            )
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Kanavan luonti epäonnistui: {e}", ephemeral=True)
+            if self.kirjaa_kaytto:
+                self.kirjaa_kaytto(f"Virhe: {e}")
 
-class KanavaModal(Modal, title="Luo oma kanava"):
-    nimi = TextInput(label="Kanavan nimi", placeholder="esim. oma-kanava")
-    tyyppi = TextInput(label="Tyyppi (teksti/puhe)", placeholder="teksti tai puhe")
+class KanavaModal(discord.ui.Modal, title="Luo oma kanava"):
+    nimi = discord.ui.TextInput(label="Kanavan nimi", placeholder="esim. oma-kanava")
+    tyyppi = discord.ui.TextInput(label="Tyyppi (teksti/puhe)", placeholder="teksti tai puhe")
+
+    def __init__(self):
+        super().__init__()
+        self.kirjaa_kaytto = None
 
     async def on_submit(self, interaction: discord.Interaction):
         vip_kategoria = discord.utils.get(interaction.guild.categories, name="⭐VIP kanavat")
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            interaction.user: discord.PermissionOverwrite(read_messages=True)
-        }
+        if not vip_kategoria:
+            await interaction.response.send_message("❌ VIP-kategoriaa ei löytynyt. Toiminto peruutettu.", ephemeral=True)
+            return
 
-        if self.tyyppi.value.lower() == "puhe":
-            kanava = await interaction.guild.create_voice_channel(
-                name=self.nimi.value,
-                overwrites=overwrites,
-                category=vip_kategoria
+        try:
+            if self.tyyppi.value.lower() == "puhe":
+                overwrites = {
+                    interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
+                    interaction.user: discord.PermissionOverwrite(view_channel=True, connect=True)
+                }
+                kanava = await interaction.guild.create_voice_channel(
+                    name=self.nimi.value,
+                    overwrites=overwrites,
+                    category=vip_kategoria
+                )
+            else:
+                overwrites = {
+                    interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False, read_messages=False),
+                    interaction.user: discord.PermissionOverwrite(view_channel=True, read_messages=True)
+                }
+                kanava = await interaction.guild.create_text_channel(
+                    name=self.nimi.value,
+                    overwrites=overwrites,
+                    category=vip_kategoria
+                )
+
+            if self.kirjaa_kaytto:
+                self.kirjaa_kaytto(self.nimi.value)
+
+            await interaction.response.send_message(
+                f"📢 Kanava **{kanava.mention}** ({self.tyyppi.value.lower()}) luotu ⭐VIP kanavat -kategoriaan nimellä **{self.nimi.value}**!",
+                ephemeral=True
             )
-        else:
-            kanava = await interaction.guild.create_text_channel(
-                name=self.nimi.value,
-                overwrites=overwrites,
-                category=vip_kategoria
-            )
-
-        await interaction.response.send_message(
-            f"📢 Kanava **{kanava.mention}** luotu ⭐VIP kanavat -kategoriaan ja näkyy sinulle!",
-            ephemeral=True
-        )
-
-        if hasattr(self, "kirjaa_kaytto"):
-            self.kirjaa_kaytto(self.nimi.value)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Kanavan luonti epäonnistui: {e}", ephemeral=True)
+            if self.kirjaa_kaytto:
+                self.kirjaa_kaytto(f"Virhe: {e}")
 
 async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord.ui.Modal], Optional[str]]:
     lisatieto = ""
@@ -683,6 +702,7 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
         if rooli:
             await interaction.user.add_roles(rooli)
         viesti = "😎 Erikoisemoji on nyt käytössäsi!"
+        lisatieto = "\n😎 Erikoisemoji myönnetty"
 
     elif nimi == "double xp -päivä":
         rooli = discord.utils.get(interaction.guild.roles, name="Double XP")
@@ -690,6 +710,7 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
             rooli = await interaction.guild.create_role(name="Double XP")
         await interaction.user.add_roles(rooli)
         viesti = "⚡ Sait Double XP -roolin!"
+        lisatieto = "\n⚡ Double XP myönnetty"
 
     elif "custom rooli" in nimi:
         if await onko_modal_kaytetty(bot, interaction.user, "Custom rooli luotu"):
@@ -709,6 +730,7 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
             return "", None, viesti
         await interaction.user.add_roles(rooli)
         viesti = "👑 VIP-rooli myönnetty sinulle!"
+        lisatieto = "\n👑 VIP-rooli myönnetty"
 
     elif nimi == "oma puhekanava":
         if await onko_modal_kaytetty(bot, interaction.user, "Puhekanava luotu"):
@@ -749,14 +771,6 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
             rooli = await interaction.guild.create_role(name="SoundboardAccess")
         await interaction.user.add_roles(rooli)
         await interaction.followup.send("🔊 Soundboard-oikeus myönnetty puhekanavalle!", ephemeral=True)
-
-    elif nimi == "vip-rooli":
-        rooli = discord.utils.get(interaction.guild.roles, name="VIP")
-        if not rooli:
-            await interaction.followup.send("⚠️ VIP-roolia ei löytynyt palvelimelta. Luo se ensin manuaalisesti!", ephemeral=True)
-            return ""
-        await interaction.user.add_roles(rooli)
-        await interaction.followup.send("👑 VIP-rooli myönnetty sinulle!", ephemeral=True)
 
     elif nimi == "streak palautus":
         valittu_streak = "unknown"
