@@ -47,7 +47,8 @@ kauppa_tuotteet = [
     {"nimi": "Valitse värisi", "kuvaus": "Saat värillisen roolin (esim. sininen) 7 päiväksi", "hinta": 1500, "kertakäyttöinen": False, "emoji": "🧬", "tarjousprosentti": 30},
     {"nimi": "Valitse emoji", "kuvaus": "Bot reagoi viesteihisi valitsemallasi emojilla 7 päivän ajan", "hinta": 3500, "kertakäyttöinen": True, "emoji": "🤖", "tarjousprosentti": 30},
     {"nimi": "Soundboard-oikeus", "kuvaus": "Käyttöoikeus puhekanavan soundboardiin 3 päiväksi", "hinta": 4000, "kertakäyttöinen": True, "emoji": "🔊", "tarjousprosentti": 10},
-    {"nimi": "Streak palautus", "kuvaus": "Palauttaa valitsemasi streakin aiempaan pisin-arvoon.", "hinta": 3000, "kertakäyttöinen": True, "emoji": "♻️", "tarjousprosentti": 20}
+    {"nimi": "Streak palautus", "kuvaus": "Palauttaa valitsemasi streakin aiempaan pisin-arvoon.", "hinta": 3000, "kertakäyttöinen": True, "emoji": "♻️", "tarjousprosentti": 20},
+    {"nimi": "Tehtävien armonantamisen nollaus", "kuvaus": "Poistaa armolliset jatkoviestit tehtävälogista", "hinta": 2500, "kertakäyttöinen": True, "emoji": "🧼", "tarjousprosentti": 20}
 ]
 
 TUOTELOGIIKKA = {
@@ -807,7 +808,30 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
             kirjaa_modal_kaytto(bot, interaction.user, "Komento luotu", f"Komento: {nimi}")
         )
         return "", modal, "Luo komento"
-        
+    
+    elif nimi == "tehtävien armonantamisen nollaus":
+        log_channel = bot.get_channel(int(os.getenv("TASK_LOG_CHANNEL_ID")))
+        if not log_channel:
+            await interaction.response.send_message("⚠️ Tehtävälogikanavaa ei löytynyt.", ephemeral=True)
+            return "", None, None
+
+        deleted = 0
+        async for message in log_channel.history(limit=200):
+            if (
+                message.author == bot.user
+                and message.content.startswith(f"{interaction.user.mention}, streak olisi normaalisti katkennut tehtävällä")
+                and "mutta sait armollisen jatkon!" in message.content
+            ):
+                try:
+                    await message.delete()
+                    deleted += 1
+                except discord.Forbidden:
+                    continue
+
+        viesti = f"🧼 Poistettiin {deleted} armollista jatkoviestiä tehtävälogista."
+        lisatieto = f"\n🧼 {deleted} viestiä poistettu tehtävälogista"
+        await kirjaa_modal_kaytto(bot, interaction.user, "Tehtävien armonantamisen nollaus", f"{deleted} viestiä poistettu")
+   
 from dotenv import load_dotenv
 
 async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, kuponki=None):
