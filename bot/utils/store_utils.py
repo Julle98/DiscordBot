@@ -693,6 +693,70 @@ class KanavaModal(discord.ui.Modal, title="Luo oma kanava"):
             if self.kirjaa_kaytto:
                 self.kirjaa_kaytto(f"Virhe: {e}")
 
+class ArmoNollausDropdownModal(discord.ui.Modal, title="Valitse streak, jonka armot nollataan"):
+    def __init__(self, user_id: int):
+        super().__init__()
+        self.user_id = str(user_id)
+
+        json_path = os.path.join(os.getenv("JSON_DIR"), "streaks.json")
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.streaks = data.get(self.user_id, {})
+        except:
+            self.streaks = {}
+
+        options = []
+        for key in ["daily", "weekly", "monthly", "voice"]:
+            grace = self.streaks.get(key, {}).get("grace_fails", None)
+            if grace is not None:
+                label = key.capitalize()
+                description = f"Nykyinen grace_fails: {grace}"
+                options.append(discord.SelectOption(label=label, value=key, description=description))
+
+        self.dropdown = discord.ui.Select(
+            placeholder="Valitse streak-tyyppi nollattavaksi",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+        self.add_item(self.dropdown)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        valinta = self.dropdown.values[0]
+        json_path = os.path.join(os.getenv("JSON_DIR"), "streaks.json")
+
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            if self.user_id not in data or valinta not in data[self.user_id]:
+                await interaction.response.send_message("❌ Tälle streakille ei löytynyt dataa.", ephemeral=True)
+                return
+
+            current_grace = data[self.user_id][valinta].get("grace_fails", 0)
+            if current_grace == 0:
+                await interaction.response.send_message(f"ℹ️ {valinta.capitalize()} streakin grace_fails on jo 0 – ei nollattavaa.", ephemeral=True)
+                return
+
+            data[self.user_id][valinta]["grace_fails"] = 0
+
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+            if hasattr(self, "kirjaa_kaytto"):
+                self.kirjaa_kaytto(valinta)
+
+            embed = discord.Embed(
+                title="🧼 Armot nollattu!",
+                description=f"**{valinta.capitalize()}** streakin grace_fails on nyt 0.",
+                color=discord.Color.blue()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        except Exception as e:
+            await interaction.response.send_message(f"⚠️ Virhe grace_fails-nollauksessa: {e}", ephemeral=True)
+
 async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord.ui.Modal], Optional[str]]:
     lisatieto = ""
     modal = None
@@ -809,28 +873,17 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
         )
         return "", modal, "Luo komento"
     
-    elif nimi == "tehtävien armonantamisen nollaus":
-        log_channel = bot.get_channel(int(os.getenv("TASK_LOG_CHANNEL_ID")))
-        if not log_channel:
-            await interaction.response.send_message("⚠️ Tehtävälogikanavaa ei löytynyt.", ephemeral=True)
+    elif nimi == "armojen nollaus":
+        if await onko_modal_kaytetty(bot, interaction.user, "Armojen nollaus"):
+            await interaction.response.send_message("🚫 Olet jo käyttänyt armojen nollauksen.", ephemeral=True)
             return "", None, None
 
-        deleted = 0
-        async for message in log_channel.history(limit=200):
-            if (
-                message.author == bot.user
-                and message.content.startswith(f"{interaction.user.mention}, streak olisi normaalisti katkennut tehtävällä")
-                and "mutta sait armollisen jatkon!" in message.content
-            ):
-                try:
-                    await message.delete()
-                    deleted += 1
-                except discord.Forbidden:
-                    continue
+        modal = ArmoNollausDropdownModal(interaction.user.id)
+        modal.kirjaa_kaytto = lambda valinta: asyncio.create_task(
+            kirjaa_modal_kaytto(bot, interaction.user, "Armojen nollaus", f"Nollattu: {valinta}")
+        )
 
-        viesti = f"🧼 Poistettiin {deleted} armollista jatkoviestiä tehtävälogista."
-        lisatieto = f"\n🧼 {deleted} viestiä poistettu tehtävälogista"
-        await kirjaa_modal_kaytto(bot, interaction.user, "Tehtävien armonantamisen nollaus", f"{deleted} viestiä poistettu")
+        return "", modal, "Nollaa grace_fails"
    
 from dotenv import load_dotenv
 
