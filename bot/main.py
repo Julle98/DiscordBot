@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from collections import defaultdict, deque
 import time
+import json
+from bot.cogs.polls import VoteButtonView
 from bot.utils.bot_setup import bot
 from bot.utils.env_loader import load_env_and_validate
 from bot.utils.moderation_tasks import start_moderation_loops
@@ -24,6 +26,7 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 TEST_GUILD_ID = int(os.getenv("TEST_GUILD_ID", 0))
 MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID"))   
+DB_PATH = os.getenv("POLLS_JSON_PATH")
 
 komento_loki = defaultdict(lambda: deque(maxlen=10))
 JAAHY_KESTO = 15 * 60  
@@ -159,6 +162,17 @@ async def on_ready():
         päivä_id = get_current_time_in_helsinki() 
         bot.add_view(RuokaÄänestysView(päivä_id))
         print(f"✅ Persistent view rekisteröity päivälle {päivä_id}")
+    except Exception as exc:
+        print(f"❌ View-rekisteröinti epäonnistui: {exc}")
+
+    try:
+        with open(DB_PATH, "r") as f:
+            db = json.load(f)
+        for poll in db:
+            if poll.get("active") and poll.get("message_id") and poll.get("options"):
+                view = VoteButtonView(poll["options"], poll)
+                bot.add_view(view)
+                print(f"✅ Persistent view rekisteröity viestille {poll['message_id']}")
     except Exception as exc:
         print(f"❌ View-rekisteröinti epäonnistui: {exc}")
 

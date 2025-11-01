@@ -149,7 +149,8 @@ class UnvoteButton(discord.ui.Button):
 class VoteButtonView(discord.ui.View):
     def __init__(self, options: list[str], poll_data: dict):
         super().__init__(timeout=None)
-        self.message = None  
+        self.message = None 
+        self.poll_data = poll_data
         for i in range(len(options)):
             self.add_item(VoteButton(index=i, poll_data=poll_data, parent_view=self))
 
