@@ -168,9 +168,22 @@ async def on_ready():
     try:
         with open(DB_PATH, "r") as f:
             db = json.load(f)
+
         for poll in db:
             if poll.get("active") and poll.get("message_id") and poll.get("options"):
+                channel = bot.get_channel(poll["channel_id"])
+                if not channel:
+                    print(f"⚠️ Kanavaa ei löytynyt ID:llä {poll['channel_id']}")
+                    continue
+
+                try:
+                    message = await channel.fetch_message(poll["message_id"])
+                except Exception as e:
+                    print(f"⚠️ Viestin haku epäonnistui ID:llä {poll['message_id']}: {e}")
+                    continue
+
                 view = VoteButtonView(poll["options"], poll)
+                view.message = message
                 bot.add_view(view)
                 print(f"✅ Persistent view rekisteröity viestille {poll['message_id']}")
     except Exception as exc:

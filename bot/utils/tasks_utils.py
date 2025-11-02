@@ -797,7 +797,7 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
                         last_date.strftime("%d.%m.%Y") if last_date else "ei aiempaa suoritusta"
                     )
                     await channel.send(
-                        f"✨ {user.mention}, streak olisi normaalisti katkennut, mutta sait armollisen jatkon! ({grace_fails}/3 käytetty)\n"
+                        f"{user.mention}, streak olisi normaalisti katkennut, mutta sait armollisen jatkon! ({grace_fails}/3 käytetty) ✨\n"
                         f"Edellinen suoritus oli **{formatted_last_completed}**."
                     )
         except Exception as e:

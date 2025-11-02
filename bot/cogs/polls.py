@@ -21,22 +21,34 @@ class FeedbackModal(ui.Modal, title="📝 Anna palautetta"):
     palaute = ui.TextInput(label="Palaute", style=discord.TextStyle.paragraph, required=False)
 
     async def on_submit(self, interaction: Interaction):
-        await interaction.response.send_message("Kiitos palautteestasi! 💙", ephemeral=True)
-
         log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
+
+        embed = discord.Embed(
+            title="📝 Uusi palaute äänestyksestä",
+            description=self.palaute.value or "*Ei sisältöä*",
+            color=discord.Color.blue()
+        )
+        embed.set_footer(text=f"Lähettäjä: {interaction.user} • ID: {interaction.user.id}")
+
         if log_channel:
-            embed = discord.Embed(
-                title="📝 Uusi palaute äänestyksestä",
-                description=self.palaute.value or "*Ei sisältöä*",
-                color=discord.Color.blue()
-            )
-            embed.set_footer(text=f"Lähettäjä: {interaction.user} • ID: {interaction.user.id}")
             await log_channel.send(embed=embed)
+
+        view = discord.ui.View()
+        view.add_item(FeedbackButton())
+
+        await interaction.response.send_message(
+            "Kiitos palautteestasi! 💙",
+            ephemeral=True,
+            view=view
+        )
 
 class FeedbackButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label="Anna palautetta", style=discord.ButtonStyle.secondary)
-
+        super().__init__(
+            label="Anna palautetta",
+            style=discord.ButtonStyle.secondary,
+            custom_id="feedback_button"
+        )
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_modal(FeedbackModal())
 
@@ -45,7 +57,11 @@ class VoteButton(discord.ui.Button):
         self.index = index
         self.poll_data = poll_data
         self.parent_view = parent_view
-        super().__init__(label=self._label_with_count(), style=discord.ButtonStyle.primary)
+        super().__init__(
+            label=self._label_with_count(),
+            style=discord.ButtonStyle.primary,
+            custom_id=f"vote_{self.poll_data['message_id']}_{self.index}"
+        )
 
     def _label_with_count(self):
         count = sum(1 for v in self.poll_data["votes"].values() if v == self.index)
@@ -111,7 +127,11 @@ class VoteButton(discord.ui.Button):
 
 class UnvoteButton(discord.ui.Button):
     def __init__(self, poll_data: dict, parent_view: discord.ui.View):
-        super().__init__(label="Peru ääni", style=discord.ButtonStyle.danger)
+        super().__init__(
+            label="Peru ääni",
+            style=discord.ButtonStyle.danger,
+            custom_id=f"unvote_{self.poll_data['message_id']}"
+        )
         self.poll_data = poll_data
         self.parent_view = parent_view
 
@@ -203,8 +223,7 @@ class AanestysModal(ui.Modal):
             await interaction.response.send_message("⚠️ Anna 2–5 vaihtoehtoa pilkulla eroteltuna.", ephemeral=True)
             return
 
-        allowed_roles = []
-        denied_roles = []
+        allowed_roles, denied_roles = [], []
         raw = self.jasenrajoitukset.value.strip()
         try:
             if raw:
@@ -218,39 +237,26 @@ class AanestysModal(ui.Modal):
             return
 
         rajoitus_str = ""
-        if allowed_roles or denied_roles:
-            if allowed_roles:
-                nimet = []
-                for r_id in allowed_roles:
-                    rooli = interaction.guild.get_role(r_id)
-                    nimet.append(rooli.mention if rooli else f"<@&{r_id}>")
-                rajoitus_str += f"✅ Sallitut roolit: {', '.join(nimet)}\n"
-
-            if denied_roles:
-                nimet = []
-                for r_id in denied_roles:
-                    rooli = interaction.guild.get_role(r_id)
-                    nimet.append(rooli.mention if rooli else f"<@&{r_id}>")
-                rajoitus_str += f"🚫 Estetyt roolit: {', '.join(nimet)}\n"
-        else:
+        if allowed_roles:
+            nimet = [interaction.guild.get_role(r_id).mention if interaction.guild.get_role(r_id) else f"<@&{r_id}>" for r_id in allowed_roles]
+            rajoitus_str += f"✅ Sallitut roolit: {', '.join(nimet)}\n"
+        if denied_roles:
+            nimet = [interaction.guild.get_role(r_id).mention if interaction.guild.get_role(r_id) else f"<@&{r_id}>" for r_id in denied_roles]
+            rajoitus_str += f"🚫 Estetyt roolit: {', '.join(nimet)}\n"
+        if not rajoitus_str:
             rajoitus_str = "🌐 Kaikki voivat äänestää\n"
 
         numerotemojit = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
-
         embed = Embed(
             title="📊 Äänestys",
             description=f"{self.kysymys.value}\n{rajoitus_str}",
             color=Color.blurple()
         )
-
         for i, opt in enumerate(options):
-            emoji = numerotemojit[i]
-            embed.add_field(name=f"{emoji} {opt}", value="\u200b", inline=False)
+            embed.add_field(name=f"{numerotemojit[i]} {opt}", value="\u200b", inline=False)
 
-        hours, minutes_rem = divmod(minutes, 60)
-        aika_str = f"{hours}h {minutes_rem}min" if hours else f"{minutes_rem}min"
-        laatija_str = f"Luoja: {interaction.user.display_name}"
-        embed.set_footer(text=f"Päättyy {aika_str}. {laatija_str}")
+        aika_str = f"{minutes // 60}h {minutes % 60}min" if minutes >= 60 else f"{minutes}min"
+        embed.set_footer(text=f"Päättyy {aika_str}. Luoja: {interaction.user.display_name}")
 
         poll_data = {
             "message_id": None,
@@ -263,61 +269,40 @@ class AanestysModal(ui.Modal):
             "creator_id": interaction.user.id,
             "votes": {}
         }
-
-        dummy_view = discord.ui.View()
 
         poll_msg = await interaction.channel.send(embed=embed)
         poll_data["message_id"] = poll_msg.id
-
-        view = VoteButtonView(options, poll_data)
-        view.message = poll_msg
-        await self.bot.add_view(view)
-        await poll_msg.edit(view=view)
-
-        role_id_str = self.rooli_id.value.strip()
-        role = None
-        if role_id_str.isdigit():
-            role_id = int(role_id_str)
-            role = interaction.guild.get_role(role_id)
-
-        if role_id_str:
-            if role and role.mentionable:
-                await interaction.channel.send(f"{role.mention} aika äänestää!")
-            elif role:
-                await interaction.channel.send(f"<@&{role.id}> aika äänestää!")
-            else:
-                await interaction.response.send_message("⚠️ Roolia ei löytynyt tai sitä ei voi tägätä.", ephemeral=True)
-                return
-
-        hours, minutes_rem = divmod(minutes, 60)
-        aika_str = f"{hours}h {minutes_rem}min" if hours else f"{minutes_rem}min"
-
-        member = interaction.user
-        user_role_ids = [r.id for r in member.roles]
-
-        poll_data = {
-            "message_id": None,
-            "channel_id": interaction.channel.id,
-            "question": self.kysymys.value,
-            "options": options,
-            "active": True,
-            "allowed_roles": allowed_roles,
-            "denied_roles": denied_roles,
-            "creator_id": interaction.user.id,
-            "votes": {}
-        }
 
         try:
             with open(DB_PATH, "r") as f:
                 db = json.load(f)
         except FileNotFoundError:
             db = []
-
         db.append(poll_data)
         with open(DB_PATH, "w") as f:
             json.dump(db, f, indent=2)
 
+        view = VoteButtonView(options, poll_data)
+        view.message = poll_msg
+
+        await self.bot.add_view(view)
+        try:
+            await poll_msg.edit(view=view)
+        except Exception as e:
+            print(f"❌ poll_msg.edit(view=view) epäonnistui: {e}")
+            await interaction.channel.send(f"⚠️ Nappuloiden lataus epäonnistui: {e}")
+
         await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
+
+        role_id_str = self.rooli_id.value.strip()
+        if role_id_str.isdigit():
+            role = interaction.guild.get_role(int(role_id_str))
+            if role:
+                mention_text = role.mention if role.mentionable else f"<@&{role.id}>"
+                await interaction.channel.send(f"{mention_text} aika äänestää!")
+            else:
+                await interaction.channel.send("⚠️ Roolia ei löytynyt tai sitä ei voi tägätä.")
+
         asyncio.create_task(wait_and_end_poll(self.bot, poll_msg.id, minutes))
 
 async def wait_and_end_poll(client, message_id, minutes):

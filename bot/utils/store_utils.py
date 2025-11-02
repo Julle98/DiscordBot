@@ -707,7 +707,7 @@ class ArmoNollausDropdownModal(discord.ui.Modal, title="Valitse streak, jonka ar
             self.streaks = {}
 
         options = []
-        for key in ["daily", "weekly", "monthly", "voice"]:
+        for key in ["daily", "weekly", "monthly"]:
             grace = self.streaks.get(key, {}).get("grace_fails", None)
             if grace is not None:
                 label = key.capitalize()
@@ -873,14 +873,14 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
         )
         return "", modal, "Luo komento"
     
-    elif nimi == "armojen nollaus":
-        if await onko_modal_kaytetty(bot, interaction.user, "Armojen nollaus"):
+    elif nimi == "Tehtävien armonantamisen nollaus":
+        if await onko_modal_kaytetty(bot, interaction.user, "Tehtävien armonantamisen nollaus"):
             await interaction.response.send_message("🚫 Olet jo käyttänyt armojen nollauksen.", ephemeral=True)
             return "", None, None
 
         modal = ArmoNollausDropdownModal(interaction.user.id)
         modal.kirjaa_kaytto = lambda valinta: asyncio.create_task(
-            kirjaa_modal_kaytto(bot, interaction.user, "Armojen nollaus", f"Nollattu: {valinta}")
+            kirjaa_modal_kaytto(bot, interaction.user, "Tehtävien armonantamisen nollaus", f"Nollattu: {valinta}")
         )
 
         return "", modal, "Nollaa grace_fails"
