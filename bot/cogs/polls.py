@@ -46,9 +46,10 @@ class FeedbackButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
             label="Anna palautetta",
-            style=discord.ButtonStyle.secondary,
-            custom_id="feedback_button"
+            style=discord.ButtonStyle.secondary
         )
+        self.custom_id = "feedback_button"
+
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_modal(FeedbackModal())
 
@@ -59,9 +60,9 @@ class VoteButton(discord.ui.Button):
         self.parent_view = parent_view
         super().__init__(
             label=self._label_with_count(),
-            style=discord.ButtonStyle.primary,
-            custom_id=f"vote_{self.poll_data['message_id']}_{self.index}"
+            style=discord.ButtonStyle.primary
         )
+        self.custom_id = f"vote_{self.poll_data['message_id']}_{self.index}"
 
     def _label_with_count(self):
         count = sum(1 for v in self.poll_data["votes"].values() if v == self.index)
@@ -127,13 +128,13 @@ class VoteButton(discord.ui.Button):
 
 class UnvoteButton(discord.ui.Button):
     def __init__(self, poll_data: dict, parent_view: discord.ui.View):
-        super().__init__(
-            label="Peru ääni",
-            style=discord.ButtonStyle.danger,
-            custom_id=f"unvote_{self.poll_data['message_id']}"
-        )
         self.poll_data = poll_data
         self.parent_view = parent_view
+        super().__init__(
+            label="Peru ääni",
+            style=discord.ButtonStyle.danger
+        )
+        self.custom_id = f"unvote_{self.poll_data['message_id']}"
 
     async def callback(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
@@ -281,6 +282,9 @@ class AanestysModal(ui.Modal):
         db.append(poll_data)
         with open(DB_PATH, "w") as f:
             json.dump(db, f, indent=2)
+
+        if not poll_data.get("message_id"):
+            raise ValueError("poll_data['message_id'] puuttuu ennen VoteButtonView:n luontia")
 
         view = VoteButtonView(options, poll_data)
         view.message = poll_msg
