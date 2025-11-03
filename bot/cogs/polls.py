@@ -121,6 +121,7 @@ class VoteButton(discord.ui.Button):
             for p in db:
                 if p["message_id"] == self.poll_data["message_id"]:
                     p["votes"] = self.poll_data["votes"]
+                    break 
             with open(DB_PATH, "w") as f:
                 json.dump(db, f, indent=2)
         except Exception:
@@ -141,7 +142,7 @@ class UnvoteButton(discord.ui.Button):
         if user_id in self.poll_data["votes"]:
             del self.poll_data["votes"][user_id]
             self._update_db()
-            self._refresh_all_buttons()
+            self._refresh_all_buttons() 
             msg = "❎ Äänesi on peruttu."
         else:
             msg = "ℹ️ Sinulla ei ole aktiivista ääntä."
@@ -154,6 +155,9 @@ class UnvoteButton(discord.ui.Button):
         for item in self.parent_view.children:
             if isinstance(item, VoteButton):
                 item.refresh_label()
+        message = self.parent_view.message
+        if message:
+            asyncio.create_task(message.edit(view=self.parent_view))
 
     def _update_db(self):
         try:
@@ -162,6 +166,7 @@ class UnvoteButton(discord.ui.Button):
             for p in db:
                 if p["message_id"] == self.poll_data["message_id"]:
                     p["votes"] = self.poll_data["votes"]
+                    break 
             with open(DB_PATH, "w") as f:
                 json.dump(db, f, indent=2)
         except Exception:
@@ -226,6 +231,7 @@ class AanestysModal(ui.Modal):
 
         allowed_roles, denied_roles = [], []
         raw = self.jasenrajoitukset.value.strip()
+
         try:
             if raw:
                 parts = raw.split("|")
@@ -271,6 +277,8 @@ class AanestysModal(ui.Modal):
             "votes": {}
         }
 
+        await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
+
         poll_msg = await interaction.channel.send(embed=embed)
         poll_data["message_id"] = poll_msg.id
 
@@ -283,9 +291,6 @@ class AanestysModal(ui.Modal):
         with open(DB_PATH, "w") as f:
             json.dump(db, f, indent=2)
 
-        if not poll_data.get("message_id"):
-            raise ValueError("poll_data['message_id'] puuttuu ennen VoteButtonView:n luontia")
-
         view = VoteButtonView(options, poll_data)
         view.message = poll_msg
 
@@ -295,9 +300,7 @@ class AanestysModal(ui.Modal):
         except Exception as e:
             print(f"❌ poll_msg.edit(view=view) epäonnistui: {e}")
             await interaction.channel.send(f"⚠️ Nappuloiden lataus epäonnistui: {e}")
-
-        await interaction.response.send_message("✅ Äänestys luotu!", ephemeral=True)
-
+            
         role_id_str = self.rooli_id.value.strip()
         if role_id_str.isdigit():
             role = interaction.guild.get_role(int(role_id_str))
@@ -395,6 +398,7 @@ class Aanestys(commands.GroupCog, name="äänestys"):
             return
 
         poll = next((p for p in db if str(p["message_id"]) == str(message_id)), None)
+
         if not poll:
             await interaction.followup.send("❌ Äänestystä ei löytynyt.", ephemeral=True)
             return
@@ -419,8 +423,9 @@ class Aanestys(commands.GroupCog, name="äänestys"):
         await interaction.response.defer(thinking=True)
         await kirjaa_komento_lokiin(self.bot, interaction, "/äänestys lopetus")
         await kirjaa_ga_event(self.bot, interaction.user.id, "lopetus_äänestys_komento")
+        
         await end_poll(self.bot, int(message_id))
-        await interaction.response.send_message("⏹️ Äänestys lopetettu.", ephemeral=True)
+        await interaction.followup.send("⏹️ Äänestys lopetettu.", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
