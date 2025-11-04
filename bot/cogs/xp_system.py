@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from io import BytesIO
 import os
+from typing import Optional
 
 from bot.utils.bot_setup import bot
 from bot.utils.xp_utils import (
@@ -14,6 +15,7 @@ from bot.utils.tiedot_utils import pending_file_sends
 from utils.xp_bonus import käsittele_xp_bonus
 from bot.utils.settings_utils import get_user_settings
 from bot.cogs.ai import AI
+from bot.cogs.slowmode import SlowmodeTracker
 
 komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
 viestit_ja_ajat = {}  # {message_id: (user_id, timestamp)}
@@ -32,7 +34,7 @@ class XPSystem(commands.Cog):
             return
         
         if message.channel.id == self.slowmode_channel_id:
-            slowmode_cog = self.bot.get_cog("SlowmodeTracker")
+            slowmode_cog: Optional[SlowmodeTracker] = self.bot.get_cog("SlowmodeTracker")
             if slowmode_cog:
                 try:
                     slowmode_cog.log_message(message)
