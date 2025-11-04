@@ -1,10 +1,13 @@
+import discord
 from discord.ext import commands
 from bot.utils.bot_setup import bot
 from difflib import get_close_matches
 import json
 import os
+import re
 from dotenv import load_dotenv
 from datetime import datetime
+import random
 import logging
 from utils.time_utils import get_current_time_in_utc_plus_2
 
@@ -42,6 +45,17 @@ SUOMI_KUUKAUDET = {
     11: "marraskuu",
     12: "joulukuu"
 }
+
+EMOJI_UNICODE_LIST = ["😂", "😄", "👍", "❤️", "🔥", "🥺", "😎", "☺️", "🤯", "🍃"]
+
+def contains_custom_emoji(text: str) -> bool:
+    return bool(re.search(r"<a?:\w+:\d+>", text))
+
+def contains_gif_link(text: str) -> bool:
+    return "tenor.com/view/" in text.lower() or "giphy.com/gifs/" in text.lower()
+
+def contains_unicode_emoji(text: str) -> bool:
+    return any(char in text for char in EMOJI_UNICODE_LIST)
 
 class AI(commands.Cog):
     def __init__(self, bot):
@@ -85,6 +99,31 @@ class AI(commands.Cog):
                 return "Nyt on ilta."
             else:
                 return "Nyt on yö."
+
+        return None
+
+    async def get_reaction_response(self, message: discord.Message) -> str | None:
+        content = message.content
+
+        is_reply_to_bot = message.reference and isinstance(message.reference.resolved, discord.Message) and message.reference.resolved.author == self.bot.user
+        is_mentioning_bot = self.bot.user in message.mentions
+
+        if not (is_reply_to_bot or is_mentioning_bot):
+            return None
+
+        emoji = random.choice(EMOJI_UNICODE_LIST)
+
+        if "tenor.com/view/" in content.lower() or "giphy.com/gifs/" in content.lower():
+            return f"Haha, hyvä GIF! {emoji}"
+
+        if re.search(r"<a?:\w+:\d+>", content):
+            return f"Tykkään tuosta emojista! {emoji}"
+
+        if any(char in content for char in EMOJI_UNICODE_LIST):
+            return f"Emoji-ilottelua! {emoji}"
+
+        if message.stickers:
+            return f"Tarra bongattu! {emoji}"
 
         return None
 

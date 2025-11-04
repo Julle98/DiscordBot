@@ -55,13 +55,18 @@ class XPSystem(commands.Cog):
         if maininta or reply_to_bot:
             content = message.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
 
+            reaction = await self.ai.get_reaction_response(message)
+            if reaction:
+                await message.reply(reaction, mention_author=False)
+                return
+
             if content:
                 response = await self.ai.get_response(content)
             else:
                 response = "Hei! Kysy minulta jotain tai kerro, mitä haluat tietää 🙂"
 
             await message.reply(response, mention_author=False)
-            return 
+            return
 
         request = pending_file_sends.get(message.author.id)
         if request:
