@@ -67,7 +67,7 @@ class Moderation(commands.Cog):
         embed.add_field(name="📶 Viive", value=f"{latency} ms", inline=False)
         embed.add_field(name="🧠 CPU-kuorma", value=f"{cpu_percent} %", inline=False)
         embed.add_field(name="💾 Muistinkäyttö", value=f"{memory_usage_mb:.2f} MB", inline=False)
-        embed.add_field(name="⏱️ Uptime", value=uptime_str, inline=False)
+        embed.add_field(name="⏱️ Päälläoloaika", value=uptime_str, inline=False)
         embed.add_field(
             name="📊 Komentoja viimeisen tunnin aikana",
             value=f"{komento_ikoni} {komento_lkm} kpl",
