@@ -43,20 +43,21 @@ class Store(commands.Cog):
                     color=discord.Color.blue()
                 )
                 embed.add_field(
-                    name="Ostaminen",
+                    name="🛒 Ostaminen",
                     value="Käytä `/kauppa [tuotteen nimi]` ostaaksesi tuotteen. Tuotteen nimi identtinen kuten listassa näkyy elikkä sulkeet mukaan tarjous tuotteissa.",
                     inline=False
                 )
                 embed.add_field(
-                    name="Kuponkien käyttö",
+                    name="🎟️ Kuponkien käyttö",
                     value="Voit lisätä alennuskoodin komennon loppuun: `/kauppa [tuotteen nimi] [kuponki]`. Erilaisia kupongeista kerrotaan info viesteissä tai erikseen jaetuissa.",
                     inline=False
                 )
                 embed.add_field(
-                    name="Lisähuomiot",
+                    name="⁉️ Lisähuomiot",
                     value="• XP ei vähene ostoksia tekemällä.\n• Voit ostaa saman tuotteen kerran kuukaudessa, ja seuraavana kuukautena uudelleen.\n• Tarjoustuotteet voivat vaihtua erikoisjaksojen mukaan.",
                     inline=False
                 )
+                embed.set_footer(text="Tarkastele usein valikoimaa - haluamasi tulee varmasti jossan vaiheessa. ☺️")
                 return await interaction.response.send_message(embed=embed, ephemeral=True)
 
             tarjoukset = await asyncio.to_thread(hae_tarjous_vain)

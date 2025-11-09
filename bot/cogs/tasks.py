@@ -55,7 +55,7 @@ class Tasks(commands.Cog):
                 color=discord.Color.blue()
             )
             embed.add_field(
-                name="Tehtävätyypit",
+                name="🗓️ Tehtävätyypit",
                 value=(
                     "• 📅 **Päivittäiset** – vaihtuvat joka päivä.\n"
                     "• 📆 **Viikoittaiset** – vaihtuvat viikon alussa.\n"
@@ -65,16 +65,16 @@ class Tasks(commands.Cog):
                 inline=False
             )
             embed.add_field(
-                name="Streakit ja bonukset",
+                name="🔥 Streakit ja bonukset",
                 value=(
-                    "• Suorita tehtäviä peräkkäisinä päivinä/viikkoina/kuukausina.\n"
+                    "• Suorita tehtäviä peräkkäisinä päivinä, viikkoina tai kuukausina.\n"
                     "• Tietyissä kohdissa (esim. 7 päivää, 4 viikkoa, 3 kk, 6 kk) saat **bonus-XP:tä**.\n"
                     "• Streakit näkyvät tilastoissa ja päivittyvät reaaliajassa."
                 ),
                 inline=False
             )
             embed.add_field(
-                name="Armo ja katkeaminen",
+                name="🙏 Armo ja katkeaminen",
                 value=(
                     "• Sinulla on **3 armoa**, jotka estävät streakin katkeamisen.\n"
                     "• Armo käytetään automaattisesti, jos unohdat tehtävän.\n"
@@ -83,7 +83,7 @@ class Tasks(commands.Cog):
                 inline=False
             )
             embed.add_field(
-                name="Vinkkejä",
+                name="💡 Vinkkejä",
                 value=(
                     "• Käytä valikkoa valitaksesi tehtävän tai katsoaksesi tilastot.\n"
                     "• Suorita tehtävä ohjeiden mukaan – saat XP:tä ja kasvatat streakia.\n"
