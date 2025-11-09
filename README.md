@@ -9,7 +9,7 @@
 - 60+ slash commands for moderation and utility
 - Fun commands for games and interaction
 - XP system for chat and voice activity
-- Tailored experience for the Sannamaija community
+- Made for useful and save time
 
 ---
 
