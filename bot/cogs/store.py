@@ -27,13 +27,37 @@ class Store(commands.Cog):
     @app_commands.command(name="kauppa", description="Näytä kaupan tuotteet tai osta tuote")
     @app_commands.describe(
         tuote="Tuotteen nimi ostamista varten, jos tarjoustuote: ``(tarjous!)`` mukaan (valinnainen)",
-        kuponki="Alennuskoodi (valinnainen)"
+        kuponki="Alennuskoodi (valinnainen)",
+        ohjeet="Näytä kaupan ohjeet, näyttää vain ohjeet ei kaupanvalikoimaa (valinnainen)"
     )
     @app_commands.checks.has_role("24G")
-    async def kauppa(self, interaction: discord.Interaction, tuote: Optional[str] = None, kuponki: Optional[str] = None):
+    async def kauppa(self, interaction: discord.Interaction, tuote: Optional[str] = None, kuponki: Optional[str] = None, ohjeet: Optional[bool] = False):
         try:
             await kirjaa_komento_lokiin(self.bot, interaction, "/kauppa")
             await kirjaa_ga_event(self.bot, interaction.user.id, "kauppa_komento")
+
+            if ohjeet:
+                embed = discord.Embed(
+                    title="📘 Sannamaija Shopin ohjeet",
+                    description="Näin kaupan ostaminen toimii ja mitä kannattaa huomioida:",
+                    color=discord.Color.blue()
+                )
+                embed.add_field(
+                    name="Ostaminen",
+                    value="Käytä `/kauppa [tuotteen nimi]` ostaaksesi tuotteen. Tuotteen nimi identtinen kuten listassa näkyy elikkä sulkeet mukaan tarjous tuotteissa.",
+                    inline=False
+                )
+                embed.add_field(
+                    name="Kuponkien käyttö",
+                    value="Voit lisätä alennuskoodin komennon loppuun: `/kauppa [tuotteen nimi] [kuponki]`. Erilaisia kupongeista kerrotaan info viesteissä tai erikseen jaetuissa.",
+                    inline=False
+                )
+                embed.add_field(
+                    name="Lisähuomiot",
+                    value="• XP ei vähene ostoksia tekemällä.\n• Voit ostaa saman tuotteen kerran kuukaudessa, ja seuraavana kuukautena uudelleen.\n• Tarjoustuotteet voivat vaihtua erikoisjaksojen mukaan.",
+                    inline=False
+                )
+                return await interaction.response.send_message(embed=embed, ephemeral=True)
 
             tarjoukset = await asyncio.to_thread(hae_tarjous_vain)
 
