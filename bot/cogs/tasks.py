@@ -68,7 +68,7 @@ class Tasks(commands.Cog):
                 name="Streakit ja bonukset",
                 value=(
                     "• Suorita tehtäviä peräkkäisinä päivinä/viikkoina/kuukausina.\n"
-                    "• Tietyissä kohdissa (esim. 3, 7, 14, 30) saat **bonus-XP:tä**.\n"
+                    "• Tietyissä kohdissa (esim. 7 päivää, 4 viikkoa, 3 kk, 6 kk) saat **bonus-XP:tä**.\n"
                     "• Streakit näkyvät tilastoissa ja päivittyvät reaaliajassa."
                 ),
                 inline=False
