@@ -31,6 +31,7 @@ load_dotenv()
 OSTOSLOKI_KANAVA_ID = int(os.getenv("OSTOSLOKI_KANAVA_ID"))
 MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", 0))
 JSON_DIRS = Path(os.getenv("JSON_DIRS"))
+SHOP_CAMPAIGN_PATH = os.getenv("SHOP_CAMPAIGN_PATH")
 tuotteet_polku = JSON_DIRS / "tuotteet.json"
 
 auto_react_users = {}  # user_id -> emoji
@@ -296,6 +297,13 @@ def tarkista_kuponki(koodi: str, tuotteen_nimi: str, user_id: str, interaction: 
     print(f"✅ Kuponki {koodi} hyväksytty. Alennus: {kuponki.get('prosentti', 0)}%")
     return kuponki.get("prosentti", 0)
 
+def hae_campaign():
+    try:
+        with open(SHOP_CAMPAIGN_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return None
+
 def onko_tuote_voimassa(user_id: str, tuotteen_nimi: str) -> Optional[timedelta]:
     ostot = lue_ostokset()
     kayttajan_ostot = ostot.get(user_id, [])
@@ -407,6 +415,8 @@ def nykyinen_periodi():
 
 def nayta_kauppa_embed(interaction, tarjoukset):
     user_id = str(interaction.user.id)
+    campaign = hae_campaign()
+    now = datetime.now(timezone.utc).date()
 
     xp_data = load_xp_data()
     user_xp = xp_data.get(user_id, {}).get("xp", 0)
@@ -424,6 +434,16 @@ def nayta_kauppa_embed(interaction, tarjoukset):
         description=f"Tässä ovat tämänhetkiset tuotteet:\n**Sinulla on {user_xp} XP:tä käytettävissä** ✨",
         color=discord.Color.gold()
     )
+
+    if campaign and campaign.get("active"):
+        alku = datetime.fromisoformat(campaign["alku"]).date()
+        loppu = datetime.fromisoformat(campaign["loppu"]).date()
+        if alku <= now <= loppu:
+            embed.add_field(
+                name=campaign["title"],
+                value=f"{campaign['banner']}\nVoimassa {alku.strftime('%d.%m.%Y')} - {loppu.strftime('%d.%m.%Y')}",
+                inline=False
+            )
 
     kertakayttoiset = [t for t in vaihdettavat if t["kertakäyttöinen"]]
     if kertakayttoiset:
