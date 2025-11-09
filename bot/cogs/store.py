@@ -28,15 +28,15 @@ class Store(commands.Cog):
     @app_commands.describe(
         tuote="Tuotteen nimi ostamista varten, jos tarjoustuote: ``(tarjous!)`` mukaan (valinnainen)",
         kuponki="Alennuskoodi (valinnainen)",
-        ohjeet="Näytä kaupan ohjeet, näyttää vain ohjeet ei kaupanvalikoimaa (valinnainen)"
+        ohje="Näytä kaupan ohjeet, näyttää vain ohjeet ei kaupanvalikoimaa (valinnainen)"
     )
     @app_commands.checks.has_role("24G")
-    async def kauppa(self, interaction: discord.Interaction, tuote: Optional[str] = None, kuponki: Optional[str] = None, ohjeet: Optional[bool] = False):
+    async def kauppa(self, interaction: discord.Interaction, tuote: Optional[str] = None, kuponki: Optional[str] = None, ohje: Optional[bool] = False):
         try:
             await kirjaa_komento_lokiin(self.bot, interaction, "/kauppa")
             await kirjaa_ga_event(self.bot, interaction.user.id, "kauppa_komento")
 
-            if ohjeet:
+            if ohje:
                 embed = discord.Embed(
                     title="📘 Sannamaija Shopin ohjeet",
                     description="Näin kaupan ostaminen toimii ja mitä kannattaa huomioida:",

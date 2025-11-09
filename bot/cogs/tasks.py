@@ -8,6 +8,7 @@ import discord
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.error_handler import CommandErrorHandler
 from bot.utils.bot_setup import bot
+from typing import Optional
 
 from bot.utils.tasks_utils import (
     load_tasks,
@@ -36,15 +37,62 @@ TASK_LOG_CHANNEL_ID = int(os.getenv("TASK_LOG_CHANNEL_ID", 0))
 class Tasks(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
+    
     @app_commands.command(
     name="tehtävät", 
     description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä."
     )
+    @app_commands.describe(ohje="Näytä tehtävien ohjeet, näyttää vain ohjeet ei tehtävät valikkoa (valinnainen)")
     @app_commands.checks.has_role("24G")
-    async def tehtavat(self, interaction: discord.Interaction):
+    async def tehtavat(self, interaction: discord.Interaction, ohje: Optional[bool] = False):
         await kirjaa_komento_lokiin(self.bot, interaction, "/tehtävät")
         await kirjaa_ga_event(self.bot, interaction.user.id, "tehtävät_komento")
+
+        if ohje:
+            embed = discord.Embed(
+                title="📘 Tehtävien suoritusohjeet",
+                description="Näin tehtävät toimivat ja miten voit hyödyntää streak- ja XP-logiikkaa:",
+                color=discord.Color.blue()
+            )
+            embed.add_field(
+                name="Tehtävätyypit",
+                value=(
+                    "• 📅 **Päivittäiset** – vaihtuvat joka päivä.\n"
+                    "• 📆 **Viikoittaiset** – vaihtuvat viikon alussa.\n"
+                    "• 🗓️ **Kuukausittaiset** – vaihtuvat kuukauden vaihtuessa.\n"
+                    "Kaikki tehtävät antavat XP:tä suoritettaessa."
+                ),
+                inline=False
+            )
+            embed.add_field(
+                name="Streakit ja bonukset",
+                value=(
+                    "• Suorita tehtäviä peräkkäisinä päivinä/viikkoina/kuukausina.\n"
+                    "• Tietyissä kohdissa (esim. 3, 7, 14, 30) saat **bonus-XP:tä**.\n"
+                    "• Streakit näkyvät tilastoissa ja päivittyvät reaaliajassa."
+                ),
+                inline=False
+            )
+            embed.add_field(
+                name="Armo ja katkeaminen",
+                value=(
+                    "• Sinulla on **3 armoa**, jotka estävät streakin katkeamisen.\n"
+                    "• Armo käytetään automaattisesti, jos unohdat tehtävän.\n"
+                    "• Armo ei palaudu ellet osta sitä Sannamaijan Shopista. Osto vaatii XP:tä."
+                ),
+                inline=False
+            )
+            embed.add_field(
+                name="Vinkkejä",
+                value=(
+                    "• Käytä valikkoa valitaksesi tehtävän tai katsoaksesi tilastot.\n"
+                    "• Suorita tehtävä ohjeiden mukaan – saat XP:tä ja kasvatat streakia.\n"
+                    "• Pidä silmällä seuraavaa bonusta – se näkyy tilastoembedissä!"
+                ),
+                inline=False
+            )
+            embed.set_footer(text="Pysy aktiivisena – streakit palkitaan ja armo suojaa unohduksilta.")
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
 
         data = await asyncio.to_thread(load_tasks)
         daily = data.get("daily_tasks", [])
