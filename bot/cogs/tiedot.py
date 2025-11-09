@@ -13,7 +13,7 @@ class TiedotCog(commands.Cog):
     @app_commands.command(name="tiedot", description="Näytä oma tai toisen käyttäjän bottidata.")
     @app_commands.describe(
         käyttäjä="(vain Mestari) Näytä toisen käyttäjän tiedot.",
-        ohje="Näytä ohjeet tietojen katseluun, lataamiseen ja poistamiseen. Näyttää vain ohjeet, ei tietoja (valinnainen)"
+        ohje="Näytä ohjeet tieto komentoon. Näyttää vain ohjeet, ei tietoja (valinnainen)"
     )
     async def tiedot(self, interaction: discord.Interaction, käyttäjä: discord.User = None, ohje: Optional[bool] = False):
         await kirjaa_komento_lokiin(self.bot, interaction, "/tiedot")
@@ -39,7 +39,7 @@ class TiedotCog(commands.Cog):
                     "• 🛒 Ostokset – ostohistoria ja tuotteet\n"
                     "• 🎟️ Kupongit – käytetyt alennuskoodit\n"
                     "• 🎯 Tarjous – kampanjatuotteiden käytöt\n"
-                    "• 🛡️ Moderointi – varoitukset ja valvontatiedot\n\n"
+                    "• 🛡️ Moderointi – varoitukset ja valvontatiedot\n"
                     "• 🔁 Streakit – päivittäiset, viikoittaiset, kuukausittaiset\n"
                     "• 💬 Puhe-streak – viestien jatkuvuus\n"
                     "• ⭐ XP-data – kertyneet kokemuspisteet\n"
