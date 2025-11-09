@@ -91,7 +91,7 @@ class Tasks(commands.Cog):
                 ),
                 inline=False
             )
-            embed.set_footer(text="Pysy aktiivisena – streakit palkitaan ja armo suojaa unohduksilta.")
+            embed.set_footer(text="Pysy aktiivisena – streakit palkitaan ja armo suojaa unohduksilta. ☺️")
             return await interaction.response.send_message(embed=embed, ephemeral=True)
 
         data = await asyncio.to_thread(load_tasks)
