@@ -228,7 +228,7 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
                                 erotus = (nykyinen_pvm - viimeisin_dt.date()).days
 
                                 if vanha_meunu_yliviivaus(viimeisin_dt.strftime("%Y-%m-%d"), datetime.now()):
-                                    nimi += f"\n> ~~Viimeksi tarjolla: {viimeisin_dt.strftime('%d.%m.%Y')} – {erotus} päivää sitten~~"
+                                    nimi += f"\n> Viimeksi tarjolla: {viimeisin_dt.strftime('%d.%m.%Y')} – {erotus} päivää sitten"
                                 else:
                                     nimi += f"\n> _Viimeksi tarjolla: {viimeisin_dt.strftime('%d.%m.%Y')} – {erotus} päivää sitten_"
                             else:
