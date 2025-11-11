@@ -76,14 +76,13 @@ class TiedotCog(commands.Cog):
                 ),
                 inline=False
             )
-            embed.set_footer(text="Tietosi ovat sinun – voit hallita niitä vapaasti. ☺️")
+            embed.set_footer(text="Tietosi ovat sinun. Voit hallita niitä vapaasti. ☺️")
             await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
         await interaction.followup.send(
             content="📁 Valitse kategoria, jonka tiedot haluat nähdä tai hallita:\n"
-                    "— Voit tarkastella, ladata tai poistaa tietoja kategoriakohtaisesti.\n"
-                    "— Jos haluat kaiken datan ladattavaksi tai poistettavaksi, käytä `/help` ja ota yhteyttä ylläpitoon.",
+                    "Jos haluat kaiken datan ladattavaksi tai poistettavaksi, käytä `/help` ja ota yhteyttä.",
             view=KategoriaView(target, valittu=None, alkuperäinen_käyttäjä=interaction.user),
             ephemeral=True
         )

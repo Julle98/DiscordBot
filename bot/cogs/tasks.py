@@ -57,9 +57,9 @@ class Tasks(commands.Cog):
             embed.add_field(
                 name="🗓️ Tehtävätyypit",
                 value=(
-                    "• 📅 **Päivittäiset** – vaihtuvat joka päivä.\n"
-                    "• 📆 **Viikoittaiset** – vaihtuvat viikon alussa.\n"
-                    "• 🗓️ **Kuukausittaiset** – vaihtuvat kuukauden vaihtuessa.\n"
+                    "• 📅 **Päivittäiset** vaihtuvat joka päivä.\n"
+                    "• 📆 **Viikoittaiset** vaihtuvat viikon alussa.\n"
+                    "• 🗓️ **Kuukausittaiset** vaihtuvat kuukauden vaihtuessa.\n"
                     "Kaikki tehtävät antavat XP:tä suoritettaessa."
                 ),
                 inline=False
@@ -86,12 +86,12 @@ class Tasks(commands.Cog):
                 name="💡 Vinkkejä",
                 value=(
                     "• Käytä valikkoa valitaksesi tehtävän tai katsoaksesi tilastot.\n"
-                    "• Suorita tehtävä ohjeiden mukaan – saat XP:tä ja kasvatat streakia.\n"
-                    "• Pidä silmällä seuraavaa bonusta – se näkyy tilastoembedissä!"
+                    "• Suorita tehtävä ohjeiden mukaan! Saat XP:tä ja kasvatat streakia.\n"
+                    "• Pidä silmällä seuraavaa bonusta! Se näkyy tilastoembedissä!"
                 ),
                 inline=False
             )
-            embed.set_footer(text="Pysy aktiivisena – streakit palkitaan ja armo suojaa unohduksilta. ☺️")
+            embed.set_footer(text="Pysy aktiivisena! Streakit palkitaan ja armo suojaa unohduksilta. ☺️")
             return await interaction.response.send_message(embed=embed, ephemeral=True)
 
         data = await asyncio.to_thread(load_tasks)

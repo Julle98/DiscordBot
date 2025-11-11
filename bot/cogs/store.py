@@ -57,7 +57,7 @@ class Store(commands.Cog):
                     value="• XP ei vähene ostoksia tekemällä.\n• Voit ostaa saman tuotteen kerran kuukaudessa, ja seuraavana kuukautena uudelleen.\n• Tarjoustuotteet voivat vaihtua erikoisjaksojen mukaan.",
                     inline=False
                 )
-                embed.set_footer(text="Tarkastele usein valikoimaa - haluamasi tulee varmasti jossan vaiheessa. ☺️")
+                embed.set_footer(text="Tarkastele usein valikoimaa! Haluamasi tulee varmasti jossan vaiheessa. ☺️")
                 return await interaction.response.send_message(embed=embed, ephemeral=True)
 
             tarjoukset = await asyncio.to_thread(hae_tarjous_vain)
