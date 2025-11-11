@@ -46,49 +46,14 @@ class VoteButtonView(ui.View):
     def __init__(self, options: list[str], poll_data: dict):
         super().__init__(timeout=None)
         self.poll_data = poll_data
-        self.message = None 
+        self.message = None
         self.options = options
 
-        for i in range(len(options)):
-            self.add_item(self._create_vote_button(i))
-
-    def _create_vote_button(self, index: int) -> ui.Button:
-        count = sum(1 for v in self.poll_data["votes"].values() if v == index)
-        emoji = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"][index]
-        label = f"{emoji} {self.options[index]} ({count})"
-        return VoteButton(index, label, self.poll_data, self)
-
-    def _create_unvote_button(self) -> ui.Button:
-        async def callback(interaction: Interaction):
-            user_id = str(interaction.user.id)
-            if user_id in self.poll_data["votes"]:
-                del self.poll_data["votes"][user_id]
-                self._update_db()
-                self._refresh_labels()
-                msg = "❎ Äänesi on peruttu."
-                await self._log_unvote(interaction)
-            else:
-                msg = "ℹ️ Sinulla ei ole aktiivista ääntä."
-
-            await interaction.response.send_message(msg, ephemeral=True)
-
-        return ui.Button(
-            label="❎ Peru ääni",
-            style=discord.ButtonStyle.danger,
-            custom_id=f"unvote_{self.poll_data['message_id']}",
-            callback=callback
-        )
-
-    def _create_feedback_button(self) -> ui.Button:
-        async def callback(interaction: Interaction):
-            await interaction.response.send_modal(FeedbackModal())
-
-        return ui.Button(
-            label="📝 Anna palautetta",
-            style=discord.ButtonStyle.secondary,
-            custom_id="feedback_button",
-            callback=callback
-        )
+        for i, opt in enumerate(options):
+            count = sum(1 for v in poll_data["votes"].values() if v == i)
+            emoji = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"][i]
+            label = f"{emoji} {opt} ({count})"
+            self.add_item(VoteButton(i, label, poll_data, self))
 
     def _refresh_labels(self):
         for i, item in enumerate(self.children):
@@ -139,7 +104,7 @@ class VoteButton(ui.Button):
         super().__init__(
             label=label,
             style=discord.ButtonStyle.primary,
-            custom_id=f"vote_{index}"
+            custom_id=f"vote_{index}_{poll_data['message_id']}"
         )
         self.index = index
         self.poll_data = poll_data
@@ -163,42 +128,42 @@ class VoteButton(ui.Button):
             await self.parent_view._log_vote(interaction, self.index)
 
         view = ui.View()
-        view.add_item(self.parent_view._create_unvote_button())
-        view.add_item(self.parent_view._create_feedback_button())
+        view.add_item(UnvoteButton(self.poll_data, self.parent_view))
+        view.add_item(FeedbackButton())
         await interaction.response.send_message(msg, ephemeral=True, view=view)
 
-class FeedbackButton(discord.ui.Button):
+class FeedbackButton(ui.Button):
     def __init__(self):
         super().__init__(
-            label="Anna palautetta",
-            style=discord.ButtonStyle.secondary
+            label="📝 Anna palautetta",
+            style=discord.ButtonStyle.secondary,
+            custom_id="feedback_button"
         )
-        self.custom_id = "feedback_button"
 
-    async def callback(self, interaction: discord.Interaction):
+    async def callback(self, interaction: Interaction):
         await interaction.response.send_modal(FeedbackModal())
 
-class UnvoteButton(discord.ui.Button):
-    def __init__(self, poll_data: dict, parent_view: discord.ui.View):
+class UnvoteButton(ui.Button):
+    def __init__(self, poll_data: dict, parent_view: VoteButtonView):
+        super().__init__(
+            label="❎ Peru ääni",
+            style=discord.ButtonStyle.danger,
+            custom_id=f"unvote_{poll_data['message_id']}"
+        )
         self.poll_data = poll_data
         self.parent_view = parent_view
-        super().__init__(
-            label="Peru ääni",
-            style=discord.ButtonStyle.danger
-        )
-        self.custom_id = f"unvote_{self.poll_data['message_id']}"
 
-    async def callback(self, interaction: discord.Interaction):
+    async def callback(self, interaction: Interaction):
         user_id = str(interaction.user.id)
         if user_id in self.poll_data["votes"]:
             del self.poll_data["votes"][user_id]
-            self._update_db()
-            self._refresh_all_buttons() 
+            self.parent_view._update_db()
+            self.parent_view._refresh_labels()
             msg = "❎ Äänesi on peruttu."
         else:
             msg = "ℹ️ Sinulla ei ole aktiivista ääntä."
 
-        view = discord.ui.View()
+        view = ui.View()
         view.add_item(FeedbackButton())
         await interaction.response.send_message(msg, ephemeral=True, view=view)
 
@@ -314,15 +279,9 @@ class AanestysModal(ui.Modal):
             json.dump(db, f, indent=2)
 
         view = VoteButtonView(options, poll_data)
+        await poll_msg.edit(embed=embed, view=view)
         view.message = poll_msg
-
-        await self.bot.add_view(view)
-        try:
-            await poll_msg.edit(view=view)
-        except Exception as e:
-            print(f"❌ poll_msg.edit(view=view) epäonnistui: {e}")
-            await interaction.channel.send(f"⚠️ Nappuloiden lataus epäonnistui: {e}")
-            
+    
         role_id_str = self.rooli_id.value.strip()
         if role_id_str.isdigit():
             role = interaction.guild.get_role(int(role_id_str))
