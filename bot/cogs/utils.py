@@ -566,6 +566,14 @@ class Utils(commands.Cog):
 
         elif tyyppi == "kolikko":
             valinnat = [vaihtoehto1 or "Kruunu", vaihtoehto2 or "Klaava"]
+
+            if valinnat[0].lower() == valinnat[1].lower():
+                await interaction.response.send_message(
+                    "Vaihtoehdot eivät voi olla samat. Anna kaksi erilaista arvoa.",
+                    ephemeral=True
+                )
+                return
+
             tulos = random.choice(valinnat)
             await interaction.response.send_message(
                 f"🪙 Kolikko heitettiin: **{tulos}**\nVaihtoehdot olivat: `{valinnat[0]}` ja `{valinnat[1]}`"
