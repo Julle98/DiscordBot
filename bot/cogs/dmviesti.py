@@ -11,6 +11,14 @@ class DMViesti(commands.Cog):
 
     @app_commands.command(name="dmviesti", description="Lähetä yksityisviesti jäsenelle botin nimissä.")
     @app_commands.checks.has_role("Mestari")
+    @app_commands.describe(
+        member="Jäsen, jolle viesti lähetetään",
+        viesti="Lähetettävä viesti",
+        emoji="Emoji, jonka oikeudet ovat päättyneet (valinnainen)",
+        rooli="Rooli, jonka oikeudet ovat päättyneet (valinnainen)",
+        emoji_viesti="Käytä valmista emoji-viestiä (valinnainen)",
+        rooli_viesti="Käytä valmista rooli-viestiä (valinnainen)"
+    )
     async def dmviesti(
         self,
         interaction: discord.Interaction,
