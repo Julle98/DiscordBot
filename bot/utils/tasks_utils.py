@@ -7,6 +7,7 @@ from discord import app_commands
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone, time as dtime
 from pathlib import Path
+import pytz
 import json
 
 def start_tasks_loops():
@@ -28,6 +29,8 @@ TASK_LOG_CHANNEL_ID = int(os.getenv("TASK_LOG_CHANNEL_ID", 0))
 MEME_CHANNEL_ID = int(os.getenv("MEME_CHANNEL_ID", 0))
 TASK_REWARD_XP = 50
 TASK_REWARD_ROLE_ID = 1379050552905695282
+
+helsinki_tz = pytz.timezone("Europe/Helsinki")
 
 active_listeners = {}
 
@@ -314,7 +317,7 @@ def select_random_task(task_list, last=None, last_last=None):
         filtered = task_list
     return random.choice(filtered)
     
-@tasks.loop(time=dtime(0, 0))
+@tasks.loop(time=dtime(0, 0, tzinfo=helsinki_tz))
 async def rotate_daily_tasks():
     data = load_tasks()
     selected = select_random_task(
@@ -327,10 +330,10 @@ async def rotate_daily_tasks():
     data["last_daily"] = selected
     save_tasks(data)
 
-@tasks.loop(time=dtime(0, 0))
+@tasks.loop(time=dtime(0, 0, tzinfo=helsinki_tz))
 async def rotate_weekly_tasks():
-    now = datetime.now(timezone.utc)
-    if now.weekday() != 0:
+    now = datetime.now(helsinki_tz)
+    if now.weekday() != 0:  
         return
     data = load_tasks()
     selected = select_random_task(
@@ -343,10 +346,10 @@ async def rotate_weekly_tasks():
     data["last_weekly"] = selected
     save_tasks(data)
 
-@tasks.loop(time=dtime(0, 0))
+@tasks.loop(time=dtime(0, 0, tzinfo=helsinki_tz))
 async def rotate_monthly_tasks():
-    now = datetime.now(timezone.utc)
-    if now.day != 1:
+    now = datetime.now(helsinki_tz)
+    if now.day != 1:  
         return
     data = load_tasks()
     selected = select_random_task(
