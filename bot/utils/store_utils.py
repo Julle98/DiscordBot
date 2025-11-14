@@ -789,7 +789,7 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
         viesti = "😎 Erikoisemoji on nyt käytössäsi!"
         lisatieto = "\n😎 Erikoisemoji myönnetty"
 
-    elif nimi == "double xp -päivä":
+    elif "double xp" in nimi.lower():
         rooli = discord.utils.get(interaction.guild.roles, name="Double XP")
         if not rooli:
             rooli = await interaction.guild.create_role(name="Double XP")
@@ -984,7 +984,8 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
         if lokikanava:
             view = PeruOstosView(interaction.user, tuote["nimi"])
             await lokikanava.send(
-                f"🧾 {interaction.user.mention} osti tuotteen **{tuote['nimi']}** ({hinta_alennettu} XP){lisatieto}" +
+                f"🧾 {interaction.user.mention} osti tuotteen **{tuote['nimi']}** ({hinta_alennettu} XP)" +
+                (lisatieto if lisatieto else f"\nℹ️ Tuote {tuote['nimi']} aktivoitu") +
                 (f"\n📄 Kuponki: **{kuponki}** (-{alennus_prosentti}%)" if kuponki else ""),
                 view=view
             )
