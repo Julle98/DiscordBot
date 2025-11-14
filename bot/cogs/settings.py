@@ -40,10 +40,10 @@ class SettingsView(discord.ui.View):
         ]
 
         for key, label, desc in [
-            ("xp_viestit", "💬 XP viesteistä", "Käyttäjä saa XP:tä tekstiviesteistä"),
-            ("xp_puhe", "🎙️ XP puhekanavalta", "Käyttäjä saa XP:tä puhekanavalla olemisesta"),
-            ("xp_komennot", "⚙️ XP komennoista", "Käyttäjä saa XP:tä komentoja käyttämällä"),
-            ("xp_epaaktiivisuus", "🕒 XP bonus epäaktiivisuudesta", "Käyttäjä saa XP-bonusta palatessaan pitkän tauon jälkeen"),
+            ("xp_viestit", "💬 XP viesteistä", "Vaihda asetusta XP:n saannista viesteistä"),
+            ("xp_puhe", "🎙️ XP puhekanavalta", "Vaihda asetusta XP:n saannista puhekanavilta"),
+            ("xp_komennot", "⚙️ XP komennoista", "Vaihda asetusta XP:n saannista komennoista"),
+            ("xp_epaaktiivisuus", "🕒 XP bonus epäaktiivisuudesta", "Vaihda asetusta XP:n saannista epäaktiivisuus bonuksissa"),
         ]:
             tila = "✅ Päällä" if self.settings.get(key) else "❌ Pois"
             options.append(discord.SelectOption(
@@ -126,7 +126,7 @@ class Asetukset(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="asetukset", description="Muuta XP-asetuksiasi")
+    @app_commands.command(name="asetukset", description="Muuta XP-asetuksiasi.")
     async def asetukset(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/asetukset")
         await kirjaa_ga_event(self.bot, interaction.user.id, "asetukset_komento")

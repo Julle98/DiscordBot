@@ -77,7 +77,8 @@ COGS = [
     "bot.cogs.games.game_scores",
     "bot.cogs.games.miinaharava",
     "bot.cogs.games.ristinolla",
-    "bot.cogs.currency"
+    "bot.cogs.currency",
+    "bot.cogs.faq"
 ]
 
 async def load_cogs():
