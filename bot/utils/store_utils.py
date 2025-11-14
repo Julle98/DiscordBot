@@ -53,11 +53,11 @@ kauppa_tuotteet = [
 ]
 
 TUOTELOGIIKKA = {
-    "VIP-chat": {"rooli": "VIP", "kesto": timedelta(days=30)},
-    "Valitse emoji": {"rooli": "EmojiValinta", "kesto": timedelta(days=14)},
-    "Oma komento": {"rooli": "KomentoKäyttäjä", "kesto": timedelta(days=14)},
-    "Custom rooli": {"rooli": "CustomRooli", "kesto": timedelta(days=30)},
-    "Soundboard-oikeus": {"rooli": "Soundboard", "kesto": timedelta(days=7)},
+    "Erikoisemoji": {"rooli": "Erikoisemoji", "kesto": timedelta(days=3)},
+    "VIP-chat": {"rooli": "VIP", "kesto": timedelta(days=7)},
+    "VIP-rooli": {"rooli": "VIPRooli", "kesto": timedelta(days=7)},
+    "Double XP -päivä": {"rooli": "Double XP", "kesto": timedelta(days=1)},
+    "Soundboard-oikeus": {"rooli": "SoundboardAccess", "kesto": timedelta(days=3)},
 }
 
 if not tuotteet_polku.exists():
@@ -102,7 +102,7 @@ async def tarkista_vanhentuneet_oikeudet():
     nyt = datetime.now()
 
     for user_id, ostoslista in ostot.items():
-        guild = discord.utils.get(bot.guilds)
+        guild = bot.guilds[0]
         member = guild.get_member(int(user_id))
         if not member:
             continue
