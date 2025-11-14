@@ -352,7 +352,7 @@ class StreakPalautusModal(discord.ui.Modal, title="Valitse streak palautettavaks
         super().__init__()
         self.streak_input = discord.ui.TextInput(
             label="Streakin tyyppi",
-            placeholder="daily / weekly / monthly / voice",
+            placeholder="daily / weekly / monthly",
             required=True,
             max_length=20
         )
@@ -363,10 +363,10 @@ class StreakPalautusModal(discord.ui.Modal, title="Valitse streak palautettavaks
 
         uid = str(interaction.user.id)
         valinta = self.streak_input.value.lower()
-        sallitut_tyypit = {"daily", "weekly", "monthly", "voice"}
+        sallitut_tyypit = {"daily", "weekly", "monthly"}
 
         if valinta not in sallitut_tyypit:
-            await interaction.response.send_message("❌ Anna jokin seuraavista: daily, weekly, monthly tai voice.", ephemeral=True)
+            await interaction.response.send_message("❌ Anna jokin seuraavista: daily, weekly tai monthly.", ephemeral=True)
             return
 
         streaks = load_streaks()
