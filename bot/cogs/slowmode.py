@@ -3,7 +3,6 @@ from discord.ext import commands, tasks
 from collections import deque
 import os
 from dotenv import load_dotenv
-import asyncio
 import time
 from datetime import datetime
 
@@ -20,6 +19,12 @@ class SlowmodeTracker(commands.Cog):
         self.low_slowmode = 2
         self.last_slowmode = None
 
+        self.pending_state = None
+        self.pending_count = 0
+
+        self.last_log_time = 0
+        self.log_cooldown = 10
+
         bot.loop.create_task(self.initialize_slowmode_state())
         self.slowmode_task.start()
 
@@ -32,7 +37,6 @@ class SlowmodeTracker(commands.Cog):
             return
 
         current_delay = channel.slowmode_delay
-
         if current_delay == self.high_slowmode:
             await channel.edit(slowmode_delay=self.low_slowmode)
             await self.send_embed(console_channel or channel, self.low_slowmode, raised=False, count=0)
@@ -46,7 +50,7 @@ class SlowmodeTracker(commands.Cog):
         if message.channel.id == self.slowmode_channel_id and not message.author.bot:
             self.message_log.append(time.time())
 
-    @tasks.loop(seconds=2)
+    @tasks.loop(seconds=5) 
     async def slowmode_task(self):
         now = time.time()
         while self.message_log and now - self.message_log[0] > self.time_window:
@@ -58,32 +62,34 @@ class SlowmodeTracker(commands.Cog):
             return
 
         count = len(self.message_log)
+        desired_state = self.high_slowmode if count >= self.threshold_count else self.low_slowmode
 
-        if count >= self.threshold_count and channel.slowmode_delay != self.high_slowmode:
-            await channel.edit(slowmode_delay=self.high_slowmode)
-            await self.send_embed(channel, self.high_slowmode, raised=True, count=count)
-            if console_channel:
-                await self.send_embed(console_channel, self.high_slowmode, raised=True, count=count)
-            self.last_slowmode = self.high_slowmode
-
-        elif count < self.threshold_count and channel.slowmode_delay != self.low_slowmode:
-            await channel.edit(slowmode_delay=self.low_slowmode)
-            await self.send_embed(channel, self.low_slowmode, raised=False, count=count)
-            if console_channel:
-                await self.send_embed(console_channel, self.low_slowmode, raised=False, count=count)
-            self.last_slowmode = self.low_slowmode
+        if desired_state != self.last_slowmode:
+            if self.pending_state == desired_state:
+                self.pending_count += 1
+                if self.pending_count >= 2:
+                    await channel.edit(slowmode_delay=desired_state)
+                    await self.send_embed(channel, desired_state, raised=(desired_state == self.high_slowmode), count=count)
+                    if console_channel:
+                        await self.send_embed(console_channel, desired_state, raised=(desired_state == self.high_slowmode), count=count)
+                    self.last_slowmode = desired_state
+                    self.pending_state = None
+                    self.pending_count = 0
+            else:
+                self.pending_state = desired_state
+                self.pending_count = 1
 
     async def send_embed(self, channel, delay, raised, count):
+        now_ts = time.time()
+        if now_ts - self.last_log_time < self.log_cooldown:
+            return
+        self.last_log_time = now_ts
+
         now = datetime.now().strftime("%H:%M:%S")
-
-        if raised is None:
-            title = "🐌 Etanatila asetettu"
-            color = discord.Color.orange()
-        else:
-            title = "🐌 Etanatila nostettu" if raised else "🐌 Etanatila laskettu"
-            color = discord.Color.red() if raised else discord.Color.green()
-
+        title = "🐌 Etanatila nostettu" if raised else "🐌 Etanatila laskettu"
+        color = discord.Color.red() if raised else discord.Color.green()
         direction = "🔺 Nousi" if raised else "🔻 Laski"
+
         description = (
             f"**{direction}** – uusi viestirajoitus: **{delay} sekuntia**\n"
             f"💬 Viestejä viimeisen {self.time_window}s aikana: **{count}/{self.threshold_count}**\n"
