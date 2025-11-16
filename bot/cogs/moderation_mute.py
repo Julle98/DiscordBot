@@ -197,6 +197,7 @@ class Moderation_mute(commands.Cog):
         duration="Rangaistuksen kesto (esim. 1d2h30m, 3h, 45m)",
         reason="Syy rangaistukselle"
     )
+    @app_commands.checks.has_role("Mestari")
     async def mute_rooli(
         self,
         interaction: discord.Interaction,
@@ -204,6 +205,8 @@ class Moderation_mute(commands.Cog):
         duration: str,
         reason: str = "Ei syytä annettu"
     ):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/mute_rooli")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "mute_rooli_komento")
         upper_role_id = 1370705176767369286
         lower_role_id = 1370705019594080307
         mute_role_id = 1341078448042672148
