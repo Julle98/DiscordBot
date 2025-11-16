@@ -16,6 +16,27 @@ class Moderation_mute(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.modlog_channel_id: int = int(os.getenv("MODLOG_CHANNEL_ID", "0"))
+        self.roles_to_toggle = [
+            1413094672804347965,
+            1339846579766694011,
+            1339854259432329246,
+            1370704701250601030,
+            1370704731567161385,
+            1370704765809332254,
+            1370704818875928628,
+            1370704865138839564,
+            1370704889398825041
+        ]
+
+    def parse_duration(self, duration_str: str) -> int:
+        pattern = re.compile(r'^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$')
+        match = pattern.fullmatch(duration_str.strip().lower())
+        if not match:
+            return -1
+        days = int(match.group(1)) if match.group(1) else 0
+        hours = int(match.group(2)) if match.group(2) else 0
+        minutes = int(match.group(3)) if match.group(3) else 0
+        return days * 1440 + hours * 60 + minutes
 
     def format_duration(self, total_minutes: int) -> str:
         days, remainder = divmod(total_minutes, 1440)
@@ -29,16 +50,6 @@ class Moderation_mute(commands.Cog):
         if mins:
             parts.append(f"{mins} minuuttia")
         return ", ".join(parts) if parts else "0 minuuttia"
-
-    def parse_duration(self, duration_str: str) -> int:
-        pattern = re.compile(r'^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$')
-        match = pattern.fullmatch(duration_str.strip().lower())
-        if not match:
-            return -1
-        days = int(match.group(1)) if match.group(1) else 0
-        hours = int(match.group(2)) if match.group(2) else 0
-        minutes = int(match.group(3)) if match.group(3) else 0
-        return days * 1440 + hours * 60 + minutes
 
     @app_commands.command(name="mute", description="Aseta jäähy jäsenelle.")
     @app_commands.describe(
@@ -197,7 +208,6 @@ class Moderation_mute(commands.Cog):
         duration="Rangaistuksen kesto (esim. 1d2h30m, 3h, 45m)",
         reason="Syy rangaistukselle"
     )
-    @app_commands.checks.has_role("Mestari")
     async def mute_rooli(
         self,
         interaction: discord.Interaction,
@@ -205,12 +215,7 @@ class Moderation_mute(commands.Cog):
         duration: str,
         reason: str = "Ei syytä annettu"
     ):
-        await kirjaa_komento_lokiin(self.bot, interaction, "/mute_rooli")
-        await kirjaa_ga_event(self.bot, interaction.user.id, "mute_rooli_komento")
-        upper_role_id = 1370705176767369286
-        lower_role_id = 1370705019594080307
         mute_role_id = 1341078448042672148
-
         guild = interaction.guild
         mute_role = guild.get_role(mute_role_id)
 
@@ -220,18 +225,15 @@ class Moderation_mute(commands.Cog):
         total_minutes = self.parse_duration(duration)
         if total_minutes <= 0:
             return await interaction.response.send_message(
-                "❌ Virheellinen kesto. Käytä muotoa esim. `1d2h30m`, `3h`, `45m`. "
-                "Hyväksytyt yksiköt: d (päivä), h (tunti), m (minuutti).",
+                "❌ Virheellinen kesto. Käytä muotoa esim. `1d2h30m`, `3h`, `45m`. Hyväksytyt yksiköt: d (päivä), h (tunti), m (minuutti).",
                 ephemeral=True
             )
 
-        roles_to_remove = [
-            role for role in member.roles
-            if lower_role_id <= role.id <= upper_role_id
-        ]
+        roles_to_remove = [guild.get_role(rid) for rid in self.roles_to_toggle if guild.get_role(rid) in member.roles]
 
         try:
-            await member.remove_roles(*roles_to_remove, reason=f"Mute: {reason}")
+            if roles_to_remove:
+                await member.remove_roles(*roles_to_remove, reason=f"Mute: {reason}")
             await member.add_roles(mute_role, reason=f"Mute: {reason}")
         except discord.Forbidden:
             return await interaction.response.send_message("❌ Ei oikeuksia muuttaa rooleja.", ephemeral=True)
@@ -258,14 +260,15 @@ class Moderation_mute(commands.Cog):
         await asyncio.sleep(total_minutes * 60)
         try:
             await member.remove_roles(mute_role, reason="Mute päättyi")
-            await member.add_roles(*roles_to_remove, reason="Mute päättyi")
+            if roles_to_remove:
+                await member.add_roles(*roles_to_remove, reason="Mute päättyi")
 
             if self.modlog_channel_id:
                 modlog_channel = guild.get_channel(self.modlog_channel_id)
                 if modlog_channel:
                     embed = discord.Embed(
                         title="✅ Mute päättyi",
-                        description=f"{member.mention}n mute-rooli poistettiin.",
+                        description=f"{member.mention}n mute-rooli poistettiin ja roolit palautettiin.",
                         color=discord.Color.green()
                     )
                     embed.add_field(name="Kesto", value=duration_str, inline=False)
