@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import os
 import re
 from bot.utils.error_handler import CommandErrorHandler
+import asyncio
 
 load_dotenv()
 MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", 0))
@@ -14,6 +15,30 @@ MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", 0))
 class Moderation_mute(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.modlog_channel_id: int = int(os.getenv("MODLOG_CHANNEL_ID", "0"))
+
+    def format_duration(self, total_minutes: int) -> str:
+        days, remainder = divmod(total_minutes, 1440)
+        hours, remainder = divmod(remainder, 60)
+        mins = remainder
+        parts = []
+        if days:
+            parts.append(f"{days} päivää")
+        if hours:
+            parts.append(f"{hours} tuntia")
+        if mins:
+            parts.append(f"{mins} minuuttia")
+        return ", ".join(parts) if parts else "0 minuuttia"
+
+    def parse_duration(self, duration_str: str) -> int:
+        pattern = re.compile(r'^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$')
+        match = pattern.fullmatch(duration_str.strip().lower())
+        if not match:
+            return -1
+        days = int(match.group(1)) if match.group(1) else 0
+        hours = int(match.group(2)) if match.group(2) else 0
+        minutes = int(match.group(3)) if match.group(3) else 0
+        return days * 1440 + hours * 60 + minutes
 
     @app_commands.command(name="mute", description="Aseta jäähy jäsenelle.")
     @app_commands.describe(
@@ -165,6 +190,86 @@ class Moderation_mute(commands.Cog):
             embed.add_field(name=f"Jäähy #{i}", value=value, inline=False)
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="mute_rooli", description="Anna jäsenelle mute-rooli määräajaksi syyn kera.")
+    @app_commands.describe(
+        member="Jäsen, joka halutaan mutettaa",
+        duration="Rangaistuksen kesto (esim. 1d2h30m, 3h, 45m)",
+        reason="Syy rangaistukselle"
+    )
+    async def mute_rooli(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        duration: str,
+        reason: str = "Ei syytä annettu"
+    ):
+        upper_role_id = 1370705176767369286
+        lower_role_id = 1370705019594080307
+        mute_role_id = 1341078448042672148
+
+        guild = interaction.guild
+        mute_role = guild.get_role(mute_role_id)
+
+        if not mute_role:
+            return await interaction.response.send_message("❌ Mute-roolia ei löytynyt.", ephemeral=True)
+
+        total_minutes = self.parse_duration(duration)
+        if total_minutes <= 0:
+            return await interaction.response.send_message(
+                "❌ Virheellinen kesto. Käytä muotoa esim. `1d2h30m`, `3h`, `45m`. "
+                "Hyväksytyt yksiköt: d (päivä), h (tunti), m (minuutti).",
+                ephemeral=True
+            )
+
+        roles_to_remove = [
+            role for role in member.roles
+            if lower_role_id <= role.id <= upper_role_id
+        ]
+
+        try:
+            await member.remove_roles(*roles_to_remove, reason=f"Mute: {reason}")
+            await member.add_roles(mute_role, reason=f"Mute: {reason}")
+        except discord.Forbidden:
+            return await interaction.response.send_message("❌ Ei oikeuksia muuttaa rooleja.", ephemeral=True)
+
+        duration_str = self.format_duration(total_minutes)
+
+        await interaction.response.send_message(
+            f"🔇 {member.mention} sai mute-roolin {duration_str}. Syy: {reason}"
+        )
+
+        if self.modlog_channel_id:
+            modlog_channel = guild.get_channel(self.modlog_channel_id)
+            if modlog_channel:
+                embed = discord.Embed(
+                    title="🔇 Mute annettu",
+                    description=f"{member.mention} sai mute-roolin.",
+                    color=discord.Color.red()
+                )
+                embed.add_field(name="Kesto", value=duration_str, inline=False)
+                embed.add_field(name="Syy", value=reason, inline=False)
+                embed.add_field(name="Moderaattori", value=interaction.user.mention, inline=False)
+                await modlog_channel.send(embed=embed)
+
+        await asyncio.sleep(total_minutes * 60)
+        try:
+            await member.remove_roles(mute_role, reason="Mute päättyi")
+            await member.add_roles(*roles_to_remove, reason="Mute päättyi")
+
+            if self.modlog_channel_id:
+                modlog_channel = guild.get_channel(self.modlog_channel_id)
+                if modlog_channel:
+                    embed = discord.Embed(
+                        title="✅ Mute päättyi",
+                        description=f"{member.mention}n mute-rooli poistettiin.",
+                        color=discord.Color.green()
+                    )
+                    embed.add_field(name="Kesto", value=duration_str, inline=False)
+                    await modlog_channel.send(embed=embed)
+
+        except discord.Forbidden:
+            pass
 
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
