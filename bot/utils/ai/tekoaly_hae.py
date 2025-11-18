@@ -2,6 +2,8 @@ import os
 import aiohttp
 from dotenv import load_dotenv
 
+# Temprorary not in use 
+
 load_dotenv()
 LANGSEARCH_API_KEY = os.getenv("LANGSEARCH_API_KEY")
 

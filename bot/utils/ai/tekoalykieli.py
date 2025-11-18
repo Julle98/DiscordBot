@@ -1,5 +1,7 @@
 import re
 
+# Temprorary not in use 
+
 def tulkitse_tekoalykieli(kysymys: str):
     kysymys = kysymys.strip().lower()
 

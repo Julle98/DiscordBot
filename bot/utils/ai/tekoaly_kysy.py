@@ -1,5 +1,7 @@
 import subprocess
 
+# Temprorary not in use 
+
 async def suorita_kysymys(prompt: str) -> str:
     try:
         result = subprocess.run(

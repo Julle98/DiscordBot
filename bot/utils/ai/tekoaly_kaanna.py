@@ -1,5 +1,7 @@
 from transformers import pipeline
 
+# Temprorary not in use 
+
 kaantaja = pipeline("translation", model="Helsinki-NLP/opus-mt-fi-en")
 
 async def suorita_kaannos(teksti: str) -> str:

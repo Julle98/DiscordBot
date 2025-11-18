@@ -1,5 +1,7 @@
 from transformers import pipeline
 
+# Temprorary not in use 
+
 tiivistaja = pipeline("summarization", model="facebook/mbart-large-cc25")
 
 async def suorita_tiivistys(teksti: str) -> str:

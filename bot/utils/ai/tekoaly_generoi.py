@@ -3,6 +3,8 @@ from io import BytesIO
 from discord import File
 import os
 
+# Temprorary not in use 
+
 HUGGINGFACE_API_TOKEN = os.getenv("HUGGINGFACE_API_TOKEN")
 
 async def suorita_kuvagenerointi(prompt: str) -> File:
