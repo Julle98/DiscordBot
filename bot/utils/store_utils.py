@@ -26,6 +26,8 @@ def start_store_loops():
         paivita_tarjous_automatisoitu.start()
     if not tarkista_vanhentuneet_oikeudet.is_running():
         tarkista_vanhentuneet_oikeudet.start()
+    if not paivita_valikoima.is_running():
+        paivita_valikoima.start()
 
 load_dotenv()
 OSTOSLOKI_KANAVA_ID = int(os.getenv("OSTOSLOKI_KANAVA_ID"))
@@ -33,6 +35,7 @@ MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", 0))
 JSON_DIRS = Path(os.getenv("JSON_DIRS"))
 SHOP_CAMPAIGN_PATH = os.getenv("SHOP_CAMPAIGN_PATH")
 tuotteet_polku = JSON_DIRS / "tuotteet.json"
+VALIKOIMA_POLKU = JSON_DIRS / "valikoima.json"
 
 auto_react_users = {}  # user_id -> emoji
 
@@ -52,12 +55,23 @@ kauppa_tuotteet = [
     {"nimi": "Tehtävien armonantamisen nollaus", "kuvaus": "Poistaa armolliset jatkoviestit tehtävälogista", "hinta": 2500, "kertakäyttöinen": True, "emoji": "🧼", "tarjousprosentti": 20}
 ]
 
+def puhdista_tuotteen_nimi(nimi: str) -> str:
+    return nimi.replace(" (Tarjous!)", "").strip().lower()
+
 TUOTELOGIIKKA = {
-    "Erikoisemoji": {"rooli": "Erikoisemoji", "kesto": timedelta(days=3)},
-    "VIP-chat": {"rooli": "VIP", "kesto": timedelta(days=7)},
-    "VIP-rooli": {"rooli": "VIPRooli", "kesto": timedelta(days=7)},
-    "Double XP -päivä": {"rooli": "Double XP", "kesto": timedelta(days=1)},
-    "Soundboard-oikeus": {"rooli": "SoundboardAccess", "kesto": timedelta(days=3)},
+    puhdista_tuotteen_nimi("Erikoisemoji"): {"rooli": "Erikoisemoji", "kesto": timedelta(days=3)},
+    puhdista_tuotteen_nimi("Double XP -päivä"): {"rooli": "Double XP", "kesto": timedelta(days=1)},
+    puhdista_tuotteen_nimi("Custom rooli"): {"rooli": None, "kesto": None},
+    puhdista_tuotteen_nimi("VIP-chat"): {"rooli": "VIP", "kesto": timedelta(days=7)},
+    puhdista_tuotteen_nimi("VIP-rooli"): {"rooli": "VIPRooli", "kesto": timedelta(days=7)},
+    puhdista_tuotteen_nimi("Oma komento"): {"rooli": None, "kesto": None},
+    puhdista_tuotteen_nimi("Oma kanava"): {"rooli": None, "kesto": None},
+    puhdista_tuotteen_nimi("Oma puhekanava"): {"rooli": None, "kesto": None},
+    puhdista_tuotteen_nimi("Valitse värisi"): {"rooli": None, "kesto": timedelta(days=7)},
+    puhdista_tuotteen_nimi("Valitse emoji"): {"rooli": None, "kesto": timedelta(days=7)},
+    puhdista_tuotteen_nimi("Soundboard-oikeus"): {"rooli": "SoundboardAccess", "kesto": timedelta(days=3)},
+    puhdista_tuotteen_nimi("Streak palautus"): {"rooli": None, "kesto": None},
+    puhdista_tuotteen_nimi("Tehtävien armonantamisen nollaus"): {"rooli": None, "kesto": None},
 }
 
 if not tuotteet_polku.exists():
@@ -114,12 +128,14 @@ async def tarkista_vanhentuneet_oikeudet():
 
                 for avain, tiedot in TUOTELOGIIKKA.items():
                     if avain.lower() in nimi.lower():
-                        if (nyt - pvm) > tiedot["kesto"]:
+                        kesto = tiedot.get("kesto")
+                        if not kesto:
+                            continue  
+                        if (nyt - pvm) > kesto:
                             rooli = discord.utils.get(guild.roles, name=tiedot["rooli"])
                             if rooli and rooli in member.roles:
                                 await member.remove_roles(rooli)
                                 print(f"🧹 Poistettu rooli {rooli.name} käyttäjältä {member.name}")
-
                                 try:
                                     await member.send(
                                         f"⌛ Oikeutesi **{rooli.name}** on vanhentunut.\n"
@@ -149,6 +165,17 @@ async def tarkista_vanhentuneet_oikeudet():
                         )
                     except discord.Forbidden:
                         print(f"❌ DM-viesti epäonnistui käyttäjälle {member.name}")
+
+@tasks.loop(hours=1)
+async def paivita_valikoima():
+    try:
+        periodi = nykyinen_periodi()
+        tuotteet = kauppa_tuotteet[periodi*2:(periodi+1)*2]
+        with open(VALIKOIMA_POLKU, "w", encoding="utf-8") as f:
+            json.dump(tuotteet, f, ensure_ascii=False, indent=2)
+        print("✅ valikoima.json päivitetty automaattisesti.")
+    except Exception as e:
+        print(f"Valikoiman automaattinen päivitys epäonnistui: {e}")
 
 @tasks.loop(hours=1)
 async def paivita_tarjous_automatisoitu():
@@ -304,22 +331,34 @@ def hae_campaign():
     except:
         return None
 
+def _parse_iso(dt_str: str) -> Optional[datetime]:
+    if not dt_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
+
 def onko_tuote_voimassa(user_id: str, tuotteen_nimi: str) -> Optional[timedelta]:
     ostot = lue_ostokset()
     kayttajan_ostot = ostot.get(user_id, [])
-    nyt = datetime.now()
+    nyt = datetime.now(timezone.utc)
+    kohde = puhdista_tuotteen_nimi(tuotteen_nimi)
 
+    voimassa_jaljella = None
     for o in kayttajan_ostot:
-        nimi = puhdista_tuotteen_nimi(o.get("nimi", ""))
-        if nimi == puhdista_tuotteen_nimi(tuotteen_nimi):
-            pvm = datetime.fromisoformat(o.get("pvm", ""))
-            tuotelogiikka = TUOTELOGIIKKA.get(nimi.lower())
-            if tuotelogiikka:
-                kesto = tuotelogiikka["kesto"]
-                paattymisaika = pvm + kesto
-                if nyt < paattymisaika:
-                    return paattymisaika - nyt
-    return None
+        if puhdista_tuotteen_nimi(o.get("nimi", "")) != kohde:
+            continue
+        exp = _parse_iso(o.get("expires_at", ""))
+        if exp and exp > nyt:
+            diff = exp - nyt
+            if not voimassa_jaljella or diff > voimassa_jaljella:
+                voimassa_jaljella = diff
+
+    return voimassa_jaljella
 
 async def onko_modal_kaytetty(bot, user: discord.User, modal_nimi: str) -> bool:
     log_channel = bot.get_channel(int(os.getenv("MOD_LOG_CHANNEL_ID")))
@@ -408,12 +447,13 @@ class ModalDropdownView(discord.ui.View):
         self.add_item(ModalDropdown(modal, otsikko))
 
 def nykyinen_periodi():
-    alku = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    delta = datetime.now(timezone.utc) - alku
+    nyt = datetime.now(timezone.utc)
+    alku = datetime(nyt.year, nyt.month, 1, tzinfo=timezone.utc)  
+    delta = nyt - alku
     periodi = (delta.days // 4) % (len(kauppa_tuotteet) // 2)
     return periodi
 
-def nayta_kauppa_embed(interaction, tarjoukset):
+def nayta_kauppa_embed(interaction: discord.Interaction, tarjoukset: list, tuotteet: list):
     user_id = str(interaction.user.id)
     campaign = hae_campaign()
     now = datetime.now(timezone.utc).date()
@@ -424,10 +464,6 @@ def nayta_kauppa_embed(interaction, tarjoukset):
     ostot = lue_ostokset()
     omistetut = ostot.get(user_id, [])
     omistetut_nimet = [puhdista_tuotteen_nimi(o["nimi"]) for o in omistetut if isinstance(o, dict) and "nimi" in o]
-
-    periodi = nykyinen_periodi()
-    tarjousnimet = [t["nimi"].replace(" (Tarjous!)", "") for t in tarjoukset]
-    vaihdettavat = [t for t in kauppa_tuotteet[periodi*2:(periodi+1)*2] if t["nimi"] not in tarjousnimet]    
 
     embed = discord.Embed(
         title="🛒 Sannamaija Shop!",
@@ -445,7 +481,7 @@ def nayta_kauppa_embed(interaction, tarjoukset):
                 inline=False
             )
 
-    kertakayttoiset = [t for t in vaihdettavat if t["kertakäyttöinen"]]
+    kertakayttoiset = [t for t in tuotteet if t.get("kertakäyttöinen")]
     if kertakayttoiset:
         embed.add_field(name="🔁 Kertakäyttöiset tuotteet", value="\u200b", inline=False)
         for t in kertakayttoiset:
@@ -457,9 +493,8 @@ def nayta_kauppa_embed(interaction, tarjoukset):
                 inline=False
             )
 
-    monikayttoiset = [t for t in vaihdettavat if not t["kertakäyttöinen"]]
+    monikayttoiset = [t for t in tuotteet if not t.get("kertakäyttöinen")]
     if monikayttoiset:
-        embed.add_field(name="\u200b", value="\u200b", inline=False)
         embed.add_field(name="♻️ Monikäyttöiset tuotteet", value="\u200b", inline=False)
         for t in monikayttoiset:
             emoji = t.get("emoji", "🎁")
@@ -471,11 +506,11 @@ def nayta_kauppa_embed(interaction, tarjoukset):
             )
 
     if tarjoukset:
-        embed.add_field(name="\u200b", value="━━━━━━━━━━━━━━", inline=False)  
+        embed.add_field(name="━━━━━━━━━━━━━━", value="\u200b", inline=False)
         embed.add_field(name="🎉 Tarjoukset", value="\u200b", inline=False)
         for t in tarjoukset:
             emoji = t.get("emoji", "🔥")
-            tyyppi = "Kertakäyttöinen" if t["kertakäyttöinen"] else "Monikäyttöinen"
+            tyyppi = "Kertakäyttöinen" if t.get("kertakäyttöinen") else "Monikäyttöinen"
             omistaa = "✅ Omistat" if puhdista_tuotteen_nimi(t["nimi"]) in omistetut_nimet else ""
             embed.add_field(
                 name=f"{emoji} {t['nimi']} ({t['hinta']} XP)",
@@ -486,7 +521,9 @@ def nayta_kauppa_embed(interaction, tarjoukset):
     nyt = datetime.now(timezone.utc)
     alku = datetime(2025, 1, 1, tzinfo=timezone.utc)
     seuraava_uusiutuminen = nyt.date() + timedelta(days=(4 - (nyt - alku).days % 4))
-    embed.set_footer(text=f"Kauppa uusiutuu {seuraava_uusiutuminen.strftime('%d.%m.%Y')}.\nKäytä /kauppa [tuotteen nimi] ostaaksesi.\nSinulta EI vähenny XP määrä ostoksia tekemällä!")
+    embed.set_footer(
+        text=f"Kauppa uusiutuu {seuraava_uusiutuminen.strftime('%d.%m.%Y')}."
+    )
 
     return embed
 
@@ -507,6 +544,27 @@ def tallenna_ostokset(ostot):
 
 def puhdista_tuotteen_nimi(nimi: str) -> str:
     return nimi.replace(" (Tarjous!)", "").strip().lower()
+
+def tallenna_osto(user_id: str, tuote: dict):
+    ostot = lue_ostokset()
+    nyt = datetime.now(timezone.utc)
+
+    canon = puhdista_tuotteen_nimi(tuote["nimi"])
+    logiikka = TUOTELOGIIKKA.get(canon)
+
+    ostorivi = {
+        "nimi": tuote["nimi"],
+        "pvm": nyt.isoformat(),
+    }
+
+    if logiikka and logiikka.get("kesto"):
+        ostorivi["expires_at"] = (nyt + logiikka["kesto"]).isoformat()
+
+    kayttajan_ostot = ostot.get(user_id, [])
+    kayttajan_ostot.append(ostorivi)
+    ostot[user_id] = kayttajan_ostot
+
+    tallenna_ostokset(ostot)
 
 class EmojiModal(discord.ui.Modal, title="Valitse emoji"):
     emoji = discord.ui.TextInput(label="Emoji", placeholder="Esim. 😎, 🔥, 🤖")
@@ -908,41 +966,39 @@ async def kasittele_tuote(interaction, nimi: str) -> tuple[str, Optional[discord
 from dotenv import load_dotenv
 
 async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, kuponki=None):
-    global ostot
     user_id = str(interaction.user.id)
     tuotteet = kauppa_tuotteet + tarjoukset
-    tuote = next((t for t in tuotteet if t["nimi"].lower() == tuotteen_nimi.lower()), None)
+    tuote = next((t for t in tuotteet if puhdista_tuotteen_nimi(t["nimi"]) == puhdista_tuotteen_nimi(tuotteen_nimi)), None)
 
     if not tuote:
-        await interaction.response.send_message("Tuotetta ei löytynyt.", ephemeral=True)
+        await interaction.response.send_message("❌ Tuotetta ei löytynyt.", ephemeral=True)
         return
 
     voimassa_jaljella = onko_tuote_voimassa(user_id, tuote["nimi"])
     if voimassa_jaljella:
-        paattyy = datetime.now() + voimassa_jaljella
+        paattyy = datetime.now(timezone.utc) + voimassa_jaljella
         paattyy_str = paattyy.strftime("%d.%m.%Y klo %H:%M")
         await interaction.response.send_message(
             f"🚫 Tuote **{tuote['nimi']}** on jo käytössäsi.\n"
-            f"⏳ Voimassaoloaikaa jäljellä noin **{voimassa_jaljella.days} päivää** (päättyy {paattyy_str}).\n"
+            f"⏳ Jäljellä noin **{voimassa_jaljella.days} pv {voimassa_jaljella.seconds//3600} h** "
+            f"(päättyy {paattyy_str}).\n"
             f"🛒 Voit ostaa tuotteen uudelleen, kun oikeus on vanhentunut.",
             ephemeral=True
         )
         return
 
     periodi = nykyinen_periodi()
-    tarjousnimet = [t["nimi"] for t in tarjoukset]
-    vaihdettavat = [t["nimi"] for t in kauppa_tuotteet[periodi*2:(periodi+1)*2]]
+    tarjousnimet = [puhdista_tuotteen_nimi(t["nimi"]) for t in tarjoukset]
+    vaihdettavat = [puhdista_tuotteen_nimi(t["nimi"]) for t in kauppa_tuotteet[periodi*2:(periodi+1)*2]]
     sallitut_tuotteet = vaihdettavat + tarjousnimet
 
-    if tuote["nimi"] not in sallitut_tuotteet:
-        await interaction.response.send_message("Tämä tuote ei ole tällä hetkellä saatavilla kaupassa.", ephemeral=True)
+    if puhdista_tuotteen_nimi(tuote["nimi"]) not in sallitut_tuotteet:
+        await interaction.response.send_message("❌ Tämä tuote ei ole tällä hetkellä saatavilla kaupassa.", ephemeral=True)
         return
 
     ostot = lue_ostokset()
     if user_id not in ostot:
         ostot[user_id] = []
-
-    ostot[user_id] = [o for o in ostot[user_id] if isinstance(o, dict) and "nimi" in o]
 
     if kuponki:
         alennus_prosentti = tarkista_kuponki(kuponki, tuote["nimi"], user_id, interaction)
@@ -955,17 +1011,24 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
     hinta = tuote["hinta"]
     hinta_alennettu = max(0, int(hinta * (1 - alennus_prosentti / 100)))
 
-    ostot[user_id].append({
+    nyt = datetime.now(timezone.utc)
+    canon = puhdista_tuotteen_nimi(tuote["nimi"])
+    logiikka = TUOTELOGIIKKA.get(canon)
+
+    ostorivi = {
         "nimi": tuote["nimi"],
-        "pvm": datetime.now().isoformat()
-    })
+        "pvm": nyt.isoformat(),
+    }
+    if logiikka and logiikka.get("kesto"):
+        ostorivi["expires_at"] = (nyt + logiikka["kesto"]).isoformat()
+
+    ostot[user_id].append(ostorivi)
     tallenna_ostokset(ostot)
 
     kuponkiviesti = f"\n📄 Käytit koodin **{kuponki}** (-{alennus_prosentti}%)" if kuponki else ""
 
     nimi = puhdista_tuotteen_nimi(tuote["nimi"])
     lisatieto, modal, dropdown_otsikko = await kasittele_tuote(interaction, nimi)
-
     view = ModalDropdownView(modal, dropdown_otsikko) if modal else None
 
     await interaction.response.send_message(
