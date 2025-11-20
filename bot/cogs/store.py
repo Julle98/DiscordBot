@@ -26,7 +26,7 @@ class KauppaDropdown(discord.ui.Select):
 
         options.append(
             discord.SelectOption(
-                label="🎟️ Käytä kuponki",
+                label="Käytä kuponki",
                 description="Syötä alennuskoodi ja tuote johon haluat käyttää sen",
                 emoji="🎟️"
             )
@@ -93,7 +93,7 @@ class Store(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="kauppa", description="Näytä kaupan tuotteet")
+    @app_commands.command(name="kauppa", description="Näytä kaupan tuotteet ja osta tuotteita.")
     @app_commands.describe(
         ohje="Näytä kaupan ohjeet, näyttää vain ohjeet ei kaupanvalikoimaa (valinnainen)"
     )

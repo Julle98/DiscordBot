@@ -339,6 +339,57 @@ class Vault(commands.Cog):
 
         await interaction.response.send_message(viesti, ephemeral=True)
 
+    @app_commands.command(name="holvi_ohje", description="Näytä ohjeet holvi-komennoista.")
+    @app_commands.checks.has_role("24G")
+    async def holvi_ohje(self, interaction: discord.Interaction):
+        await kirjaa_komento_lokiin(self.bot, interaction, "/holvi_ohje")
+        await kirjaa_ga_event(self.bot, interaction.user.id, "holvi_ohje_komento")
+
+        embed = discord.Embed(
+            title="📘 Holvin ohjeet",
+            description="Näin holvi toimii ja mitä komennot tekevät:",
+            color=discord.Color.blue()
+        )
+
+        embed.add_field(
+            name="🔐 /holvi_tallenna",
+            value="Luo uuden holvin ja tallentaa sisältöä salasanan taakse. "
+                  "Voit antaa oman salasanan tai pyytää botin luomaan sen automaattisesti.",
+            inline=False
+        )
+
+        embed.add_field(
+            name="✏️ /holvi_paivita",
+            value="Lisää uutta tekstiä holviin, poistaa olemassa olevaa tai tyhjentää koko sisällön.",
+            inline=False
+        )
+
+        embed.add_field(
+            name="📂 /holvi_hae",
+            value="Hakee holvin sisällön. Lisäksi voit:\n"
+                  "• Vaihtaa holvin salasanan 🔑\n"
+                  "• Poistaa holvin 🗑️\n"
+                  "• Kutsua muita käyttäjiä holviin 👥\n"
+                  "• Poistaa kutsuttujen oikeudet 🔒",
+            inline=False
+        )
+
+        embed.add_field(
+            name="📋 /holvi_lista",
+            value="Näyttää kaikki omat holvit sekä ne, joihin sinut on kutsuttu.",
+            inline=False
+        )
+
+        embed.add_field(
+            name="ℹ️ /holvi_ohje",
+            value="Näyttää tämän ohjeen, jossa kerrotaan mitä kukin komento tekee.",
+            inline=False
+        )
+
+        embed.set_footer(text="Muista: vain holvin omistaja tai kutsutut voivat hallita sisältöä. 👮")
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
     @commands.Cog.listener()
     async def on_app_command_error(self, interaction, error):
         await CommandErrorHandler(self.bot, interaction, error)
