@@ -94,14 +94,16 @@ async def tarkista_ostojen_kuukausi():
                 if "pvm" in ostos:
                     try:
                         pvm = datetime.fromisoformat(ostos["pvm"])
+                        if pvm.tzinfo is None:
+                            pvm = pvm.replace(tzinfo=timezone.utc)
                         kaikki_paivamaarat.append(pvm)
-                    except:
+                    except Exception:
                         continue
 
         if not kaikki_paivamaarat:
             return  
 
-        nyt = datetime.now()
+        nyt = datetime.now(timezone.utc)
         viimeisin = max(kaikki_paivamaarat)
 
         if viimeisin.month != nyt.month:
@@ -173,7 +175,6 @@ async def paivita_valikoima():
         tuotteet = kauppa_tuotteet[periodi*2:(periodi+1)*2]
         with open(VALIKOIMA_POLKU, "w", encoding="utf-8") as f:
             json.dump(tuotteet, f, ensure_ascii=False, indent=2)
-        print("✅ valikoima.json päivitetty automaattisesti.")
     except Exception as e:
         print(f"Valikoiman automaattinen päivitys epäonnistui: {e}")
 
@@ -353,12 +354,30 @@ def onko_tuote_voimassa(user_id: str, tuotteen_nimi: str) -> Optional[timedelta]
         if puhdista_tuotteen_nimi(o.get("nimi", "")) != kohde:
             continue
         exp = _parse_iso(o.get("expires_at", ""))
+        if not exp and o.get("pvm"):  
+            canon = TUOTELOGIIKKA.get(kohde)
+            if canon and canon.get("kesto"):
+                exp = datetime.fromisoformat(o["pvm"]) + canon["kesto"]
         if exp and exp > nyt:
             diff = exp - nyt
             if not voimassa_jaljella or diff > voimassa_jaljella:
                 voimassa_jaljella = diff
 
     return voimassa_jaljella
+
+def voiko_ostaa(user_id: str, tuote_nimi: str) -> tuple[bool, Optional[datetime]]:
+    ostot = lue_ostokset()
+    canon = puhdista_tuotteen_nimi(tuote_nimi)
+    nyt = datetime.now(timezone.utc)
+
+    for o in ostot.get(user_id, []):
+        if puhdista_tuotteen_nimi(o.get("nimi", "")) == canon:
+            exp = _parse_iso(o.get("expires_at"))
+            if exp and exp > nyt:
+                return False, exp
+            if not exp:
+                return False, None
+    return True, None
 
 async def onko_modal_kaytetty(bot, user: discord.User, modal_nimi: str) -> bool:
     log_channel = bot.get_channel(int(os.getenv("MOD_LOG_CHANNEL_ID")))
@@ -556,9 +575,10 @@ def tallenna_osto(user_id: str, tuote: dict):
         "nimi": tuote["nimi"],
         "pvm": nyt.isoformat(),
     }
-
     if logiikka and logiikka.get("kesto"):
         ostorivi["expires_at"] = (nyt + logiikka["kesto"]).isoformat()
+    elif tuote.get("kertakäyttöinen"):
+        ostorivi["expires_at"] = (nyt + timedelta(days=4)).isoformat()
 
     kayttajan_ostot = ostot.get(user_id, [])
     kayttajan_ostot.append(ostorivi)
@@ -968,10 +988,33 @@ from dotenv import load_dotenv
 async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, kuponki=None):
     user_id = str(interaction.user.id)
     tuotteet = kauppa_tuotteet + tarjoukset
-    tuote = next((t for t in tuotteet if puhdista_tuotteen_nimi(t["nimi"]) == puhdista_tuotteen_nimi(tuotteen_nimi)), None)
+
+    tuote = next(
+        (t for t in tuotteet if puhdista_tuotteen_nimi(t["nimi"]) == puhdista_tuotteen_nimi(tuotteen_nimi)),
+        None
+    )
 
     if not tuote:
-        await interaction.response.send_message("❌ Tuotetta ei löytynyt.", ephemeral=True)
+        await interaction.response.send_message(
+            f"❌ Tuotetta **{tuotteen_nimi}** ei löytynyt.",
+            ephemeral=True
+        )
+        return
+
+    ok, exp = voiko_ostaa(user_id, tuote["nimi"])
+    if not ok:
+        if exp:
+            loppuu = exp.strftime("%d.%m.%Y %H:%M")
+            await interaction.response.send_message(
+                f"🚫 Et voi ostaa tuotetta **{tuote['nimi']}** uudelleen juuri nyt.\n"
+                f"⌛ Rajoitus päättyy {loppuu}.",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                f"🚫 Tuote **{tuote['nimi']}** on kertakäyttöinen eikä sitä voi ostaa uudelleen.",
+                ephemeral=True
+            )
         return
 
     voimassa_jaljella = onko_tuote_voimassa(user_id, tuote["nimi"])
@@ -996,14 +1039,13 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
         await interaction.response.send_message("❌ Tämä tuote ei ole tällä hetkellä saatavilla kaupassa.", ephemeral=True)
         return
 
-    ostot = lue_ostokset()
-    if user_id not in ostot:
-        ostot[user_id] = []
-
     if kuponki:
         alennus_prosentti = tarkista_kuponki(kuponki, tuote["nimi"], user_id, interaction)
         if alennus_prosentti == 0:
-            await interaction.response.send_message("❌ Kuponki ei kelpaa tälle tuotteelle, vanhentunut tai käyttöraja täynnä. Osto peruutettu.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Kuponki ei kelpaa tälle tuotteelle, vanhentunut tai käyttöraja täynnä. Osto peruutettu.",
+                ephemeral=True
+            )
             return
     else:
         alennus_prosentti = alennus
@@ -1011,19 +1053,7 @@ async def osta_command(bot, interaction, tuotteen_nimi, tarjoukset, alennus=0, k
     hinta = tuote["hinta"]
     hinta_alennettu = max(0, int(hinta * (1 - alennus_prosentti / 100)))
 
-    nyt = datetime.now(timezone.utc)
-    canon = puhdista_tuotteen_nimi(tuote["nimi"])
-    logiikka = TUOTELOGIIKKA.get(canon)
-
-    ostorivi = {
-        "nimi": tuote["nimi"],
-        "pvm": nyt.isoformat(),
-    }
-    if logiikka and logiikka.get("kesto"):
-        ostorivi["expires_at"] = (nyt + logiikka["kesto"]).isoformat()
-
-    ostot[user_id].append(ostorivi)
-    tallenna_ostokset(ostot)
+    tallenna_osto(user_id, tuote)
 
     kuponkiviesti = f"\n📄 Käytit koodin **{kuponki}** (-{alennus_prosentti}%)" if kuponki else ""
 
