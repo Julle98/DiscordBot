@@ -82,7 +82,7 @@ class TiedotCog(commands.Cog):
 
         await interaction.followup.send(
             content="📁 Valitse kategoria, jonka tiedot haluat nähdä tai hallita:\n"
-                    "Jos haluat kaiken datan ladattavaksi tai poistettavaksi, käytä `/help` ja ota yhteyttä.",
+                    "-# Jos haluat kaiken datan ladattavaksi tai poistettavaksi, käytä `/help` ja ota yhteyttä.",
             view=KategoriaView(target, valittu=None, alkuperäinen_käyttäjä=interaction.user),
             ephemeral=True
         )
