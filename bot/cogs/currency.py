@@ -44,7 +44,7 @@ class CurrencyConverter(commands.Cog):
                 value="USD, EUR, GBP, JPY, AUD, CAD, CHF, CNY, SEK, NOK",
                 inline=False
             )
-            embed.set_footer(text="Täydellinen lista: open.er-api.com/v6/currencies")
+            embed.set_footer(text="Täydellinen lista: https://www.exchangerate-api.com/docs/supported-currencies")
             await interaction.followup.send(embed=embed, ephemeral=True)
             return
         
