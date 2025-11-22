@@ -132,7 +132,6 @@ class SlowmodeTracker(commands.Cog):
         )
 
         embed = discord.Embed(title=title, description=description, color=color)
-        embed.set_footer(text="Manuaalinen säätö komennolla")
         await channel.send(embed=embed)
 
 async def setup(bot):
