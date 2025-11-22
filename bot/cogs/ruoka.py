@@ -285,35 +285,30 @@ class ruoka(commands.Cog):
 
     @app_commands.command(name="ruokailuvuorot", description="Antaa ruokailuvuoro listan tai etsii ruokailuvuoron.")
     @app_commands.describe(
-        luokkakoodi="Luokan tunnus (kaikki isolla), esim. ENA05.13 tai S25.12",
-        paiva="Viikonpäivä (tyhjä = tämän päivän ruokailuvuoro)"
+        luokkakoodi="Luokan tunnus (kaikki isolla), esim. ENA05.13 tai S25.12"
     )
-    @app_commands.choices(paiva=[
-        app_commands.Choice(name="Maanantai", value="MAANANTAI"),
-        app_commands.Choice(name="Tiistai", value="TIISTAI"),
-        app_commands.Choice(name="Keskiviikko", value="KESKIVIIKKO"),
-        app_commands.Choice(name="Torstai", value="TORSTAI"),
-        app_commands.Choice(name="Perjantai", value="PERJANTAI"),
-    ])
     @app_commands.checks.has_role("24G")
     async def ruokailuvuorot(
         self,
         interaction: discord.Interaction,
-        luokkakoodi: str = None,
-        paiva: app_commands.Choice[str] = None
+        luokkakoodi: str = None
     ):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ruokailuvuorot")
         await kirjaa_ga_event(self.bot, interaction.user.id, "ruokailuvuorot_komento")
+
+        periodi_ohi = os.getenv("PERIODI_OHI").upper()
+        if periodi_ohi == "ON":
+            await interaction.response.send_message(
+                "Tällä hetkellä ei ole ruokailuvuoroja saatavilla! ❌",
+                ephemeral=True
+            )
+            return
 
         raw_path = os.getenv("RAW_SCHEDULE_PATH")
         drive_link = os.getenv("RUOKAILU_DRIVE_LINK")
 
         weekdays = ["MAANANTAI", "TIISTAI", "KESKIVIIKKO", "TORSTAI", "PERJANTAI"]
-
-        if paiva:
-            weekday = paiva.value
-        else:
-            weekday = weekdays[datetime.today().weekday()] if datetime.today().weekday() < 5 else "MAANANTAI"
+        weekday = weekdays[datetime.today().weekday()] if datetime.today().weekday() < 5 else "MAANANTAI"
 
         if luokkakoodi:
             try:
