@@ -1,7 +1,8 @@
 # 🤖 Sannamaija Discord bot V2
 
 **SannamaijaV2** is a custom Discord bot built exclusively for one private server. It supports moderation, engagement, and fun — with over 60 unique slash commands.
-
+> [!NOTE]
+> This is not in public use. It is currently only use in one private server. Also language in the bot is finnish so keep that in your mind if you want to modify it.
 ---
 
 ## Features
