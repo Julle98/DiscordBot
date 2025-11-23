@@ -11,7 +11,8 @@
 - Fun commands for games and interaction
 - XP system for chat and voice activity
 - Made for useful and save time
-
+> [!WARNING]
+> Everything that are in repository not necessarily in use currently. They are marked in comments on that current file.
 ---
 
 ## License
@@ -19,10 +20,14 @@
 This project is open source and licensed under the MIT License. You are free to use, modify, and distribute it with proper attribution.
 
 See the [LICENSE](LICENSE) file for full details.
-
+> [!TIP]
+> You can ask anytime from me if you aren't sure how something works. :D
 ---
 
-# Credits
+## Credits
 
 Created by **Julle98** using beginner skills and occasional help from GitHub Copilot.  
 Feel free to reach out on Discord: `Julle98#0` (Or any my socials in my profile)
+> [!CAUTION]
+> Some functions are really messy and not coded best so keep that in your mind.
+---
