@@ -855,8 +855,8 @@ TASK_INSTRUCTIONS = {
     "Lähetä viesti, jossa on GIF": "Lähetä GIF-kuva <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
     "Lähetä viesti, jossa on linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää linkin (http/https). Aikaa suoritukseen 30 min.",
     "Vastaa toisen käyttäjän viestiin": "Vastaa toisen käyttäjän viestiin <#1339846062281588777> kanavalla käyttämällä vastaustoimintoa. Aikaa suoritukseen 30 min.",
-    "Lähetä Tenor-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Tenor-palvelun GIF-linkin (esim. tenor.com/view/...). Aikaa suoritukseen 30 min.",
-    "Lähetä Giphy-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Giphy-palvelun GIF-linkin (esim. giphy.com/gifs/...). Aikaa suoritukseen 30 min.",
+    "Lähetä Tenor-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Tenor-palvelun GIF-linkin (Sen täytyy alkaa: tenor.com/view/...). Aikaa suoritukseen 30 min.",
+    "Lähetä Giphy-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Giphy-palvelun GIF-linkin (Sen täytyy alkaa: giphy.com/gifs/...). Aikaa suoritukseen 30 min.",
 }
 
 class TaskControlView(discord.ui.View):
