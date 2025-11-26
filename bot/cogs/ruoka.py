@@ -313,7 +313,7 @@ class ruoka(commands.Cog):
 
     @app_commands.command(name="ruokailuvuorot", description="Antaa ruokailuvuoro listan tai etsii ruokailuvuoron.")
     @app_commands.describe(
-        luokkakoodi="Luokan tunnus (kaikki isolla), esim. ENA05.13 tai S25.12"
+        luokkakoodi="Luokan tunnus (Tämän päivän tunti)"
     )
     @app_commands.checks.has_role("24G")
     @app_commands.autocomplete(luokkakoodi=ruokailuvuorot_autocomplete)
@@ -364,7 +364,7 @@ class ruoka(commands.Cog):
                         embed.add_field(name="Vuoro", value=entry['vuoro'], inline=False)
                         embed.add_field(name="Ruokailu", value=entry['ruokailu'], inline=True)
                         embed.add_field(name="Oppitunti", value=entry['oppitunti'], inline=True)
-                        embed.set_footer(text="Lähde: https://drive.google.com/file/d/1mIlzSBMXOUb89hvplZ6_NaX283_jJu-_/view")
+                        embed.set_footer(text="Lähde: Tilun ruokailuvuorotlista periodi 3 (Google Drive)")
 
                         await interaction.response.send_message(embed=embed, view=PalauteView(self.bot), ephemeral=True)
                         return

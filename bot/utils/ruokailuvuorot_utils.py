@@ -59,22 +59,13 @@ def parse_schedule(text: str) -> dict:
             current_oppitunti = None
             continue
 
-        if "Ruokailu" in line:
-            m = re.search(
-                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Ruokailu\s*"
-                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Oppitunti", line, re.I)
-            if m:
-                current_ruokailu = m.group(1)
-                current_oppitunti = m.group(2)
-                continue
+        m_opp = re.search(r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2}).*Oppitunti", line)
+        m_ruoka = re.search(r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2}).*Ruokailu", line)
 
-            m_alt = re.search(
-                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Oppitunti\s*"
-                r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s*Ruokailu", line, re.I)
-            if m_alt:
-                current_oppitunti = m_alt.group(1)
-                current_ruokailu = m_alt.group(2)
-                continue
+        if m_opp:
+            current_oppitunti = m_opp.group(1)
+        if m_ruoka:
+            current_ruokailu = m_ruoka.group(1)
 
         possible = re.findall(r"\b[A-Za-zÅÄÖåäö]+[0-9][A-Za-zÅÄÖåäö0-9.+]*\b", line)
         codes = [c for c in possible if not re.match(r"^\d", c)]
