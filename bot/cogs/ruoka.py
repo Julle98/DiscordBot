@@ -364,7 +364,7 @@ class ruoka(commands.Cog):
                         embed.add_field(name="Vuoro", value=entry['vuoro'], inline=False)
                         embed.add_field(name="Ruokailu", value=entry['ruokailu'], inline=True)
                         embed.add_field(name="Oppitunti", value=entry['oppitunti'], inline=True)
-                        embed.set_footer(text="Lähde: Tilun ruokailuvuorotlista periodi 3 (Google Drive)")
+                        embed.set_footer(text="Lähde: Tilun ruokailuvuorot lista periodi 3 (Google Drive)")
 
                         await interaction.response.send_message(embed=embed, view=PalauteView(self.bot), ephemeral=True)
                         return
