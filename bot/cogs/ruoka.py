@@ -103,9 +103,10 @@ class RuokaÄänestysView(discord.ui.View):
         await self.käsittele_ääni(interaction, "👎", button)
 
 class PalauteView(discord.ui.View):
-    def __init__(self, bot):
+    def __init__(self, bot, ruokailuvuoro: str):
         super().__init__(timeout=None)
         self.bot = bot
+        self.ruokailuvuoro = ruokailuvuoro  
 
     async def _kirjaa_lokiin(self, interaction: discord.Interaction, viesti: str):
         try:
@@ -113,20 +114,34 @@ class PalauteView(discord.ui.View):
             if logikanava_id:
                 logikanava = self.bot.get_channel(logikanava_id)
                 if logikanava:
-                    await logikanava.send(
-                        f"[PALAUTE] {interaction.user} ({interaction.user.id}) → {viesti}"
+                    embed = discord.Embed(
+                        title="📌 Palauteloki",
+                        description=f"{interaction.user.mention} ({interaction.user.id})",
+                        color=discord.Color.blue()
                     )
+                    embed.add_field(name="Viesti", value=viesti, inline=False)
+                    embed.add_field(name="Ruokailuvuoro", value=self.ruokailuvuoro or "Ei tiedossa", inline=False)
+                    embed.set_footer(text=datetime.now().strftime("%d.%m.%Y %H:%M"))
+                    await logikanava.send(embed=embed)
         except Exception as e:
             print(f"Lokitus epäonnistui: {e}")
 
     @discord.ui.button(label="✅ Löytyi etsimäni", style=discord.ButtonStyle.success)
     async def onnistui(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("Kiitos palautteesta! 🌟", ephemeral=True)
+        embed = discord.Embed(
+            description=f"Kiitos palautteesta! 🌟\n**Ruokailuvuoro:** {self.ruokailuvuoro or 'Ei tiedossa'} merkitty onnistuneeksi.",
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         await self._kirjaa_lokiin(interaction, "Ruokailuvuoro onnistui")
 
     @discord.ui.button(label="❌ Ei löytynyt etsimäni", style=discord.ButtonStyle.danger)
     async def ei_onnistunut(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("Kiitos palautteesta – parannamme jatkossa! 🛠", ephemeral=True)
+        embed = discord.Embed(
+            description=f"Kiitos palautteesta – parannamme jatkossa! 🛠️\n**Ruokailuvuoro:** {self.ruokailuvuoro or 'Ei tiedossa'} lähetetty tarkastettavaksi.",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         await self._kirjaa_lokiin(interaction, "Ruokailuvuoro ei onnistunut")
 
 async def fetch_menu_data(url):
