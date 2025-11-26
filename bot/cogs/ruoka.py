@@ -10,7 +10,8 @@ import re
 from typing import Optional
 from datetime import timedelta
 import threading
-    
+
+from bot.utils.time_utils import get_current_time_in_helsinki    
 from bot.utils.ruokailuvuorot_utils import parse_schedule
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.error_handler import CommandErrorHandler
@@ -121,7 +122,7 @@ class PalauteView(discord.ui.View):
                     )
                     embed.add_field(name="Viesti", value=viesti, inline=False)
                     embed.add_field(name="Ruokailuvuoro", value=self.ruokailuvuoro or "Ei tiedossa", inline=False)
-                    embed.set_footer(text=datetime.now().strftime("%d.%m.%Y %H:%M"))
+                    embed.set_footer(text=datetime.now().get_current_time_in_helsinki("%d.%m.%Y %H:%M"))
                     await logikanava.send(embed=embed)
         except Exception as e:
             print(f"Lokitus epäonnistui: {e}")
@@ -381,7 +382,7 @@ class ruoka(commands.Cog):
                         embed.add_field(name="Oppitunti", value=entry['oppitunti'], inline=True)
                         embed.set_footer(text="Lähde: Tilun ruokailuvuorot lista periodi 3 (Google Drive)")
 
-                        await interaction.response.send_message(embed=embed, view=PalauteView(self.bot), ephemeral=True)
+                        await interaction.response.send_message(embed=embed, view=PalauteView(self.bot, ruokailuvuoro=luokkakoodi), ephemeral=True)
                         return
                     else:
                         message = f"Luokkakoodille **{luokkakoodi}** ei löytynyt tietoja."
