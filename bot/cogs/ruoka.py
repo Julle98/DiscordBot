@@ -15,6 +15,7 @@ from bot.utils.ruokailuvuorot_utils import parse_schedule
 from bot.utils.logger import kirjaa_komento_lokiin, kirjaa_ga_event
 from bot.utils.error_handler import CommandErrorHandler
 from bot.utils.ruokailuvuorot_utils import lue_tiedosto_turvallisesti
+from bot.utils.ruokailuvuorot_utils import ruokailuvuorot_autocomplete
 
 async def logita_äänestys(interaction: discord.Interaction, päivä_id: str, ääni: str):
     logikanava_id = os.getenv("CONSOLE_LOG")
@@ -100,6 +101,33 @@ class RuokaÄänestysView(discord.ui.View):
     @discord.ui.button(label="👎 0", style=discord.ButtonStyle.danger, custom_id="vote_down")
     async def vote_down(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.käsittele_ääni(interaction, "👎", button)
+
+class PalauteView(discord.ui.View):
+    def __init__(self, bot):
+        super().__init__(timeout=None)
+        self.bot = bot
+
+    async def _kirjaa_lokiin(self, interaction: discord.Interaction, viesti: str):
+        try:
+            logikanava_id = int(os.getenv("CONSOLE_LOG", "0"))
+            if logikanava_id:
+                logikanava = self.bot.get_channel(logikanava_id)
+                if logikanava:
+                    await logikanava.send(
+                        f"[PALAUTE] {interaction.user} ({interaction.user.id}) → {viesti}"
+                    )
+        except Exception as e:
+            print(f"Lokitus epäonnistui: {e}")
+
+    @discord.ui.button(label="✅ Löytyi etsimäni", style=discord.ButtonStyle.success)
+    async def onnistui(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("Kiitos palautteesta! 🌟", ephemeral=True)
+        await self._kirjaa_lokiin(interaction, "Ruokailuvuoro onnistui")
+
+    @discord.ui.button(label="❌ Ei löytynyt etsimäni", style=discord.ButtonStyle.danger)
+    async def ei_onnistunut(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("Kiitos palautteesta – parannamme jatkossa! 🛠", ephemeral=True)
+        await self._kirjaa_lokiin(interaction, "Ruokailuvuoro ei onnistunut")
 
 async def fetch_menu_data(url):
     async with aiohttp.ClientSession() as session:
@@ -288,6 +316,7 @@ class ruoka(commands.Cog):
         luokkakoodi="Luokan tunnus (kaikki isolla), esim. ENA05.13 tai S25.12"
     )
     @app_commands.checks.has_role("24G")
+    @app_commands.autocomplete(luokkakoodi=ruokailuvuorot_autocomplete)
     async def ruokailuvuorot(
         self,
         interaction: discord.Interaction,
@@ -296,7 +325,7 @@ class ruoka(commands.Cog):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ruokailuvuorot")
         await kirjaa_ga_event(self.bot, interaction.user.id, "ruokailuvuorot_komento")
 
-        periodi_ohi = os.getenv("PERIODI_OHI").upper()
+        periodi_ohi = os.getenv("PERIODI_OHI", "").upper()
         if periodi_ohi == "ON":
             await interaction.response.send_message(
                 "Tällä hetkellä ei ole ruokailuvuoroja saatavilla! ❌",
@@ -327,12 +356,18 @@ class ruoka(commands.Cog):
                         entry = any_entry
 
                     if entry:
-                        message = (
-                            f"**{luokkakoodi}** ({weekday})\n"
-                            f"{entry['vuoro']}\n"
-                            f"Ruokailu: {entry['ruokailu']}\n"
-                            f"Oppitunti: {entry['oppitunti']}"
+                        embed = discord.Embed(
+                            title=f"🍽️ Ruokailuvuoro: {luokkakoodi}",
+                            description=f"{weekday} – {entry['palkki']}",
+                            color=discord.Color.green()
                         )
+                        embed.add_field(name="Vuoro", value=entry['vuoro'], inline=False)
+                        embed.add_field(name="Ruokailu", value=entry['ruokailu'], inline=True)
+                        embed.add_field(name="Oppitunti", value=entry['oppitunti'], inline=True)
+                        embed.set_footer(text="Lähde: https://drive.google.com/file/d/1mIlzSBMXOUb89hvplZ6_NaX283_jJu-_/view")
+
+                        await interaction.response.send_message(embed=embed, view=PalauteView(self.bot), ephemeral=True)
+                        return
                     else:
                         message = f"Luokkakoodille **{luokkakoodi}** ei löytynyt tietoja."
                 else:

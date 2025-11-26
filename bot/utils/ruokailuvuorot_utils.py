@@ -4,6 +4,9 @@ import os
 import gdown
 import hashlib
 import chardet
+from datetime import datetime
+import discord 
+from discord import app_commands
 
 def lue_tiedosto_turvallisesti(polku: str) -> str:
     try:
@@ -37,12 +40,17 @@ def parse_schedule(text: str) -> dict:
     current_vuoro = None
     current_ruokailu = None
     current_oppitunti = None
+    current_palkki = None
 
     for line in lines:
         line = line.strip()
 
         if line in weekdays:
             current_weekday = line
+            continue
+
+        if re.match(r"^\d+\.\s*PALKKI$", line):
+            current_palkki = line
             continue
 
         if re.match(r"^\d+\. VUORO$", line):
@@ -68,9 +76,8 @@ def parse_schedule(text: str) -> dict:
                 current_ruokailu = m_alt.group(2)
                 continue
 
-        codes = re.findall(
-            r"\b[A-Za-zÅÄÖåäö0-9.+]+\b", line
-            )
+        possible = re.findall(r"\b[A-Za-zÅÄÖåäö]+[0-9][A-Za-zÅÄÖåäö0-9.+]*\b", line)
+        codes = [c for c in possible if not re.match(r"^\d", c)]
 
         if codes and current_weekday and current_vuoro:
             for code in codes:
@@ -78,12 +85,35 @@ def parse_schedule(text: str) -> dict:
                 if code not in schedule:
                     schedule[code] = {}
                 schedule[code][current_weekday] = {
+                    "palkki": current_palkki,
                     "vuoro": current_vuoro,
                     "ruokailu": current_ruokailu,
                     "oppitunti": current_oppitunti
                 }
 
     return schedule
+
+async def ruokailuvuorot_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+):
+    raw_path = os.getenv("RAW_SCHEDULE_PATH")
+    text = lue_tiedosto_turvallisesti(raw_path)
+    if text.startswith("📛 Virhe"):
+        return []
+
+    schedule = parse_schedule(text)
+
+    weekdays = ["MAANANTAI", "TIISTAI", "KESKIVIIKKO", "TORSTAI", "PERJANTAI"]
+    weekday = weekdays[datetime.today().weekday()] if datetime.today().weekday() < 5 else "MAANANTAI"
+
+    ehdotukset = [
+        app_commands.Choice(name=code, value=code)
+        for code in schedule
+        if weekday in schedule[code] and current.upper() in code
+    ]
+
+    return ehdotukset[:25]
 
 def paivita_ruokailuvuorot():
     drive_url = os.getenv("RUOKAILU_DRIVE_LINK")
