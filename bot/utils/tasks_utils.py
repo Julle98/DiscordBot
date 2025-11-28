@@ -309,7 +309,7 @@ async def update_streak(user: discord.Member, task_type: str):
         await reward(3, "3_month", 500, 1386679979634327663, "suoritti **3 kuukautta putkeen** kuukausitehtäviä! +500 XP ja erikoisrooli! 🏅")
         await reward(6, "6_month", 1200, 1386680073486204999, "suoritti **6 kuukautta putkeen** kuukausitehtäviä! +1200 XP ja erikoisrooli! 🏆")
 
-    return was_reset, last_date, grace_used 
+    return was_reset, last_date, grace_used
 
 def select_random_task(task_list, last=None, last_last=None):
     filtered = [task for task in task_list if task != last and task != last_last]

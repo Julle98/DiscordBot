@@ -163,7 +163,8 @@ class Tasks(commands.Cog):
                         value=(
                             f"Nykyinen: **{daily.get('streak', 0)}**\n"
                             f"Pisin: **{daily.get('max_streak', 0)}**\n"
-                            f"🎯 Seuraava palkinto: {seuraava_palkinto(daily.get('streak', 0), daily.get('rewards', []), 'daily')} päivän päästä"
+                            f"🎯 Seuraava palkinto: {seuraava_palkinto(daily.get('streak', 0), daily.get('rewards', []), 'daily')} päivän päästä\n"
+                            f"🙏 Armoja käytetty: **{daily.get('grace_fails', 0)}/3**"
                         ),
                         inline=False
                     )
@@ -172,7 +173,8 @@ class Tasks(commands.Cog):
                         value=(
                             f"Nykyinen: **{weekly.get('streak', 0)}**\n"
                             f"Pisin: **{weekly.get('max_streak', 0)}**\n"
-                            f"🎯 Seuraava palkinto: {seuraava_palkinto(weekly.get('streak', 0), weekly.get('rewards', []), 'weekly')} viikon päästä"
+                            f"🎯 Seuraava palkinto: {seuraava_palkinto(weekly.get('streak', 0), weekly.get('rewards', []), 'weekly')} viikon päästä\n"
+                            f"🙏 Armoja käytetty: **{weekly.get('grace_fails', 0)}/3**"
                         ),
                         inline=False
                     )
@@ -181,11 +183,12 @@ class Tasks(commands.Cog):
                         value=(
                             f"Nykyinen: **{monthly.get('streak', 0)}**\n"
                             f"Pisin: **{monthly.get('max_streak', 0)}**\n"
-                            f"🎯 Seuraava palkinto: {seuraava_palkinto(monthly.get('streak', 0), monthly.get('rewards', []), 'monthly')} kuukauden päästä"
+                            f"🎯 Seuraava palkinto: {seuraava_palkinto(monthly.get('streak', 0), monthly.get('rewards', []), 'monthly')} kuukauden päästä\n"
+                            f"🙏 Armoja käytetty: **{monthly.get('grace_fails', 0)}/3**"
                         ),
                         inline=False
                     )
-                    embed.set_footer(text="Pidä streak hengissä – tehtäväpäivitys päivittyy reaaliajassa.")
+                    embed.set_footer(text="Pidä streak hengissä! Tehtäväpäivitys päivittyy reaaliajassa.")
                     await interaction.response.send_message(embed=embed, ephemeral=True)
                     return
 
