@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone, time as dtime
 from pathlib import Path
 import pytz
 import json
+import re
 
 def start_tasks_loops():
     if not rotate_daily_tasks.is_running():
@@ -71,6 +72,10 @@ MONTHLY_TASKS = [
     "Kerää reaktioita",
     "Jaa kuva, josta syntyy vitsi tai reaktio"
 ]
+
+LINK_REGEX = re.compile(
+    r"(https?://\S+|www\.\S+|discord\.gg/\S+|discordapp\.com/\S+)"
+)
 
 from pathlib import Path
 import json
@@ -577,7 +582,7 @@ class TaskListener(discord.ui.View):
                 await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä viesti, jossa on linkki":
-            if message.channel.id == TASK_CHANNEL_ID and ("http://" in message.content or "https://" in message.content):
+            if message.channel.id == TASK_CHANNEL_ID and LINK_REGEX.search(message.content):
                 await self.finish_task()
             else:
                 await self.virheellinen_suoritus(message)
