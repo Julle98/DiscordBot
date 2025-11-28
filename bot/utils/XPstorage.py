@@ -8,8 +8,11 @@ class XPStorage:
 
     def load_xp_data(self):
         if self.xp_file.exists():
-            with open(self.xp_file, "r", encoding="utf-8") as f:
-                return json.load(f)
+            try:
+                with open(self.xp_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                return {}
         return {}
 
     def save_xp_data(self, data):

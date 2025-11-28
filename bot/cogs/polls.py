@@ -77,6 +77,14 @@ class VoteButtonView(ui.View):
         except Exception as e:
             print(f"⚠️ DB-päivitys epäonnistui: {e}")
 
+    def disable_all(self):
+        for child in self.children:
+            if isinstance(child, ui.Button):
+                child.disabled = True
+                child.style = discord.ButtonStyle.secondary
+        if self.message:
+            asyncio.create_task(self.message.edit(view=self))
+
     async def _log_vote(self, interaction: Interaction, index: int):
         log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
         if log_channel:
@@ -312,6 +320,30 @@ async def end_poll(bot: commands.Bot, message_id: int):
     if not channel:
         return
 
+    try:
+        poll_msg = await channel.fetch_message(message_id)
+    except Exception:
+        poll_msg = None
+
+    original_embed = None
+    if poll_msg and poll_msg.embeds:
+        original_embed = poll_msg.embeds[0]
+        ended_embed = discord.Embed.from_dict(original_embed.to_dict())
+        if ended_embed.title:
+            if "(Päättynyt)" not in ended_embed.title:
+                ended_embed.title = f"{ended_embed.title} (Päättynyt)"
+        else:
+            ended_embed.title = "(Päättynyt)"
+
+        disabled_view = VoteButtonView(poll["options"], poll)
+        disabled_view.message = poll_msg
+        disabled_view.disable_all()
+
+        try:
+            await poll_msg.edit(embed=ended_embed, view=disabled_view)
+        except Exception:
+            pass
+
     counts = {i: 0 for i in range(len(poll["options"]))}
     for user_id, opt_index in poll.get("votes", {}).items():
         counts[opt_index] += 1
@@ -319,7 +351,11 @@ async def end_poll(bot: commands.Bot, message_id: int):
     max_votes = max(counts.values(), default=0)
     winners = [poll["options"][i] for i, c in counts.items() if c == max_votes and max_votes > 0]
 
-    result = discord.Embed(title="📊 Äänestyksen tulokset", description=poll["question"], color=discord.Color.green())
+    result = discord.Embed(
+        title="📊 Äänestyksen tulokset",
+        description=poll["question"],
+        color=discord.Color.green()
+    )
     for i, count in counts.items():
         option = poll["options"][i]
         result.add_field(name=option, value=f"{count} ääntä", inline=True)

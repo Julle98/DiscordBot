@@ -10,6 +10,8 @@ import re
 from typing import Optional
 from datetime import timedelta
 import threading
+from zoneinfo import ZoneInfo
+import pytz
 
 from bot.utils.time_utils import get_current_time_in_helsinki    
 from bot.utils.ruokailuvuorot_utils import parse_schedule
@@ -29,6 +31,9 @@ async def logita_äänestys(interaction: discord.Interaction, päivä_id: str, �
         )
 
 lukko = threading.Lock()
+
+helsinki_tz = pytz.timezone("Europe/Helsinki")
+helsinki_now = datetime.now(helsinki_tz).strftime("%d.%m.%Y %H:%M")
 
 def lue_json(polku):
     try:
@@ -122,7 +127,7 @@ class PalauteView(discord.ui.View):
                     )
                     embed.add_field(name="Viesti", value=viesti, inline=False)
                     embed.add_field(name="Ruokailuvuoro", value=self.ruokailuvuoro or "Ei tiedossa", inline=False)
-                    embed.set_footer(text=datetime.now().get_current_time_in_helsinki("%d.%m.%Y %H:%M"))
+                    embed.set_footer(text=f"Aikaleima: {helsinki_now}")
                     await logikanava.send(embed=embed)
         except Exception as e:
             print(f"Lokitus epäonnistui: {e}")
@@ -356,6 +361,16 @@ class ruoka(commands.Cog):
         weekday = weekdays[datetime.today().weekday()] if datetime.today().weekday() < 5 else "MAANANTAI"
 
         if luokkakoodi:
+            if luokkakoodi == "Ei ole ruokailuvuoroja tänään":
+                embed = discord.Embed(
+                    title="Viikonloppu! 🗓️",
+                    description="Luulitko oikeasti löytäväsi täältä jotain?! 😂",
+                    color=discord.Color.red()
+                )
+                embed.set_footer(text="Viikonloppuisin ei ole ruokailuvuoroja. Tarkista maanantaina uudelleen!")
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+
             try:
                 text = lue_tiedosto_turvallisesti(raw_path)
                 if text.startswith("📛 Virhe"):

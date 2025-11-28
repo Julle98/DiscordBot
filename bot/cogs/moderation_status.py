@@ -10,62 +10,67 @@ import datetime
 from datetime import datetime
 import os
 
+class HuoltoModal(discord.ui.Modal, title="Huoltotiedot"):
+    kesto = discord.ui.TextInput(
+        label="Huollon kesto",
+        placeholder="Esim. 10s, 5m",
+        custom_id="kesto"
+    )
+    lisatiedot = discord.ui.TextInput(
+        label="Lisätiedot",
+        style=discord.TextStyle.paragraph,
+        custom_id="lisatiedot"
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            kesto = self.kesto.value
+            lisatiedot = self.lisatiedot.value
+            seconds = int(kesto[:-1])
+            unit = kesto[-1]
+            delay = seconds if unit == "s" else seconds * 60 if unit == "m" else seconds * 3600 if unit == "h" else None
+            if not delay:
+                await interaction.response.send_message("Virheellinen aikamuoto!", ephemeral=True)
+                return
+
+            huolto_kanava = discord.utils.get(interaction.guild.text_channels, name="🛜bot-status") \
+                or await interaction.guild.create_text_channel(name="🛜bot-status")
+
+            bot_name = interaction.client.user.name
+            bot_avatar_url = interaction.client.user.avatar.url if interaction.client.user.avatar else None
+            bot_version = os.getenv("BOT_VERSION", "tuntematon")
+            aika = datetime.now(pytz.timezone('Europe/Helsinki')).strftime('%d-%m-%Y %H:%M:%S')
+
+            embed = discord.Embed(
+                title=f"🟠 {bot_name} huoltotilassa",
+                description=f"Botti on huollossa arviolta {kesto}.",
+                color=discord.Color.orange()
+            )
+            if bot_avatar_url:
+                embed.set_thumbnail(url=bot_avatar_url)
+            embed.add_field(name="🕒 Huollon aloitusaika", value=aika, inline=False)
+            embed.add_field(name="📋 Lisätiedot", value=lisatiedot or "Ei lisätietoja", inline=False)
+            embed.add_field(
+                name="🛠️ Ongelmatilanteet",
+                value="Käytä komentoa `/help` tai kirjoita <#1339858713804013598> kanavalle.",
+                inline=False
+            )
+            embed.set_footer(text=f"Versio: {bot_version}")
+
+            await huolto_kanava.send(embed=embed)
+            await interaction.response.send_message(
+                f"Huoltotiedot lähetetty kanavalle {huolto_kanava.mention}.", ephemeral=True
+            )
+        except Exception as e:
+            await interaction.response.send_message(f"Tapahtui virhe: {e}", ephemeral=True)
+
 class HuoltoView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=60)
 
     @discord.ui.button(label="Anna huollon tiedot", style=discord.ButtonStyle.primary)
     async def anna_tiedot(self, interaction: discord.Interaction, button: discord.ui.Button):
-        modal = discord.ui.Modal(title="Huoltotiedot")
-        kesto_input = discord.ui.TextInput(label="Huollon kesto", placeholder="Esim. 10s, 5m", custom_id="kesto")
-        lisatiedot_input = discord.ui.TextInput(label="Lisätiedot", style=discord.TextStyle.paragraph, custom_id="lisatiedot")
-        modal.add_item(kesto_input)
-        modal.add_item(lisatiedot_input)
-
-        async def modal_submit(modal_interaction: discord.Interaction):
-            try:
-                kesto = modal_interaction.data["components"][0]["components"][0]["value"]
-                lisatiedot = modal_interaction.data["components"][1]["components"][0]["value"]
-                seconds = int(kesto[:-1])
-                unit = kesto[-1]
-                delay = seconds if unit == "s" else seconds * 60 if unit == "m" else seconds * 3600 if unit == "h" else None
-                if not delay:
-                    await modal_interaction.response.send_message("Virheellinen aikamuoto!", ephemeral=True)
-                    return
-
-                huolto_kanava = discord.utils.get(modal_interaction.guild.text_channels, name="🛜bot-status") \
-                    or await modal_interaction.guild.create_text_channel(name="🛜bot-status")
-
-                bot_name = modal_interaction.client.user.name
-                bot_avatar_url = modal_interaction.client.user.avatar.url if modal_interaction.client.user.avatar else None
-                bot_version = os.getenv("BOT_VERSION", "tuntematon")
-                aika = datetime.now(pytz.timezone('Europe/Helsinki')).strftime('%d-%m-%Y %H:%M:%S')
-
-                embed = discord.Embed(
-                    title=f"🟠 {bot_name} huoltotilassa",
-                    description=f"Botti on huollossa arviolta {kesto}.",
-                    color=discord.Color.orange()
-                )
-                embed.set_thumbnail(url=bot_avatar_url)
-                embed.add_field(name="🕒 Huollon aloitusaika", value=aika, inline=False)
-                embed.add_field(name="📋 Lisätiedot", value=lisatiedot or "Ei lisätietoja", inline=False)
-                embed.add_field(
-                    name="🛠️ Ongelmatilanteet",
-                    value="Käytä komentoa `/help` tai kirjoita <#1339858713804013598> kanavalle.",
-                    inline=False
-                )
-                embed.set_footer(text=f"Versio: {bot_version}")
-
-                await huolto_kanava.send(embed=embed)
-                await modal_interaction.response.send_message(
-                    f"Huoltotiedot lähetetty kanavalle {huolto_kanava.mention}.", ephemeral=True
-                )
-            except Exception:
-                await modal_interaction.response.send_message("Tapahtui virhe. Tarkista syötteet.", ephemeral=True)
-
-
-                modal.on_submit = modal_submit
-                await interaction.response.send_modal(modal)
+        await interaction.response.send_modal(HuoltoModal())
 
 class BotHallinta(commands.Cog):
     def __init__(self, bot):
@@ -94,8 +99,9 @@ class BotHallinta(commands.Cog):
         embed = Embed(
             title=otsikko_map.get(tila, "ℹ️ Botin tila"),
             description=kuvaus,
-            colour=vari
+            color=vari
         )
+
         embed.set_thumbnail(url=bot_avatar_url)
         embed.add_field(name="🕒 Aika", value=aika, inline=False)
         embed.add_field(
@@ -112,6 +118,7 @@ ajastin_aktiiviset = {}
 class Moderation_status(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.ilmoita_statuskanavalle = BotHallinta.ilmoita_statuskanavalle
     
     @app_commands.command(name="huolto", description="Aseta botti huoltotilaan.")
     @app_commands.checks.has_role("Mestari")
@@ -156,7 +163,7 @@ class Moderation_status(commands.Cog):
 
         await self.ilmoita_statuskanavalle(
             interaction,
-            otsikko="🟡 Botti käynnistyy uudelleen",
+            otsikko="🟡 Botti käynnistyy uudelleen", 
             kuvaus=kuvaus,
             vari=Colour.gold()
         )

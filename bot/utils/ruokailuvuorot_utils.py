@@ -60,12 +60,12 @@ def parse_schedule(text: str) -> dict:
             continue
 
         m_opp = re.search(r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2}).*Oppitunti", line)
-        m_ruoka = re.search(r"(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2}).*Ruokailu", line)
+        m_ruoka = re.search(r"(\d{1,2}\.\d{2}\s*-\s*(?:\d{1,2}\.\d{2})?).*Ruokailu", line)
 
         if m_opp:
             current_oppitunti = m_opp.group(1)
         if m_ruoka:
-            current_ruokailu = m_ruoka.group(1)
+            current_ruokailu = m_ruoka.group(1).rstrip("- ").strip()
 
         possible = re.findall(r"\b[A-Za-zÅÄÖåäö]+[0-9][A-Za-zÅÄÖåäö0-9.+]*\b", line)
         codes = [c for c in possible if not re.match(r"^\d", c)]
@@ -96,7 +96,13 @@ async def ruokailuvuorot_autocomplete(
     schedule = parse_schedule(text)
 
     weekdays = ["MAANANTAI", "TIISTAI", "KESKIVIIKKO", "TORSTAI", "PERJANTAI"]
-    weekday = weekdays[datetime.today().weekday()] if datetime.today().weekday() < 5 else "MAANANTAI"
+    today_index = datetime.today().weekday()
+
+    if today_index >= 5: 
+        return [app_commands.Choice(name="Ei ole ruokailuvuoroja tänään",
+                                    value="Ei ole ruokailuvuoroja tänään")]
+
+    weekday = weekdays[today_index]
 
     ehdotukset = [
         app_commands.Choice(name=code, value=code)
