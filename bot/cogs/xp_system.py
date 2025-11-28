@@ -32,25 +32,16 @@ class XPSystem(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author.bot:
             return
-        
-        if message.channel.id == self.slowmode_channel_id:
-            slowmode_cog: Optional[SlowmodeTracker] = self.bot.get_cog("SlowmodeTracker")
-            if slowmode_cog:
-                try:
-                    slowmode_cog.log_message(message)
-                except Exception as e:
-                    print(f"[XPSystem] SlowmodeTracker log_message virhe: {e}")
-
-        if isinstance(message.channel, discord.DMChannel):
-            await käsittele_dm_viesti(self.bot, message)
-            return
 
         maininta = self.bot.user.mentioned_in(message)
-        reply_to_bot = (
-            message.reference
-            and isinstance(message.reference.resolved, discord.Message)
-            and message.reference.resolved.author == self.bot.user
-        )
+        reply_to_bot = False
+        if message.reference and message.reference.message_id:
+            try:
+                ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                if ref_msg.author == self.bot.user:
+                    reply_to_bot = True
+            except discord.NotFound:
+                pass
 
         if maininta or reply_to_bot:
             content = message.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
@@ -60,13 +51,21 @@ class XPSystem(commands.Cog):
                 await message.reply(reaction, mention_author=False)
                 return
 
-            if content:
-                response = await self.ai.get_response(content)
-            else:
-                response = "Hei! Kysy minulta jotain tai kerro, mitä haluat tietää 🙂"
-
+            response = await self.ai.get_response(content) if content else "Hei! Kysy minulta jotain tai kerro, mitä haluat tietää 🙂"
             await message.reply(response, mention_author=False)
             return
+
+        if isinstance(message.channel, discord.DMChannel):
+            await käsittele_dm_viesti(self.bot, message)
+            return
+
+        if message.channel.id == self.slowmode_channel_id:
+            slowmode_cog: Optional[SlowmodeTracker] = self.bot.get_cog("SlowmodeTracker")
+            if slowmode_cog:
+                try:
+                    slowmode_cog.log_message(message)
+                except Exception as e:
+                    print(f"[XPSystem] SlowmodeTracker log_message virhe: {e}")
 
         request = pending_file_sends.get(message.author.id)
         if request:
