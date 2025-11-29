@@ -72,7 +72,9 @@ class HuoltoView(discord.ui.View):
     async def anna_tiedot(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(HuoltoModal())
 
-class BotHallinta(commands.Cog):
+ajastin_aktiiviset = {}
+
+class Moderation_status(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
@@ -102,7 +104,8 @@ class BotHallinta(commands.Cog):
             color=vari
         )
 
-        embed.set_thumbnail(url=bot_avatar_url)
+        if bot_avatar_url:
+            embed.set_thumbnail(url=bot_avatar_url)
         embed.add_field(name="🕒 Aika", value=aika, inline=False)
         embed.add_field(
             name="🛠️ Ongelmatilanteet",
@@ -113,13 +116,6 @@ class BotHallinta(commands.Cog):
 
         await status_kanava.send(embed=embed)
 
-ajastin_aktiiviset = {}
-
-class Moderation_status(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.ilmoita_statuskanavalle = BotHallinta.ilmoita_statuskanavalle
-    
     @app_commands.command(name="huolto", description="Aseta botti huoltotilaan.")
     @app_commands.checks.has_role("Mestari")
     async def huolto(self, interaction: discord.Interaction):
@@ -141,13 +137,7 @@ class Moderation_status(commands.Cog):
         if syy:
             kuvaus += f"\n**Syy:** {syy}"
 
-        await self.ilmoita_statuskanavalle(
-            interaction,
-            tila="sammutus",
-            kuvaus=kuvaus,
-            vari=Colour.red()
-        )
-
+        await self.ilmoita_statuskanavalle(interaction, "sammutus", kuvaus, Colour.red())
         await interaction.response.send_message("Sammutustieto lähetetty statuskanavalle.", ephemeral=True)
 
     @app_commands.command(name="uudelleenkäynnistys", description="Ilmoita botin uudelleenkäynnistyksestä.")
@@ -161,13 +151,7 @@ class Moderation_status(commands.Cog):
         if syy:
             kuvaus += f"\n**Syy:** {syy}"
 
-        await self.ilmoita_statuskanavalle(
-            interaction,
-            otsikko="🟡 Botti käynnistyy uudelleen", 
-            kuvaus=kuvaus,
-            vari=Colour.gold()
-        )
-
+        await self.ilmoita_statuskanavalle(interaction, "uudelleenkäynnistys", kuvaus, Colour.gold())
         await interaction.response.send_message("Uudelleenkäynnistystieto lähetetty statuskanavalle.", ephemeral=True)
 
     @commands.Cog.listener()
