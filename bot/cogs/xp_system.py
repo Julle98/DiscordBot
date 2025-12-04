@@ -141,3 +141,5 @@ class XPSystem(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(XPSystem(bot))
+    await bot.add_cog(AI(bot))
+    await bot.add_cog(SlowmodeTracker(bot))
