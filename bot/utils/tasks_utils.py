@@ -260,9 +260,9 @@ async def update_streak(user: discord.Member, task_type: str):
 
     task_log_channel = bot.get_channel(TASK_LOG_CHANNEL_ID)
     if normal_reset and not already_completed:
-        if grace_fails < 3:
+        if data["grace_fails"] < 3:
             streak += 1
-            grace_fails += 1
+            data["grace_fails"] += 1 
             formatted_last = last_date.strftime("%d.%m.%Y") if last_date else "ei aiempaa suoritusta"
             if task_log_channel:
                 await task_log_channel.send(
@@ -273,7 +273,6 @@ async def update_streak(user: discord.Member, task_type: str):
                 grace_used = True
         else:
             streak = 1
-            grace_fails = 0
             was_reset = True
 
     data["last_completed"] = now.isoformat()
@@ -498,7 +497,12 @@ class TaskListener(discord.ui.View):
                 await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä viesti, jossa on kysymys":
-            if message.channel.id == TASK_CHANNEL_ID and "?" in message.content:
+            kysymyssanat = ["mikä", "missä", "milloin", "kuinka", "kuka", "kenen", "miksi"]
+            content_lower = message.content.lower()
+            if (
+                message.channel.id == TASK_CHANNEL_ID
+                and ("?" in content_lower or any(word in content_lower for word in kysymyssanat))
+            ):
                 await self.finish_task()
             else:
                 await self.virheellinen_suoritus(message)
@@ -850,7 +854,7 @@ TASK_INSTRUCTIONS = {
     "Kerää reaktioita": "Lähetä viesti <#1339846062281588777> kanavalle ja saa joku muu reagoimaan siihen emojilla. Aikaa suoritukseen 30 min.",
     "Lisää tarra viestiin": "Lähetä viesti <#1339846062281588777> kanavalle ja liitä siihen tarra. Aikaa suoritukseen 30 min.",
     "Kerro viikonpäivä": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää viikonpäivän nimen (esim. 'maanantai'). Aikaa suoritukseen 30 min.",
-    "Lähetä viesti, jossa on kysymys": "Lähetä kysymys sisältävä viesti <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
+    "Lähetä viesti, jossa on kysymys": "Lähetä kysymys sisältävä viesti <#1339846062281588777> kanavalle. Viesti hyväksytään, jos siinä on kysymysmerkki (?) tai jokin kysymyssanoista (mikä, missä, milloin, kuka, kenen, miksi, kuinka). Aikaa suoritukseen 30 min.",
     "Lähetä emoji": "Lähetä viesti, jossa on vähintään yksi emoji <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
     "Kysy jotain toiselta käyttäjältä": "Lähetä kysymys toiselle käyttäjälle <#1339846062281588777> kanavalla. Mainitse käyttäjä ja käytä kysymysmerkkiä viestissä. Aikaa suoritukseen 30 min.",
     "Lisää reaktio toisen viestiin, jota ei ole vielä reagoitu": "Lisää emoji-reaktio viestiin <#1339846062281588777> kanavalla, jossa ei ollut vielä reaktioita. Aikaa suoritukseen 30 min.",
