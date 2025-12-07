@@ -108,6 +108,48 @@ class RuokaÄänestysView(discord.ui.View):
     async def vote_down(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.käsittele_ääni(interaction, "👎", button)
 
+class VarmistusView(discord.ui.View):
+    def __init__(self, bot, ruokailuvuoro: str, viesti: str):
+        super().__init__(timeout=30) 
+        self.bot = bot
+        self.ruokailuvuoro = ruokailuvuoro
+        self.viesti = viesti
+
+    async def _kirjaa_lokiin(self, interaction: discord.Interaction, status: str):
+        try:
+            logikanava_id = int(os.getenv("CONSOLE_LOG", "0"))
+            if logikanava_id:
+                logikanava = self.bot.get_channel(logikanava_id)
+                if logikanava:
+                    embed = discord.Embed(
+                        title="📌 Palauteloki",
+                        description=f"{interaction.user.mention} ({interaction.user.id})",
+                        color=discord.Color.blue()
+                    )
+                    embed.add_field(name="Viesti", value=self.viesti, inline=False)
+                    embed.add_field(name="Ruokailuvuoro", value=self.ruokailuvuoro or "Ei tiedossa", inline=False)
+                    embed.add_field(name="Tila", value=status, inline=False)
+                    embed.set_footer(text=f"Aikaleima: {helsinki_now}")
+                    await logikanava.send(embed=embed)
+        except Exception as e:
+            print(f"Lokitus epäonnistui: {e}")
+
+    @discord.ui.button(label="✅ Kyllä", style=discord.ButtonStyle.success)
+    async def vahvista(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content="Palautteesi on kirjattu lokiin ✅",
+            view=None
+        )
+        await self._kirjaa_lokiin(interaction, "Vahvistettu")
+
+    @discord.ui.button(label="❌ Peruuta", style=discord.ButtonStyle.danger)
+    async def peruuta(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content="Palautteen lokitus peruutettu ❌",
+            view=None
+        )
+        await self._kirjaa_lokiin(interaction, "Peruutettu")
+
 class PalauteView(discord.ui.View):
     def __init__(self, bot, ruokailuvuoro: str):
         super().__init__(timeout=None)
@@ -134,21 +176,19 @@ class PalauteView(discord.ui.View):
 
     @discord.ui.button(label="✅ Löytyi etsimäni", style=discord.ButtonStyle.success)
     async def onnistui(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(
-            description=f"Kiitos palautteesta! 🌟\n**Ruokailuvuoro:** {self.ruokailuvuoro or 'Ei tiedossa'} merkitty onnistuneeksi.",
-            color=discord.Color.green()
+        await interaction.response.send_message(
+            content="Haluatko varmasti kirjata palautteen lokiin? Toimintoa ei voi peruuttaa. Asia menee manuaalisesti tarkastettavaksi.",
+            view=VarmistusView(self.bot, self.ruokailuvuoro, "Ruokailuvuoro onnistui"),
+            ephemeral=True
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        await self._kirjaa_lokiin(interaction, "Ruokailuvuoro onnistui")
 
     @discord.ui.button(label="❌ Ei löytynyt etsimäni", style=discord.ButtonStyle.danger)
     async def ei_onnistunut(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(
-            description=f"Kiitos palautteesta – parannamme jatkossa! 🛠️\n**Ruokailuvuoro:** {self.ruokailuvuoro or 'Ei tiedossa'} lähetetty tarkastettavaksi.",
-            color=discord.Color.red()
+        await interaction.response.send_message(
+            content="Haluatko varmasti kirjata palautteen lokiin? Toimintoa ei voi peruuttaa. Asia menee manuaalisesti tarkastettavaksi.",
+            view=VarmistusView(self.bot, self.ruokailuvuoro, "Ruokailuvuoro ei onnistunut"),
+            ephemeral=True
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        await self._kirjaa_lokiin(interaction, "Ruokailuvuoro ei onnistunut")
 
 async def fetch_menu_data(url):
     async with aiohttp.ClientSession() as session:
