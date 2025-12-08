@@ -111,30 +111,48 @@ class RuokaÄänestysView(discord.ui.View):
 
 feedback_log = {}  # {user_id: {ruokailuvuoro: {"date": date, "choice": "onnistunut/epäonnistunut"}}}
 
-class VaihtoView(discord.ui.View):
-    def __init__(self, bot, ruokailuvuoro: str, current_choice: str):
+class BaseLogView(discord.ui.View):
+    async def kirjaa_lokiin(self, interaction: discord.Interaction, status: str):
+        try:
+            logikanava_id = int(os.getenv("MOD_LOG_CHANNEL_ID", "0"))
+            if logikanava_id:
+                logikanava = self.bot.get_channel(logikanava_id)
+                if logikanava:
+                    helsinki_now = datetime.now(pytz.timezone("Europe/Helsinki")).strftime("%Y-%m-%d")
+                    embed = discord.Embed(
+                        title="📌 Palauteloki",
+                        description=f"{interaction.user.mention} ({interaction.user.id})",
+                        color=discord.Color.blue()
+                    )
+                    embed.add_field(name="Viesti", value=self.viesti, inline=False)
+                    embed.add_field(name="Ruokailuvuoro", value=self.ruokailuvuoro or "Ei tiedossa", inline=False)
+                    embed.add_field(name="Tila", value=status, inline=False)
+                    embed.set_footer(text=f"Aikaleima: {helsinki_now}")
+                    await logikanava.send(embed=embed)
+        except Exception as e:
+            print(f"Lokitus epäonnistui: {e}")
+
+class VaihtoView(BaseLogView):
+    def __init__(self, bot, ruokailuvuoro: str, current_choice: str, viesti: str):
         super().__init__(timeout=30)
         self.bot = bot
         self.ruokailuvuoro = ruokailuvuoro
         self.current_choice = current_choice
+        self.viesti = viesti
 
     @discord.ui.button(label="🔄 Vaihda toiseen", style=discord.ButtonStyle.primary)
     async def vaihda(self, interaction: discord.Interaction, button: discord.ui.Button):
         new_choice = "onnistunut" if self.current_choice == "epäonnistunut" else "epäonnistunut"
         feedback_log[interaction.user.id][self.ruokailuvuoro]["choice"] = new_choice
-        await interaction.response.edit_message(
-            content=f"Valinta vaihdettu: {new_choice} ✅",
-            view=None
-        )
+        await interaction.response.edit_message(content=f"Valinta vaihdettu: {new_choice} ✅", view=None)
+        await self.kirjaa_lokiin(interaction, f"Vaihdettu → {new_choice}")
 
     @discord.ui.button(label="❌ Pidä nykyinen", style=discord.ButtonStyle.secondary)
     async def pidä(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(
-            content=f"Valinta pysyy: {self.current_choice} ✅",
-            view=None
-        )
+        await interaction.response.edit_message(content=f"Valinta pysyy: {self.current_choice} ✅", view=None)
+        await self.kirjaa_lokiin(interaction, f"Pidetty → {self.current_choice}")
 
-class VarmistusView(discord.ui.View):
+class VarmistusView(BaseLogView):
     def __init__(self, bot, ruokailuvuoro: str, viesti: str, choice: str):
         super().__init__(timeout=30) 
         self.bot = bot
@@ -151,23 +169,18 @@ class VarmistusView(discord.ui.View):
             current_choice = feedback_log[user_id][self.ruokailuvuoro]["choice"]
             await interaction.response.edit_message(
                 content=f"Olet jo äänestänyt **{current_choice}** vaihtoehtoa tälle ruokailuvuorolle. Haluatko kenties vaihtaa toiseen?",
-                view=VaihtoView(self.bot, self.ruokailuvuoro, current_choice)
+                view=VaihtoView(self.bot, self.ruokailuvuoro, current_choice, self.viesti)
             )
             return
 
         feedback_log.setdefault(user_id, {})[self.ruokailuvuoro] = {"date": today, "choice": self.choice}
-        await interaction.response.edit_message(
-            content="Palautteesi on kirjattu lokiin ✅",
-            view=None
-        )
+        await interaction.response.edit_message(content="Palautteesi on kirjattu lokiin ✅", view=None)
+        await self.kirjaa_lokiin(interaction, self.choice)
 
     @discord.ui.button(label="❌ Peruuta", style=discord.ButtonStyle.danger)
     async def peruuta(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(
-            content="Palautteen lokitus peruutettu ❌",
-            view=None
-        )
-        await self._kirjaa_lokiin(interaction, "Peruutettu")
+        await interaction.response.edit_message(content="Palautteen lokitus peruutettu ❌", view=None)
+        await self.kirjaa_lokiin(interaction, "Peruutettu")
 
 class PalauteView(discord.ui.View):
     def __init__(self, bot, ruokailuvuoro: str):
