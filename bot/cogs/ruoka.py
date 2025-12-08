@@ -12,6 +12,7 @@ from datetime import timedelta
 import threading
 from zoneinfo import ZoneInfo
 import pytz
+from datetime import date
 
 from bot.utils.time_utils import get_current_time_in_helsinki    
 from bot.utils.ruokailuvuorot_utils import parse_schedule
@@ -108,39 +109,57 @@ class RuokaÄänestysView(discord.ui.View):
     async def vote_down(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.käsittele_ääni(interaction, "👎", button)
 
+feedback_log = {}  # {user_id: {ruokailuvuoro: {"date": date, "choice": "onnistunut/epäonnistunut"}}}
+
+class VaihtoView(discord.ui.View):
+    def __init__(self, bot, ruokailuvuoro: str, current_choice: str):
+        super().__init__(timeout=30)
+        self.bot = bot
+        self.ruokailuvuoro = ruokailuvuoro
+        self.current_choice = current_choice
+
+    @discord.ui.button(label="🔄 Vaihda toiseen", style=discord.ButtonStyle.primary)
+    async def vaihda(self, interaction: discord.Interaction, button: discord.ui.Button):
+        new_choice = "onnistunut" if self.current_choice == "epäonnistunut" else "epäonnistunut"
+        feedback_log[interaction.user.id][self.ruokailuvuoro]["choice"] = new_choice
+        await interaction.response.edit_message(
+            content=f"Valinta vaihdettu: {new_choice} ✅",
+            view=None
+        )
+
+    @discord.ui.button(label="❌ Pidä nykyinen", style=discord.ButtonStyle.secondary)
+    async def pidä(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            content=f"Valinta pysyy: {self.current_choice} ✅",
+            view=None
+        )
+
 class VarmistusView(discord.ui.View):
-    def __init__(self, bot, ruokailuvuoro: str, viesti: str):
+    def __init__(self, bot, ruokailuvuoro: str, viesti: str, choice: str):
         super().__init__(timeout=30) 
         self.bot = bot
         self.ruokailuvuoro = ruokailuvuoro
         self.viesti = viesti
-
-    async def _kirjaa_lokiin(self, interaction: discord.Interaction, status: str):
-        try:
-            logikanava_id = int(os.getenv("CONSOLE_LOG", "0"))
-            if logikanava_id:
-                logikanava = self.bot.get_channel(logikanava_id)
-                if logikanava:
-                    embed = discord.Embed(
-                        title="📌 Palauteloki",
-                        description=f"{interaction.user.mention} ({interaction.user.id})",
-                        color=discord.Color.blue()
-                    )
-                    embed.add_field(name="Viesti", value=self.viesti, inline=False)
-                    embed.add_field(name="Ruokailuvuoro", value=self.ruokailuvuoro or "Ei tiedossa", inline=False)
-                    embed.add_field(name="Tila", value=status, inline=False)
-                    embed.set_footer(text=f"Aikaleima: {helsinki_now}")
-                    await logikanava.send(embed=embed)
-        except Exception as e:
-            print(f"Lokitus epäonnistui: {e}")
+        self.choice = choice
 
     @discord.ui.button(label="✅ Kyllä", style=discord.ButtonStyle.success)
     async def vahvista(self, interaction: discord.Interaction, button: discord.ui.Button):
+        today = date.today()
+        user_id = interaction.user.id
+
+        if feedback_log.get(user_id, {}).get(self.ruokailuvuoro, {}).get("date") == today:
+            current_choice = feedback_log[user_id][self.ruokailuvuoro]["choice"]
+            await interaction.response.edit_message(
+                content=f"Olet jo äänestänyt {current_choice} vaihtoehtoa tälle ruokailuvuorolle. Haluatko kenties vaihtaa toiseen?",
+                view=VaihtoView(self.bot, self.ruokailuvuoro, current_choice)
+            )
+            return
+
+        feedback_log.setdefault(user_id, {})[self.ruokailuvuoro] = {"date": today, "choice": self.choice}
         await interaction.response.edit_message(
             content="Palautteesi on kirjattu lokiin ✅",
             view=None
         )
-        await self._kirjaa_lokiin(interaction, "Vahvistettu")
 
     @discord.ui.button(label="❌ Peruuta", style=discord.ButtonStyle.danger)
     async def peruuta(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -156,29 +175,11 @@ class PalauteView(discord.ui.View):
         self.bot = bot
         self.ruokailuvuoro = ruokailuvuoro  
 
-    async def _kirjaa_lokiin(self, interaction: discord.Interaction, viesti: str):
-        try:
-            logikanava_id = int(os.getenv("CONSOLE_LOG", "0"))
-            if logikanava_id:
-                logikanava = self.bot.get_channel(logikanava_id)
-                if logikanava:
-                    embed = discord.Embed(
-                        title="📌 Palauteloki",
-                        description=f"{interaction.user.mention} ({interaction.user.id})",
-                        color=discord.Color.blue()
-                    )
-                    embed.add_field(name="Viesti", value=viesti, inline=False)
-                    embed.add_field(name="Ruokailuvuoro", value=self.ruokailuvuoro or "Ei tiedossa", inline=False)
-                    embed.set_footer(text=f"Aikaleima: {helsinki_now}")
-                    await logikanava.send(embed=embed)
-        except Exception as e:
-            print(f"Lokitus epäonnistui: {e}")
-
     @discord.ui.button(label="✅ Löytyi etsimäni", style=discord.ButtonStyle.success)
     async def onnistui(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
             content="Haluatko varmasti kirjata palautteen lokiin? Toimintoa ei voi peruuttaa. Asia menee manuaalisesti tarkastettavaksi.",
-            view=VarmistusView(self.bot, self.ruokailuvuoro, "Ruokailuvuoro onnistui"),
+            view=VarmistusView(self.bot, self.ruokailuvuoro, "Ruokailuvuoro onnistui", "onnistunut"),
             ephemeral=True
         )
 
@@ -186,7 +187,7 @@ class PalauteView(discord.ui.View):
     async def ei_onnistunut(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
             content="Haluatko varmasti kirjata palautteen lokiin? Toimintoa ei voi peruuttaa. Asia menee manuaalisesti tarkastettavaksi.",
-            view=VarmistusView(self.bot, self.ruokailuvuoro, "Ruokailuvuoro ei onnistunut"),
+            view=VarmistusView(self.bot, self.ruokailuvuoro, "Ruokailuvuoro ei onnistunut", "epäonnistunut"),
             ephemeral=True
         )
 
