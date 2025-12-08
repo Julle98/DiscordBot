@@ -150,7 +150,7 @@ class VarmistusView(discord.ui.View):
         if feedback_log.get(user_id, {}).get(self.ruokailuvuoro, {}).get("date") == today:
             current_choice = feedback_log[user_id][self.ruokailuvuoro]["choice"]
             await interaction.response.edit_message(
-                content=f"Olet jo äänestänyt {current_choice} vaihtoehtoa tälle ruokailuvuorolle. Haluatko kenties vaihtaa toiseen?",
+                content=f"Olet jo äänestänyt **{current_choice}** vaihtoehtoa tälle ruokailuvuorolle. Haluatko kenties vaihtaa toiseen?",
                 view=VaihtoView(self.bot, self.ruokailuvuoro, current_choice)
             )
             return
@@ -178,7 +178,7 @@ class PalauteView(discord.ui.View):
     @discord.ui.button(label="✅ Löytyi etsimäni", style=discord.ButtonStyle.success)
     async def onnistui(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
-            content="Haluatko varmasti kirjata palautteen lokiin? Toimintoa ei voi peruuttaa. Asia menee manuaalisesti tarkastettavaksi.",
+            content="Haluatko varmasti kirjata palautteen lokiin? Asia menee manuaalisesti tarkastettavaksi.",
             view=VarmistusView(self.bot, self.ruokailuvuoro, "Ruokailuvuoro onnistui", "onnistunut"),
             ephemeral=True
         )
@@ -186,7 +186,7 @@ class PalauteView(discord.ui.View):
     @discord.ui.button(label="❌ Ei löytynyt etsimäni", style=discord.ButtonStyle.danger)
     async def ei_onnistunut(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
-            content="Haluatko varmasti kirjata palautteen lokiin? Toimintoa ei voi peruuttaa. Asia menee manuaalisesti tarkastettavaksi.",
+            content="Haluatko varmasti kirjata palautteen lokiin? Asia menee manuaalisesti tarkastettavaksi.",
             view=VarmistusView(self.bot, self.ruokailuvuoro, "Ruokailuvuoro ei onnistunut", "epäonnistunut"),
             ephemeral=True
         )
