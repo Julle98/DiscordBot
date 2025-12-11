@@ -262,7 +262,8 @@ async def update_streak(user: discord.Member, task_type: str):
     if normal_reset and not already_completed:
         if data["grace_fails"] < 3:
             streak += 1
-            data["grace_fails"] += 1 
+            data["grace_fails"] += 1
+            grace_fails = data["grace_fails"] 
             formatted_last = last_date.strftime("%d.%m.%Y") if last_date else "ei aiempaa suoritusta"
             if task_log_channel:
                 await task_log_channel.send(
