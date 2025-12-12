@@ -63,6 +63,12 @@ def load_poll_from_db(message_id: int):
     poll = next((p for p in db if int(p.get("message_id", 0)) == int(message_id)), None)
     return poll, db
 
+def _safe_int(x):
+    try:
+        return int(x)
+    except (TypeError, ValueError):
+        return None
+
 class VoteButton(ui.Button):
     def __init__(self, index: int, label: str, poll_data: dict, parent_view):
         super().__init__(
@@ -306,7 +312,6 @@ class AanestysModal(ui.Modal):
         embed.set_footer(text=f"Päättyy {aika_str}. Luoja: {interaction.user.display_name}")
 
         poll_data = {
-            "message_id": None,
             "channel_id": interaction.channel.id,
             "question": self.kysymys.value,
             "options": options,
@@ -361,7 +366,11 @@ async def end_poll(bot: commands.Bot, message_id: int):
     except FileNotFoundError:
         return
 
-    poll = next((p for p in db if int(p.get("message_id", 0)) == int(message_id) and p.get("active")), None)
+    msg_id = _safe_int(message_id)
+    if msg_id is None:
+        return
+
+    poll = next((p for p in db if _safe_int(p.get("message_id")) == msg_id and p.get("active")), None)
     if not poll:
         return
 
