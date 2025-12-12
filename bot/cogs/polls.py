@@ -17,6 +17,17 @@ load_dotenv()
 DB_PATH = os.getenv("POLLS_JSON_PATH")
 LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID"))
 
+class FeedbackButton(ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="📝 Anna palautetta",
+            style=discord.ButtonStyle.secondary,
+            custom_id="feedback_button"
+        )
+
+    async def callback(self, interaction: Interaction):
+        await interaction.response.send_modal(FeedbackModal())
+
 class FeedbackModal(ui.Modal, title="📝 Anna palautetta"):
     palaute = ui.TextInput(label="Palaute", style=discord.TextStyle.paragraph, required=False)
 
@@ -42,6 +53,83 @@ class FeedbackModal(ui.Modal, title="📝 Anna palautetta"):
             view=view
         )
 
+def load_poll_from_db(message_id: int):
+    try:
+        with open(DB_PATH, "r") as f:
+            db = json.load(f)
+    except FileNotFoundError:
+        return None, None
+
+    poll = next((p for p in db if int(p.get("message_id", 0)) == int(message_id)), None)
+    return poll, db
+
+class VoteButton(ui.Button):
+    def __init__(self, index: int, label: str, poll_data: dict, parent_view):
+        super().__init__(
+            label=label,
+            style=discord.ButtonStyle.primary,
+            custom_id=f"vote_{index}_{poll_data['message_id']}"
+        )
+        self.index = index
+        self.poll_data = poll_data
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: Interaction):
+        user_id = str(interaction.user.id)
+        user_roles = [r.id for r in interaction.user.roles]
+
+        if any(r in self.poll_data["denied_roles"] for r in user_roles):
+            msg = "🚫 Et saa äänestää tässä äänestyksessä."
+        elif self.poll_data["allowed_roles"] and not any(
+            r in self.poll_data["allowed_roles"] for r in user_roles
+        ):
+            msg = "🚫 Et saa äänestää tässä äänestyksessä."
+        elif user_id in self.poll_data["votes"]:
+            msg = "ℹ️ Olet jo äänestänyt."
+        else:
+            self.poll_data["votes"][user_id] = self.index
+            self.parent_view._update_db()
+            self.parent_view._refresh_labels()
+            msg = f"Äänesi vaihtoehdolle {self.index + 1} on rekisteröity!"
+            await self.parent_view._log_vote(interaction, self.index)
+
+        view = ui.View()
+        view.add_item(UnvoteButton(self.poll_data, self.parent_view))
+        view.add_item(FeedbackButton())
+
+        await interaction.response.send_message(msg, ephemeral=True, view=view)
+
+class UnvoteButton(ui.Button):
+    def __init__(self, poll_data: dict, parent_view):
+        super().__init__(
+            label="❎ Peru ääni",
+            style=discord.ButtonStyle.danger,
+            custom_id=f"unvote_{poll_data['message_id']}"
+        )
+        self.poll_data = poll_data
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: Interaction):
+        user_id = str(interaction.user.id)
+
+        if user_id in self.poll_data.get("votes", {}):
+            del self.poll_data["votes"][user_id]
+            self.parent_view._update_db()
+            self.parent_view._refresh_labels()
+            await self.parent_view._log_unvote(interaction)
+            msg = "Äänesi on peruttu."
+        else:
+            msg = "ℹ️ Sinulla ei ole aktiivista ääntä."
+
+        view = ui.View()
+        view.add_item(FeedbackButton())
+
+        await interaction.response.send_message(
+            msg,
+            ephemeral=True,
+            view=view
+        )
+
 class VoteButtonView(ui.View):
     def __init__(self, options: list[str], poll_data: dict):
         super().__init__(timeout=None)
@@ -50,19 +138,44 @@ class VoteButtonView(ui.View):
         self.options = options
 
         for i, opt in enumerate(options):
-            count = sum(1 for v in poll_data["votes"].values() if v == i)
             emoji = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"][i]
-            label = f"{emoji} {opt} ({count})"
-            self.add_item(VoteButton(i, label, poll_data, self))
+            self.add_item(VoteButton(i, f"{emoji} {opt}", poll_data, self))
+
+    async def _refresh_embed_and_view(self):
+        if not self.message or not self.message.embeds:
+            return
+
+        counts = {i: 0 for i in range(len(self.options))}
+        buckets = {i: [] for i in range(len(self.options))}
+
+        for uid, opt_index in self.poll_data.get("votes", {}).items():
+            if isinstance(opt_index, int) and 0 <= opt_index < len(self.options):
+                counts[opt_index] += 1
+                buckets[opt_index].append(uid)
+
+        base = self.message.embeds[0]
+        updated = discord.Embed.from_dict(base.to_dict())
+
+        for i, opt in enumerate(self.options):
+            emoji = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"][i]
+            voters = [f"<@{uid}>" for uid in buckets[i]]
+            voters_text = ", ".join(voters) if voters else "*Ei ääniä*"
+
+            value = f"Äänestäjät: {voters_text}"
+            if len(value) > 1024:
+                value = value[:1020] + "…"
+
+            name = f"{emoji} {opt} (äänimäärä: {counts[i]})"
+
+            if i < len(updated.fields):
+                updated.set_field_at(i, name=name, value=value, inline=False)
+            else:
+                updated.add_field(name=name, value=value, inline=False)
+
+        await self.message.edit(embed=updated, view=self)
 
     def _refresh_labels(self):
-        for i, item in enumerate(self.children):
-            if isinstance(item, ui.Button) and item.custom_id.startswith("vote_"):
-                count = sum(1 for v in self.poll_data["votes"].values() if v == i)
-                emoji = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"][i]
-                item.label = f"{emoji} {self.options[i]} ({count})"
-        if self.message:
-            asyncio.create_task(self.message.edit(view=self))
+        asyncio.create_task(self._refresh_embed_and_view())
 
     def _update_db(self):
         try:
@@ -106,74 +219,6 @@ class VoteButtonView(ui.View):
             )
             embed.set_footer(text=f"ID: {interaction.user.id}")
             await log_channel.send(embed=embed)
-
-class VoteButton(ui.Button):
-    def __init__(self, index: int, label: str, poll_data: dict, parent_view: VoteButtonView):
-        super().__init__(
-            label=label,
-            style=discord.ButtonStyle.primary,
-            custom_id=f"vote_{index}_{poll_data['message_id']}"
-        )
-        self.index = index
-        self.poll_data = poll_data
-        self.parent_view = parent_view
-
-    async def callback(self, interaction: Interaction):
-        user_id = str(interaction.user.id)
-        user_roles = [r.id for r in interaction.user.roles]
-
-        if any(r in self.poll_data["denied_roles"] for r in user_roles):
-            msg = "🚫 Et saa äänestää tässä äänestyksessä."
-        elif self.poll_data["allowed_roles"] and not any(r in self.poll_data["allowed_roles"] for r in user_roles):
-            msg = "🚫 Et saa äänestää tässä äänestyksessä."
-        elif user_id in self.poll_data["votes"]:
-            msg = "ℹ️ Olet jo äänestänyt."
-        else:
-            self.poll_data["votes"][user_id] = self.index
-            self.parent_view._update_db()
-            self.parent_view._refresh_labels()
-            msg = f"✅ Äänesi vaihtoehdolle {self.index + 1} on rekisteröity!"
-            await self.parent_view._log_vote(interaction, self.index)
-
-        view = ui.View()
-        view.add_item(UnvoteButton(self.poll_data, self.parent_view))
-        view.add_item(FeedbackButton())
-        await interaction.response.send_message(msg, ephemeral=True, view=view)
-
-class FeedbackButton(ui.Button):
-    def __init__(self):
-        super().__init__(
-            label="📝 Anna palautetta",
-            style=discord.ButtonStyle.secondary,
-            custom_id="feedback_button"
-        )
-
-    async def callback(self, interaction: Interaction):
-        await interaction.response.send_modal(FeedbackModal())
-
-class UnvoteButton(ui.Button):
-    def __init__(self, poll_data: dict, parent_view: VoteButtonView):
-        super().__init__(
-            label="❎ Peru ääni",
-            style=discord.ButtonStyle.danger,
-            custom_id=f"unvote_{poll_data['message_id']}"
-        )
-        self.poll_data = poll_data
-        self.parent_view = parent_view
-
-    async def callback(self, interaction: Interaction):
-        user_id = str(interaction.user.id)
-        if user_id in self.poll_data["votes"]:
-            del self.poll_data["votes"][user_id]
-            self.parent_view._update_db()
-            self.parent_view._refresh_labels()
-            msg = "❎ Äänesi on peruttu."
-        else:
-            msg = "ℹ️ Sinulla ei ole aktiivista ääntä."
-
-        view = ui.View()
-        view.add_item(FeedbackButton())
-        await interaction.response.send_message(msg, ephemeral=True, view=view)
 
 class AanestysModal(ui.Modal):
     def __init__(self, bot: commands.Bot):
@@ -287,9 +332,9 @@ class AanestysModal(ui.Modal):
             json.dump(db, f, indent=2)
 
         view = VoteButtonView(options, poll_data)
-        await poll_msg.edit(embed=embed, view=view)
         view.message = poll_msg
-    
+        await poll_msg.edit(embed=embed, view=view)
+
         role_id_str = self.rooli_id.value.strip()
         if role_id_str.isdigit():
             role = interaction.guild.get_role(int(role_id_str))
@@ -305,6 +350,10 @@ async def wait_and_end_poll(client, message_id, minutes):
     await asyncio.sleep(minutes * 60)
     await end_poll(client, message_id)
 
+TROPHY_EMOJI = "🏆"
+TIE_EMOJI = "🤝"
+NO_WINNER_TEXT = "Ei ääniä"
+
 async def end_poll(bot: commands.Bot, message_id: int):
     try:
         with open(DB_PATH, "r") as f:
@@ -312,7 +361,7 @@ async def end_poll(bot: commands.Bot, message_id: int):
     except FileNotFoundError:
         return
 
-    poll = next((p for p in db if p["message_id"] == message_id and p["active"]), None)
+    poll = next((p for p in db if int(p.get("message_id", 0)) == int(message_id) and p.get("active")), None)
     if not poll:
         return
 
@@ -325,47 +374,74 @@ async def end_poll(bot: commands.Bot, message_id: int):
     except Exception:
         poll_msg = None
 
-    original_embed = None
-    if poll_msg and poll_msg.embeds:
-        original_embed = poll_msg.embeds[0]
-        ended_embed = discord.Embed.from_dict(original_embed.to_dict())
-        if ended_embed.title:
-            if "(Päättynyt)" not in ended_embed.title:
-                ended_embed.title = f"{ended_embed.title} (Päättynyt)"
-        else:
-            ended_embed.title = "(Päättynyt)"
+    if not poll_msg or not poll_msg.embeds:
+        poll["active"] = False
+        with open(DB_PATH, "w") as f:
+            json.dump(db, f, indent=2)
+        return
 
-        disabled_view = VoteButtonView(poll["options"], poll)
-        disabled_view.message = poll_msg
-        disabled_view.disable_all()
+    base = poll_msg.embeds[0]
+    ended_embed = discord.Embed.from_dict(base.to_dict())
 
-        try:
-            await poll_msg.edit(embed=ended_embed, view=disabled_view)
-        except Exception:
-            pass
+    if ended_embed.title and "(Päättynyt)" not in ended_embed.title:
+        ended_embed.title = f"{ended_embed.title} (Päättynyt)"
+    elif not ended_embed.title:
+        ended_embed.title = "(Päättynyt)"
 
-    counts = {i: 0 for i in range(len(poll["options"]))}
-    for user_id, opt_index in poll.get("votes", {}).items():
-        counts[opt_index] += 1
+    options = poll["options"]
+    numerotemojit = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+
+    counts = {i: 0 for i in range(len(options))}
+    buckets = {i: [] for i in range(len(options))}
+
+    for uid, opt_index in poll.get("votes", {}).items():
+        if isinstance(opt_index, int) and 0 <= opt_index < len(options):
+            counts[opt_index] += 1
+            buckets[opt_index].append(uid)
 
     max_votes = max(counts.values(), default=0)
-    winners = [poll["options"][i] for i, c in counts.items() if c == max_votes and max_votes > 0]
+    winners = [i for i, c in counts.items() if c == max_votes and max_votes > 0]
+    is_tie = len(winners) > 1
+    has_votes = max_votes > 0
 
-    result = discord.Embed(
-        title="📊 Äänestyksen tulokset",
-        description=poll["question"],
-        color=discord.Color.green()
-    )
-    for i, count in counts.items():
-        option = poll["options"][i]
-        result.add_field(name=option, value=f"{count} ääntä", inline=True)
-
-    if winners:
-        result.add_field(name="🏆 Voittaja(t)", value=", ".join(winners), inline=False)
+    if not has_votes:
+        winner_str = NO_WINNER_TEXT
     else:
-        result.add_field(name="🏆 Voittaja(t)", value="Ei ääniä", inline=False)
+        winner_names = ", ".join(options[i] for i in winners)
+        winner_str = f"Tasapeli: {winner_names}" if is_tie else f"Voittaja: {winner_names}"
 
-    await channel.send(embed=result)
+    old_footer = (ended_embed.footer.text or "").strip() if ended_embed.footer else ""
+    new_footer = f"{old_footer} • {winner_str}".strip(" •") if old_footer else winner_str
+    ended_embed.set_footer(text=new_footer)
+
+    for i, opt in enumerate(options):
+        if not has_votes:
+            badge = ""
+        elif is_tie and i in winners:
+            badge = f" {TIE_EMOJI}"
+        elif (not is_tie) and i in winners:
+            badge = f" {TROPHY_EMOJI}"
+        else:
+            badge = ""
+
+        name = f"{numerotemojit[i]} {opt} (äänimäärä: {counts[i]}){badge}"
+
+        voters = [f"<@{uid}>" for uid in buckets[i]]
+        voters_text = ", ".join(voters) if voters else "*Ei ääniä*"
+        value = f"Äänestäjät: {voters_text}"
+        if len(value) > 1024:
+            value = value[:1020] + "…"
+
+        if i < len(ended_embed.fields):
+            ended_embed.set_field_at(i, name=name, value=value, inline=False)
+        else:
+            ended_embed.add_field(name=name, value=value, inline=False)
+
+    disabled_view = VoteButtonView(options, poll)
+    disabled_view.message = poll_msg
+    disabled_view.disable_all()
+
+    await poll_msg.edit(embed=ended_embed, view=disabled_view)
 
     poll["active"] = False
     with open(DB_PATH, "w") as f:
