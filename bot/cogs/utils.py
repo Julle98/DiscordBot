@@ -204,6 +204,40 @@ class HelpDropdown(discord.ui.View):
         valinta = next(opt for opt in self.options if opt.value == self.select.values[0])
         await interaction.response.send_modal(HelpModal(valinta=valinta, target_channel=self.channel))
 
+class CancelParticipationView(discord.ui.View):
+    def __init__(self, giveaway_view: "GiveawayView", user: discord.Member):
+        super().__init__(timeout=60)  
+        self.giveaway_view = giveaway_view
+        self.user = user
+
+    @discord.ui.button(label="❌ Peruuta ääni", style=discord.ButtonStyle.red)
+    async def cancel(self, interaction: Interaction, button: discord.ui.Button):
+        gv = self.giveaway_view
+
+        if interaction.user != self.user:
+            await interaction.response.send_message("Tämä nappi ei ole sinulle.", ephemeral=True)
+            return
+
+        if gv.loppunut:
+            button.disabled = True
+            await interaction.response.edit_message(
+                content="Arvonta on jo päättynyt, et voi enää perua osallistumista.",
+                view=self
+            )
+            return
+
+        if self.user not in gv.osallistujat:
+            button.disabled = True
+            await interaction.response.edit_message(content="Et ole mukana arvonnassa.", view=self)
+            return
+
+        gv.osallistujat.remove(self.user)
+        gv._paivita_embed()
+        await gv.viesti.edit(embed=gv.embed, view=gv)
+
+        button.disabled = True
+        await interaction.response.edit_message(content="Osallistumisesi peruttiin. ✅", view=self)
+
 class GiveawayView(discord.ui.View):
     def __init__(self, palkinto, rooli, kesto, alkuviesti, luoja, kieltorooli=None):
         super().__init__(timeout=None)
@@ -246,8 +280,50 @@ class GiveawayView(discord.ui.View):
         )
         return embed
 
+    def _ohje_embed(self) -> discord.Embed:
+        if self.rooli:
+            kuka = f"Vain käyttäjät joilla on rooli {self.rooli.mention} (arvonnan tekijä ei voi osallistua)."
+        else:
+            kuka = "Kaikki saavat osallistua (paitsi arvonnan tekijä)."
+
+        if self.kieltorooli:
+            kuka += f"\nPoikkeus: käyttäjät joilla on {self.kieltorooli.mention} eivät voi osallistua."
+
+        e = discord.Embed(
+            title="📋 Ohjeita arvonnasta",
+            color=discord.Color.blurple()
+        )
+        e.add_field(
+            name="Miten arvontaan osallistutaan?",
+            value="Paina **🎉 Osallistu** -nappia arvontaviestissä. Saat vahvistusviestin sen jälkeen.",
+            inline=False
+        )
+        e.add_field(
+            name="Miten arvotaan voittaja?",
+            value="Kun arvonta päättyy, voittaja arvotaan satunnaisesti osallistujista.\n"
+                "Voittajan jakoon vaaditaan vähintään **2 osallistujaa**.",
+            inline=False
+        )
+        e.add_field(
+            name="Kuka voi osallistua?",
+            value=kuka,
+            inline=False
+        )
+        e.add_field(
+            name="Miten palkinto annetaan voittajalle?",
+            value="Palkinto toimitetaan voittajalle Sannamaijan nimissä Discord DM:ssä. "
+                "Jos kyse on roolista/pelipalkinnosta tms, se annetaan voittajalle erikseen sovitulla tavalla.",
+            inline=False
+        )
+        return e
+
     def _paivita_embed(self):
         self.embed = self._luo_embed(osallistujia=len(self.osallistujat))
+
+    def _disable_buttons(self):
+        for item in self.children:
+            if isinstance(item, discord.ui.Button):
+                item.disabled = True
 
     @discord.ui.button(label="🎉 Osallistu", style=discord.ButtonStyle.green)
     async def osallistumisnappi(self, interaction: Interaction, button: discord.ui.Button):
@@ -268,29 +344,57 @@ class GiveawayView(discord.ui.View):
             return
 
         if interaction.user in self.osallistujat:
-            await interaction.response.send_message("Olet jo mukana!", ephemeral=True)
+            await interaction.response.send_message(
+                "Olet jo mukana arvonnassa! ℹ️\nHaluatko perua osallistumisen?",
+                view=CancelParticipationView(self, interaction.user),
+                ephemeral=True
+            )
             return
 
         self.osallistujat.add(interaction.user)
         self._paivita_embed()
         await self.viesti.edit(embed=self.embed, view=self)
 
-        await interaction.response.send_message("Osallistuit arvontaan! ✅", ephemeral=True)
+        await interaction.response.send_message(
+            "Osallistumisesi arvontaan merkattu onnistuneesti! ✅",
+            view=CancelParticipationView(self, interaction.user),
+            ephemeral=True
+        )
+
+    @discord.ui.button(label="📋 Ohjeita arvonnasta", style=discord.ButtonStyle.blurple)
+    async def ohjenappi(self, interaction: Interaction, button: discord.ui.Button):
+        if self.loppunut:
+            await interaction.response.send_message("Arvonta on jo päättynyt.", ephemeral=True)
+            return
+
+        await interaction.response.send_message(embed=self._ohje_embed(), ephemeral=True)
 
     async def lopeta_arvonta(self, kanava: discord.abc.Messageable):
         if self.loppunut:
             return
         self.loppunut = True
+
+        self._disable_buttons()
+        await self.viesti.edit(embed=self.embed, view=self)
         self.stop()
 
         if len(self.osallistujat) < 2:
-            await kanava.send(
-                "⛔ Arvonta loppui. Liian vähän osallistujia "
-                "(vaaditaan vähintään 2). Palkintoa ei jaettu."
+            self.embed.title = "🎉 Arvonta päättynyt."
+            self.embed.description += (
+                "\n\n⛔ **Arvonta päättyi ilman voittajaa**\n"
+                "Liian vähän osallistujia (vaaditaan vähintään 2)."
             )
+            await self.viesti.edit(embed=self.embed, view=self)
             return
 
         voittaja = random.choice(list(self.osallistujat))
+
+        self.embed.title = "🎉 Arvonta päättynyt."
+        self.embed.description += (
+            f"\n\n🏆 **Arvonnan voittaja:** {voittaja.mention}"
+        )
+
+        await self.viesti.edit(embed=self.embed, view=self)
         await kanava.send(f"🎉 Onnea {voittaja.mention}, voitit **{self.palkinto}**!")
 
 KOMENTOJEN_ROOLIT = {
