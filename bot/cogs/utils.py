@@ -208,14 +208,46 @@ class GiveawayView(discord.ui.View):
     def __init__(self, palkinto, rooli, kesto, alkuviesti, luoja, kieltorooli=None):
         super().__init__(timeout=None)
         self.palkinto = palkinto
-        self.rooli = rooli
-        self.kieltorooli = kieltorooli  
+        self.rooli = rooli          
+        self.kieltorooli = kieltorooli 
         self.kesto = kesto
-        self.osallistujat = set()
-        self.viesti = alkuviesti
+        self.osallistujat: set[discord.Member] = set()
+        self.viesti = alkuviesti      
         self.luoja = luoja
         self.loppunut = False
-        self.voittaja = None
+
+        self.embed = self._luo_embed(osallistujia=0)
+
+    def _luo_embed(self, osallistujia: int) -> discord.Embed:
+        if self.rooli:
+            osallistuminen_txt = f"**Osallistumisoikeus:** {self.rooli.mention}"
+        else:
+            osallistuminen_txt = "**Osallistumisoikeus:** Kaikki saavat osallistua (paitsi tekijä)"
+
+        desc_lines = [
+            f"**Palkinto:** {self.palkinto}",
+            osallistuminen_txt,
+        ]
+
+        if self.kieltorooli:
+            desc_lines.append(f"**Ei voi osallistua jos kuuluu rooliin:** {self.kieltorooli.mention}")
+
+        desc_lines.extend([
+            f"**Kesto:** {self.kesto} minuuttia",
+            "",
+            f"**Osallistujia:** {osallistujia}",
+            "**Ohje:** Paina '🎉 Osallistu' painiketta osallistuaksesi!"
+        ])
+
+        embed = discord.Embed(
+            title="🎉 Arvonta käynnissä!",
+            description="\n".join(desc_lines),
+            color=discord.Color.blurple()
+        )
+        return embed
+
+    def _paivita_embed(self):
+        self.embed = self._luo_embed(osallistujia=len(self.osallistujat))
 
     @discord.ui.button(label="🎉 Osallistu", style=discord.ButtonStyle.green)
     async def osallistumisnappi(self, interaction: Interaction, button: discord.ui.Button):
@@ -223,98 +255,43 @@ class GiveawayView(discord.ui.View):
             await interaction.response.send_message("Arvonta on jo päättynyt.", ephemeral=True)
             return
 
-        if self.kieltorooli and self.kieltorooli in interaction.user.roles:
-            await interaction.response.send_message("Sinulla on rooli, joka estää osallistumisen tähän arvontaan.", ephemeral=True)
+        if interaction.user == self.luoja:
+            await interaction.response.send_message("Et voi osallistua omaan arvontaasi.", ephemeral=True)
             return
 
-        if self.rooli not in interaction.user.roles:
+        if self.kieltorooli and self.kieltorooli in interaction.user.roles:
+            await interaction.response.send_message("Sinulla on kieltorooli, et voi osallistua.", ephemeral=True)
+            return
+
+        if self.rooli and self.rooli not in interaction.user.roles:
             await interaction.response.send_message("Sinulla ei ole oikeaa roolia osallistuaksesi.", ephemeral=True)
             return
 
         if interaction.user in self.osallistujat:
-            await interaction.response.send_message("Olet jo osallistunut!", ephemeral=True)
+            await interaction.response.send_message("Olet jo mukana!", ephemeral=True)
             return
 
         self.osallistujat.add(interaction.user)
-        await interaction.response.send_message("Olet mukana arvonnassa!", ephemeral=True)
+        self._paivita_embed()
+        await self.viesti.edit(embed=self.embed, view=self)
 
-        mod_log_channel_id = int(os.getenv("MOD_LOG_CHANNEL_ID", 0))
-        mod_log_channel = interaction.client.get_channel(mod_log_channel_id)
+        await interaction.response.send_message("Osallistuit arvontaan! ✅", ephemeral=True)
 
-        if mod_log_channel:
-            logiviesti = (
-                f"📥 **Arvontaan osallistuminen**\n"
-                f"👤 Käyttäjä: {interaction.user.mention} (`{interaction.user.id}`)\n"
-                f"🎁 Palkinto: {self.palkinto}\n"
-                f"🎯 Rooli: {self.rooli.mention}\n"
-                f"👮 Arvonnan luoja: {self.luoja.mention}"
-            )
-            await mod_log_channel.send(logiviesti)
-
-    @discord.ui.button(label="⛔ Lopeta arvonta", style=discord.ButtonStyle.red)
-    async def lopetusnappi(self, interaction: Interaction, button: discord.ui.Button):
-        if interaction.user != self.luoja:
-            await interaction.response.send_message("Vain arvonnan luoja voi lopettaa sen.", ephemeral=True)
-            return
-        await self.lopeta_arvonta(interaction.channel)
-
-    async def lopeta_arvonta(self, kanava):
+    async def lopeta_arvonta(self, kanava: discord.abc.Messageable):
         if self.loppunut:
             return
         self.loppunut = True
         self.stop()
 
-        mod_log_channel_id = int(os.getenv("MOD_LOG_CHANNEL_ID", 0))
-        mod_log_channel = kanava.guild.get_channel(mod_log_channel_id)
-
-        if self.osallistujat:
-            self.voittaja = random.choice(list(self.osallistujat))
+        if len(self.osallistujat) < 2:
             await kanava.send(
-                f"🎉 Onnea {self.voittaja.mention}, voitit **{self.palkinto}**!",
-                view=RerollView(self)
+                "⛔ Arvonta loppui. Liian vähän osallistujia "
+                "(vaaditaan vähintään 2). Palkintoa ei jaettu."
             )
-
-            if mod_log_channel:
-                logiviesti = (
-                    f"🏆 **Arvonnan voittaja**\n"
-                    f"🎁 Palkinto: {self.palkinto}\n"
-                    f"👤 Voittaja: {self.voittaja.mention} (`{self.voittaja.id}`)\n"
-                    f"👮 Arvonnan luoja: {self.luoja.mention}\n"
-                    f"📊 Osallistujia yhteensä: {len(self.osallistujat)}"
-                )
-                await mod_log_channel.send(logiviesti)
-
-        else:
-            await kanava.send(
-                "⛔ Arvonta on päättynyt, mutta kukaan ei osallistunut tai osallistujilla ei ollut oikeaa roolia."
-            )
-
-            if mod_log_channel:
-                logiviesti = (
-                    f"🚫 **Arvonta päättyi ilman osallistujia**\n"
-                    f"🎁 Palkinto: {self.palkinto}\n"
-                    f"👮 Arvonnan luoja: {self.luoja.mention}\n"
-                    f"📊 Osallistujia: 0"
-                )
-                await mod_log_channel.send(logiviesti)
-
-class RerollView(discord.ui.View):
-    def __init__(self, giveaway_view: GiveawayView):
-        super().__init__(timeout=None)
-        self.giveaway_view = giveaway_view
-
-    @discord.ui.button(label="🎲 Arvo uusi voittaja", style=discord.ButtonStyle.blurple)
-    async def reroll_button(self, interaction: Interaction, button: discord.ui.Button):
-        if interaction.user != self.giveaway_view.luoja:
-            await interaction.response.send_message("Vain arvonnan luoja voi arpoa uuden voittajan.", ephemeral=True)
             return
-        osallistujat = list(self.giveaway_view.osallistujat - {self.giveaway_view.voittaja})
-        if not osallistujat:
-            await interaction.response.send_message("Ei ole muita osallistujia, joista arpoa uusi voittaja.", ephemeral=True)
-            return
-        uusi_voittaja = random.choice(osallistujat)
-        self.giveaway_view.voittaja = uusi_voittaja
-        await interaction.channel.send(f"🎉 Uusi voittaja on {uusi_voittaja.mention}! Onnea **{self.giveaway_view.palkinto}**:sta!")
+
+        voittaja = random.choice(list(self.osallistujat))
+        await kanava.send(f"🎉 Onnea {voittaja.mention}, voitit **{self.palkinto}**!")
 
 KOMENTOJEN_ROOLIT = {
     "aika": "24G",
@@ -503,8 +480,8 @@ class Utils(commands.Cog):
     @app_commands.describe(
         palkinto="Mitä arvotaan?",
         kesto="Kesto minuutteina",
-        rooli="Rooli jolla saa osallistua",
-        kieltorooli="Rooli jolla ei saa osallistua"
+        rooli="Rooli jolla saa osallistua (valinnainen)",
+        kieltorooli="Rooli jolla ei saa osallistua (valinnainen)"
     )
     @app_commands.checks.has_role("Mestari")
     async def giveaway(
@@ -512,24 +489,28 @@ class Utils(commands.Cog):
         interaction: discord.Interaction,
         palkinto: str,
         kesto: int,
-        rooli: discord.Role,
-        kieltorooli: discord.Role
+        rooli: discord.Role | None = None,
+        kieltorooli: discord.Role | None = None
     ):
         await kirjaa_komento_lokiin(self.bot, interaction, "/giveaway")
         await kirjaa_ga_event(self.bot, interaction.user.id, "giveaway_komento")
 
-        view = GiveawayView(palkinto, rooli, kesto, kieltorooli, interaction.user)
+        view = GiveawayView(
+            palkinto=palkinto,
+            rooli=rooli,
+            kesto=kesto,
+            alkuviesti=None,
+            luoja=interaction.user,
+            kieltorooli=kieltorooli
+        )
+
         await interaction.response.send_message(
-            f"🎉 **Arvonta aloitettu!** 🎉\n"
-            f"**Palkinto:** {palkinto}\n"
-            f"**Osallistumisoikeus:** {rooli.mention}\n"
-            f"**Ei voi osallistua jos kuuluu rooliin:** {kieltorooli.mention}\n"
-            f"**Kesto:** {kesto} minuuttia\n\n"
-            f"Paina **🎉 Osallistu** -painiketta osallistuaksesi!",
+            embed=view.embed,
             view=view
         )
 
         view.viesti = await interaction.original_response()
+
         await asyncio.sleep(kesto * 60)
         await view.lopeta_arvonta(interaction.channel)
 
@@ -614,7 +595,7 @@ class Utils(commands.Cog):
         await kirjaa_komento_lokiin(self.bot, interaction, "/vaihda_tag")
         await kirjaa_ga_event(self.bot, interaction.user.id, "vaihda_tag_komento")
         tag = tag.strip()
-        kielletyt_sanat = ["niger", "nekru", "nigga", "nig"]
+        kielletyt_sanat = ["niger", "nekru", "nigga", "nig", "homo", "gay", "homot", "pillu", "penis", "perse"]
 
         if len(tag) < 3 or len(tag) > 6:
             await interaction.response.send_message("Tagin täytyy olla 3-6 kirjainta pitkä.", ephemeral=True)
