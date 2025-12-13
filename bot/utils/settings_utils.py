@@ -4,8 +4,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 SETTINGS_PATH = os.getenv("SETTINGS_DATA_FILE")
+MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID", 0))
 
-USER_SETTINGS = {}
+USER_SETTINGS: dict = {}
+
+DEFAULT_SETTINGS = {
+    "xp_viestit": True,
+    "xp_puhe": True,
+    "xp_komennot": True,
+    "xp_epaaktiivisuus": True
+}
+
+async def log_to_mod_channel(bot, message: str):
+    channel = bot.get_channel(MOD_LOG_CHANNEL_ID)
+    if channel:
+        await channel.send(f"📝 **Asetusviestit**: {message}")
 
 def load_user_settings():
     global USER_SETTINGS
@@ -22,6 +35,7 @@ def load_user_settings():
 
 def save_user_settings():
     try:
+        print(f"[Asetukset] Tallennetaan: {os.path.abspath(SETTINGS_PATH)}")
         with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
             json.dump(USER_SETTINGS, f, indent=4, ensure_ascii=False)
         print(f"[Asetukset] Käyttäjäasetukset tallennettu: {SETTINGS_PATH}")
@@ -29,14 +43,18 @@ def save_user_settings():
         print(f"[Asetukset] Tallennus epäonnistui: {e}")
 
 def get_user_settings(user_id: int):
+    if not USER_SETTINGS:
+        load_user_settings()
+
     user_id_str = str(user_id)
+
     if user_id_str not in USER_SETTINGS:
         print(f"[Asetukset] Luodaan oletusasetukset käyttäjälle {user_id_str}")
-        USER_SETTINGS[user_id_str] = {
-            "xp_viestit": True,
-            "xp_puhe": True,
-            "xp_komennot": True,
-            "xp_epaaktiivisuus": True
-        }
+        USER_SETTINGS[user_id_str] = DEFAULT_SETTINGS.copy()
         save_user_settings()
+        return USER_SETTINGS[user_id_str]
+
+    for key, value in DEFAULT_SETTINGS.items():
+        USER_SETTINGS[user_id_str].setdefault(key, value)
+
     return USER_SETTINGS[user_id_str]

@@ -20,6 +20,13 @@ from bot.utils.ruokailuvuorot_utils import paivita_ruokailuvuorot
 from bot.utils.time_utils import get_current_time_in_helsinki
 from bot.utils.settings_utils import get_user_settings
 from bot.cogs.ruoka import RuokaÄänestysView
+from bot.utils.settings_utils import (
+    load_user_settings,
+    save_user_settings,
+    USER_SETTINGS,
+    DEFAULT_SETTINGS,
+    log_to_mod_channel
+)
 
 load_env_and_validate()
 load_dotenv()
@@ -118,6 +125,34 @@ async def on_ready():
             print(f"✅ Cog valmiina: {cog_name}")
     else:
         print("⚠️ Yhtään cogia ei ole ladattu.")
+
+    try:
+        load_user_settings()
+
+        updated = False
+
+        for guild in bot.guilds:
+            for member in guild.members:
+                if member.bot:
+                    continue
+
+                user_id = str(member.id)
+
+                if user_id not in USER_SETTINGS:
+                    USER_SETTINGS[user_id] = DEFAULT_SETTINGS.copy()
+                    updated = True
+                else:
+                    for key, value in DEFAULT_SETTINGS.items():
+                        if key not in USER_SETTINGS[user_id]:
+                            USER_SETTINGS[user_id][key] = value
+                            updated = True
+
+        if updated:
+            save_user_settings()
+        else:
+            print("[Asetukset] Synkronointi valmis, ei päivitettävää.")
+    except Exception as e:
+        print(f"[Asetukset] Synkronointi epäonnistui: {e}")
 
     try:
         bot_status_kanava = discord.utils.get(bot.get_all_channels(), name="🛜bot-status")
