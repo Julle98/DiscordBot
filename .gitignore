@@ -28,3 +28,4 @@ data/data/users_xp.json
 data/data/users_streak.json 
 data/backup/backup.json
 data/data/ai_responses.json
+bot/utils/tts_vcrecord.py
