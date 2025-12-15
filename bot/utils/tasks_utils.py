@@ -263,12 +263,12 @@ async def update_streak(user: discord.Member, task_type: str):
         if data["grace_fails"] < 3:
             streak += 1
             data["grace_fails"] += 1
-            grace_fails = data["grace_fails"] 
+            grace_fails = data["grace_fails"]
             formatted_last = last_date.strftime("%d.%m.%Y") if last_date else "ei aiempaa suoritusta"
             if task_log_channel:
                 await task_log_channel.send(
-                    f"{user.mention}, streak olisi normaalisti katkennut tehtävällä **{task_type}**, "
-                    f"mutta sait armollisen jatkon! ✨ ({grace_fails}/3 käytetty)\n"
+                    f"{user.mention}, streak olisi normaalisti katkennut tehtävällä **{task_type}**, "
+                    f"mutta sait armollisen jatkon! ✨ ({grace_fails}/3 käytetty)\n"
                     f"Edellinen suoritus oli **{formatted_last}**."
                 )
                 grace_used = True
@@ -289,30 +289,72 @@ async def update_streak(user: discord.Member, task_type: str):
     if was_reset and task_log_channel:
         formatted_last = last_date.strftime("%d.%m.%Y") if last_date else "ei aiempaa suoritusta"
         await task_log_channel.send(
-            f"{user.mention}, streak nollautui ja alkoi alusta tehtävällä **{task_type}**! 🔄\n"
+            f"{user.mention}, streak nollautui ja alkoi alusta tehtävällä **{task_type}**! 🔄\n"
             f"Edellinen suoritus oli **{formatted_last}**."
         )
 
     rewards = data["rewards"]
 
+    DAILY_REWARD_ROLES = [
+        1380234239357882450,  # 7_day
+        1380234364826419220,  # 30_day
+        1450173589075787878,  # 60_day
+        1450174197891469313,  # 100_day
+        1450174272180977798,  # 200_day
+    ]
+    WEEKLY_REWARD_ROLES = [
+        1380234433533055057,  # 4_week
+        1450173161290338304,  # 12_week
+        1450173248758091957,  # 24_week
+    ]
+    MONTHLY_REWARD_ROLES = [
+        1386679979634327663,  # 3_month
+        1386680073486204999,  # 6_month
+        1380234668032659509,  # 12_month
+    ]
+
     async def reward(streak_value, reward_key, xp, role_id, message):
         if streak == streak_value and reward_key not in rewards:
+            guild = user.guild
+            if task_type == "daily":
+                candidates = DAILY_REWARD_ROLES
+            elif task_type == "weekly":
+                candidates = WEEKLY_REWARD_ROLES
+            else:
+                candidates = MONTHLY_REWARD_ROLES
+
+            to_remove = []
+            for rid in candidates:
+                if rid == role_id:
+                    continue
+                role = guild.get_role(rid)
+                if role and role in user.roles:
+                    to_remove.append(role)
+
+            if to_remove:
+                await user.remove_roles(*to_remove, reason="Streak-palkintorooli päivittyi")
+
             await add_xp(bot, user, xp)
             give_role(user, role_id)
             rewards.append(reward_key)
             await task_channel.send(f"{user.mention} {message}")
 
     if task_type == "daily":
-        await reward(7, "7_day", 200, 1380234239357882450, "saavutti **7 päivän** päivittäistehtäväputken! +200 XP ja erikoisrooli! 🎉")
-        await reward(30, "30_day", 900, 1380234364826419220, "saavutti **30 päivän** päivittäistehtäväputken! +900 XP ja erikoisrooli! 🔥")
+        await reward(7, "7_day", 200, 1380234239357882450, "saavutti **7 päivän** päivittäistehtäväputken! +200 XP ja erikoisrooli! 🎉")
+        await reward(30, "30_day", 900, 1380234364826419220, "saavutti **30 päivän** päivittäistehtäväputken! +900 XP ja erikoisrooli! 🔥")
+        await reward(60, "60_day", 2500, 1450173589075787878, "saavutti **60 päivän** päivittäistehtäväputken! +2500 XP ja erikoisrooli! 🏆")
+        await reward(100, "100_day", 3500, 1450174197891469313, "saavutti **100 päivän** päivittäistehtäväputken! +3500 XP ja erikoisrooli! 👑")
+        await reward(200, "365_day", 6000, 1450174272180977798, "saavutti **200 päivän** päivittäistehtäväputken! +6000 XP ja erikoisrooli! 🌟")
 
     elif task_type == "weekly":
-        await reward(4, "4_week", 250, 1380234433533055057, "suoritti **4 viikkoa putkeen** viikkotehtäviä! +250 XP ja erikoisrooli! 🎉")
-        await reward(12, "12_month", 3000, 1380234668032659509, "suoritti **12 kuukautta putkeen** viikkotehtäviä! +3000 XP ja erikoisrooli! 🔥")
+        await reward(4, "4_week", 250, 1380234433533055057, "suoritti **4 viikkoa putkeen** viikkotehtäviä! +250 XP ja erikoisrooli! 🎉")
+        await reward(12, "12_week", 800, 1450173161290338304, "suoritti **12 viikkoa putkeen** viikkotehtäviä! +800 XP ja erikoisrooli! 🏅")
+        await reward(24, "24_week", 2000, 1450173248758091957, "suoritti **24 viikkoa putkeen** viikkotehtäviä! +2000 XP ja erikoisrooli! 🏆")
 
     elif task_type == "monthly":
-        await reward(3, "3_month", 500, 1386679979634327663, "suoritti **3 kuukautta putkeen** kuukausitehtäviä! +500 XP ja erikoisrooli! 🏅")
-        await reward(6, "6_month", 1200, 1386680073486204999, "suoritti **6 kuukautta putkeen** kuukausitehtäviä! +1200 XP ja erikoisrooli! 🏆")
+        await reward(3, "3_month", 500, 1386679979634327663, "suoritti **3 kuukautta putkeen** kuukausitehtäviä! +500 XP ja erikoisrooli! 🏅")
+        await reward(6, "6_month", 1200, 1386680073486204999, "suoritti **6 kuukautta putkeen** kuukausitehtäviä! +1200 XP ja erikoisrooli! 🔥")
+        await reward(12, "12_month", 2500, 1380234668032659509, "suoritti **12 kuukautta putkeen** kuukausitehtäviä! +2500 XP ja erikoisrooli! 🏆")
 
     return was_reset, last_date, grace_used
 
@@ -497,8 +539,8 @@ class TaskListener(discord.ui.View):
             else:
                 await self.virheellinen_suoritus(message)
 
-        elif self.task_name == "Lähetä viesti, jossa on kysymys":
-            kysymyssanat = ["mikä", "missä", "milloin", "kuinka", "kuka", "kenen", "miksi"]
+        elif self.task_name == "Lähetä viesti, jossa on kysymys":
+            kysymyssanat = ["mikä", "missä", "milloin", "kuinka", "kuka", "kenen", "miksi"]
             content_lower = message.content.lower()
             if (
                 message.channel.id == TASK_CHANNEL_ID
@@ -855,7 +897,7 @@ TASK_INSTRUCTIONS = {
     "Kerää reaktioita": "Lähetä viesti <#1339846062281588777> kanavalle ja saa joku muu reagoimaan siihen emojilla. Aikaa suoritukseen 30 min.",
     "Lisää tarra viestiin": "Lähetä viesti <#1339846062281588777> kanavalle ja liitä siihen tarra. Aikaa suoritukseen 30 min.",
     "Kerro viikonpäivä": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää viikonpäivän nimen (esim. 'maanantai'). Aikaa suoritukseen 30 min.",
-    "Lähetä viesti, jossa on kysymys": "Lähetä kysymys sisältävä viesti <#1339846062281588777> kanavalle. Viesti hyväksytään, jos siinä on kysymysmerkki (?) tai jokin kysymyssanoista (mikä, missä, milloin, kuka, kenen, miksi, kuinka). Aikaa suoritukseen 30 min.",
+    "Lähetä viesti, jossa on kysymys": "Lähetä kysymys sisältävä viesti <#1339846062281588777> kanavalle. Viesti hyväksytään, jos siinä on kysymysmerkki (?) tai jokin kysymyssanoista (mikä, missä, milloin, kuka, kenen, miksi, kuinka). Aikaa suoritukseen 30 min.",
     "Lähetä emoji": "Lähetä viesti, jossa on vähintään yksi emoji <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
     "Kysy jotain toiselta käyttäjältä": "Lähetä kysymys toiselle käyttäjälle <#1339846062281588777> kanavalla. Mainitse käyttäjä ja käytä kysymysmerkkiä viestissä. Aikaa suoritukseen 30 min.",
     "Lisää reaktio toisen viestiin, jota ei ole vielä reagoitu": "Lisää emoji-reaktio viestiin <#1339846062281588777> kanavalla, jossa ei ollut vielä reaktioita. Aikaa suoritukseen 30 min.",

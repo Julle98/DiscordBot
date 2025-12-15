@@ -21,7 +21,8 @@ from bot.utils.tasks_utils import (
     StartTaskView,
     TaskControlView,
     active_listeners,
-    load_streaks
+    load_streaks,
+    complete_task as complete_task_backend
 )
 
 load_dotenv()
@@ -38,10 +39,7 @@ class Tasks(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
     
-    @app_commands.command(
-    name="tehtävät", 
-    description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä."
-    )
+    @app_commands.command(name="tehtävät", description="Näytä ja suorita päivittäisiä, viikottaisia tai kuukausittaisia tehtäviä.")
     @app_commands.describe(ohje="Näytä tehtävien ohjeet, näyttää vain ohjeet ei tehtävät valikkoa (valinnainen)")
     @app_commands.checks.has_role("24G")
     async def tehtavat(self, interaction: discord.Interaction, ohje: Optional[bool] = False):
@@ -204,6 +202,35 @@ class Tasks(commands.Cog):
                     ephemeral=True
                 )
         
+        async def create_task_view_for_user(user: discord.Member):
+            data = await asyncio.to_thread(load_tasks)
+            daily = data.get("daily_tasks", [])
+            weekly = data.get("weekly_tasks", [])
+            monthly = data.get("monthly_tasks", [])
+
+            done = await load_user_tasks()
+            user_done = done.get(str(user.id), [])
+
+            now = datetime.now()
+            end_of_day = now.replace(hour=23, minute=59).strftime("%d.%m.%Y klo %H:%M")
+            end_of_week = (now + timedelta(days=(6 - now.weekday()))).replace(hour=23, minute=59).strftime("%d.%m.%Y klo %H:%M")
+            end_of_month = (now.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+            end_of_month_str = end_of_month.replace(hour=23, minute=59).strftime("%d.%m.%Y klo %H:%M")
+
+            task_list = (
+                "```md\n"
+                f"# 📅 Päivittäiset tehtävät (vanhentuu: {end_of_day})\n" +
+                ("\n".join(f"- {task}" for task in daily) if daily else "- Ei aktiivisia tehtäviä.") +
+                f"\n\n# 📆 Viikoittaiset tehtävät (vanhentuu: {end_of_week})\n" +
+                ("\n".join(f"- {task}" for task in weekly) if weekly else "- Ei aktiivisia tehtäviä.") +
+                f"\n\n# 🗓️ Kuukausittaiset tehtävät (vanhentuu: {end_of_month_str})\n" +
+                ("\n".join(f"- {task}" for task in monthly) if monthly else "- Ei aktiivisia tehtäviä.") +
+                "\n```"
+            )
+
+            view = TaskSelectorView(user, daily, weekly, monthly, user_done, task_list)
+            return task_list, view
+
         class TaskSelectorView(discord.ui.View):
             def __init__(self, user, daily, weekly, monthly, user_done, task_list):
                 super().__init__(timeout=300)
@@ -218,18 +245,7 @@ class Tasks(commands.Cog):
         end_of_month = (now.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
         end_of_month_str = end_of_month.replace(hour=23, minute=59).strftime("%d.%m.%Y klo %H:%M")
 
-        task_list = (
-            "```md\n"
-            f"# 📅 Päivittäiset tehtävät (vanhentuu: {end_of_day})\n" +
-            ("\n".join(f"- {task}" for task in daily) if daily else "- Ei aktiivisia tehtäviä.") +
-            f"\n\n# 📆 Viikoittaiset tehtävät (vanhentuu: {end_of_week})\n" +
-            ("\n".join(f"- {task}" for task in weekly) if weekly else "- Ei aktiivisia tehtäviä.") +
-            f"\n\n# 🗓️ Kuukausittaiset tehtävät (vanhentuu: {end_of_month_str})\n" +
-            ("\n".join(f"- {task}" for task in monthly) if monthly else "- Ei aktiivisia tehtäviä.") +
-            "\n```"
-        )
-
-        view = TaskSelectorView(interaction.user, daily, weekly, monthly, user_done, task_list)
+        task_list, view = await create_task_view_for_user(interaction.user)
         await interaction.response.send_message(content=task_list, view=view, ephemeral=True)
 
 async def setup(bot: commands.Bot):
