@@ -28,9 +28,9 @@ from bot.utils.tasks_utils import (
 load_dotenv()
 
 REWARD_THRESHOLDS = {
-    "daily": [7, 30],
-    "weekly": [4, 12],
-    "monthly": [3, 6]
+    "daily": [7, 30, 60, 100, 200],
+    "weekly": [4, 12, 24],
+    "monthly": [3, 6, 12]
 }
 
 TASK_LOG_CHANNEL_ID = int(os.getenv("TASK_LOG_CHANNEL_ID", 0))
