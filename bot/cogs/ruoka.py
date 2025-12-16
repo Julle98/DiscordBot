@@ -22,7 +22,7 @@ from bot.utils.ruokailuvuorot_utils import lue_tiedosto_turvallisesti
 from bot.utils.ruokailuvuorot_utils import ruokailuvuorot_autocomplete
 
 async def logita_äänestys(interaction: discord.Interaction, päivä_id: str, ääni: str):
-    logikanava_id = os.getenv("CONSOLE_LOG")
+    logikanava_id = os.getenv("MOD_LOG_CHANNEL_ID")
     if not logikanava_id:
         return
     logikanava = interaction.client.get_channel(int(logikanava_id))
@@ -99,6 +99,9 @@ class RuokaÄänestysView(discord.ui.View):
         self.tallenna_käyttäjä_äänet()
 
         await interaction.response.edit_message(view=self)
+
+        await interaction.followup.send("✅ Äänesi on rekisteröity onnistuneesti.", ephemeral=True)
+
         await logita_äänestys(interaction, self.päivä_id, ääni)
 
     @discord.ui.button(label="👍 0", style=discord.ButtonStyle.success, custom_id="vote_up")
@@ -259,7 +262,7 @@ async def hae_ruoka(interaction: discord.Interaction, valinta="päivän ruoka", 
                 return
 
             nykyhetki = datetime.now().time()
-            if nykyhetki > time(11, 50):
+            if nykyhetki > time(12, 0):
                 await interaction.followup.send("⏳ Ruokailu on jo ohi, joten miksi haluat nähdä ruoan?", ephemeral=True)
                 return
 

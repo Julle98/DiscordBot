@@ -226,7 +226,7 @@ async def hae_osallistumisviestit(user: discord.User | discord.Member, bot: comm
     user_näyttönimi = user.display_name
     viestit = []
 
-    console_log = bot.get_channel(int(os.getenv("CONSOLE_LOG")))
+    console_log = bot.get_channel(int(os.getenv("MOD_LOG_CHANNEL_ID")))
     mod_log = bot.get_channel(MOD_LOG_CHANNEL_ID)
 
     if not isinstance(console_log, discord.TextChannel) or not isinstance(mod_log, discord.TextChannel):
