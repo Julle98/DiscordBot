@@ -34,7 +34,6 @@ class WavRecordingSink(voice_recv.AudioSink):
         except Exception:
             pass
 
-
 class VCRecord(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -81,8 +80,13 @@ class VCRecord(commands.Cog):
 
     async def play_record_notice(self, vc: discord.VoiceClient):
         notice_path = os.getenv("VOICE_NOTICE_PATH")
+
+        if not notice_path:
+            print("[VCRecord] VOICE_NOTICE_PATH ei asetettu!")
+            return
+
         if not os.path.exists(notice_path):
-            print(f"[VCRecord] Ilmoitusääni puuttuu: {notice_path}")
+            print(f"[VCRecord] Ilmoitusääni puuttuu kontissa: {notice_path}")
             return
 
         try:
@@ -194,12 +198,13 @@ class VCRecord(commands.Cog):
         vc_id: str,
         klipin_pituus: app_commands.Range[int, 5, 600] = 30,
     ):
+        await interaction.response.defer(ephemeral=True)
         await kirjaa_komento_lokiin(self.bot, interaction, "/vcrecord")
         await kirjaa_ga_event(self.bot, interaction.user.id, "vcrecord_komento")
 
         guild = interaction.guild
         if guild is None:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "⚠️ Tämä komento toimii vain palvelimilla.",
                 ephemeral=True,
             )
@@ -207,7 +212,7 @@ class VCRecord(commands.Cog):
         record_channel_id = int(os.getenv("RECORD_CHANNEL_ID", "0"))
         record_channel = interaction.client.get_channel(record_channel_id)
         if not isinstance(record_channel, discord.TextChannel):
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "⚠️ Tallennuskanavaa ei löytynyt (RECORD_CHANNEL_ID väärin?).",
                 ephemeral=True,
             )
@@ -217,13 +222,13 @@ class VCRecord(commands.Cog):
             meta = self.active_recordings.get(guild.id)
 
             if not vc:
-                return await interaction.response.send_message(
+                return await interaction.followup.send(
                     "ℹ️ Botti ei ole tällä hetkellä millään puhekanavalla.",
                     ephemeral=True,
                 )
 
             if meta:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     "⏹️ Tallennus pysäytetään, tallenne lähetetään pian.",
                     ephemeral=True,
                 )
@@ -238,7 +243,7 @@ class VCRecord(commands.Cog):
                 )
             else:
                 await vc.disconnect()
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     "👋 Botti poistui puhekanavalta.",
                     ephemeral=True,
                 )
@@ -248,20 +253,20 @@ class VCRecord(commands.Cog):
         try:
             channel_id_int = int(vc_id)
         except ValueError:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "⚠️ Puhekanavan ID ei ollut kelvollinen.",
                 ephemeral=True,
             )
 
         vc_channel = interaction.client.get_channel(channel_id_int)
         if not isinstance(vc_channel, discord.VoiceChannel):
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "⚠️ Valittu kanava ei ole puhekanava.",
                 ephemeral=True,
             )
 
         if guild.id in self.active_recordings:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "⚠️ Tallennus on jo käynnissä tällä palvelimella. "
                 "Lopeta se ensin valitsemalla 'Lopeta tallennus ja poistu puhekanavalta'.",
                 ephemeral=True,
@@ -302,7 +307,7 @@ class VCRecord(commands.Cog):
             self._auto_stop_after(guild.id, int(klipin_pituus))
         )
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"🎙️ Aloitettiin tallennus kanavalla **{vc_channel.name}** "
             f"(klipin pituus ~{klipin_pituus} s, tallennus MP3:ksi).",
             ephemeral=True,
