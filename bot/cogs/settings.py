@@ -44,6 +44,7 @@ class SettingsView(discord.ui.View):
             ("xp_puhe", "🎙️ XP puhekanavalta", "Vaihda asetusta XP:n saannista puhekanavilta"),
             ("xp_komennot", "⚙️ XP komennoista", "Vaihda asetusta XP:n saannista komennoista"),
             ("xp_epaaktiivisuus", "🕒 XP bonus epäaktiivisuudesta", "Vaihda asetusta XP:n saannista epäaktiivisuus bonuksissa"),
+            ("yhteenveto_henkilotiedot", "🧾 Henkilötietosi yhteenvedon tekeminen", "Salli/estä henkilökohtaisen Rewind-yhteenvedon luonti"),
         ]:
             tila = "✅ Päällä" if self.settings.get(key) else "❌ Pois"
             options.append(discord.SelectOption(
@@ -137,7 +138,8 @@ class Asetukset(commands.Cog):
             "xp_viestit": True,
             "xp_puhe": True,
             "xp_komennot": True,
-            "xp_epaaktiivisuus": True
+            "xp_epaaktiivisuus": True,
+            "yhteenveto_henkilotiedot": True
         }
 
         def format_status(value: bool) -> str:
@@ -155,7 +157,8 @@ class Asetukset(commands.Cog):
                 "xp_viestit": "XP viesteistä",
                 "xp_puhe": "XP puhekanavalta",
                 "xp_komennot": "XP komennoista",
-                "xp_epaaktiivisuus": "XP bonus epäaktiivisuudesta"
+                "xp_epaaktiivisuus": "XP bonus epäaktiivisuudesta",
+                "yhteenveto_henkilotiedot": "Henkilötietosi yhteenvedon tekeminen"
             }.items():
                 embed.add_field(name=label, value="✅ Päällä" if updated_settings[key] else "❌ Pois", inline=False)
 
@@ -182,7 +185,8 @@ class Asetukset(commands.Cog):
             "xp_viestit": "XP viesteistä",
             "xp_puhe": "XP puhekanavalta",
             "xp_komennot": "XP komennoista",
-            "xp_epaaktiivisuus": "XP bonus epäaktiivisuudesta"
+            "xp_epaaktiivisuus": "XP bonus epäaktiivisuudesta",
+            "yhteenveto_henkilotiedot": "Henkilötietosi yhteenvedon tekeminen"
         }.items():
             embed.add_field(name=label, value=format_status(settings[key]), inline=False)
 

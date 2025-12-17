@@ -12,7 +12,8 @@ DEFAULT_SETTINGS = {
     "xp_viestit": True,
     "xp_puhe": True,
     "xp_komennot": True,
-    "xp_epaaktiivisuus": True
+    "xp_epaaktiivisuus": True,
+    "yhteenveto_henkilotiedot": True
 }
 
 async def log_to_mod_channel(bot, message: str):
