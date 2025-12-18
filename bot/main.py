@@ -86,7 +86,8 @@ COGS = [
     "bot.cogs.games.ristinolla",
     "bot.cogs.currency",
     "bot.cogs.faq",
-    "bot.cogs.summary"
+    "bot.cogs.summary",
+    "bot.cogs.achievements"
 ]
 
 async def load_cogs():
