@@ -112,10 +112,12 @@ async def tarkista_ostojen_kuukausi():
     except Exception as e:
         print(f"Ostojen tarkistus epäonnistui: {e}")
 
+from datetime import datetime, timezone
+
 @tasks.loop(hours=1)
 async def tarkista_vanhentuneet_oikeudet():
     ostot = lue_ostokset()
-    nyt = datetime.now()
+    nyt = datetime.now(timezone.utc)  
 
     for user_id, ostoslista in ostot.items():
         guild = bot.guilds[0]
@@ -125,14 +127,20 @@ async def tarkista_vanhentuneet_oikeudet():
 
         for ostos in ostoslista:
             try:
-                pvm = datetime.fromisoformat(ostos.get("pvm", ""))
+                pvm_str = ostos.get("pvm", "")
+                pvm = datetime.fromisoformat(pvm_str)
+
+                if pvm.tzinfo is None:
+                    pvm = pvm.replace(tzinfo=timezone.utc)
+
                 nimi = ostos.get("nimi", "")
 
                 for avain, tiedot in TUOTELOGIIKKA.items():
                     if avain.lower() in nimi.lower():
                         kesto = tiedot.get("kesto")
                         if not kesto:
-                            continue  
+                            continue
+
                         if (nyt - pvm) > kesto:
                             rooli = discord.utils.get(guild.roles, name=tiedot["rooli"])
                             if rooli and rooli in member.roles:
