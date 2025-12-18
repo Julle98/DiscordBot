@@ -63,6 +63,31 @@ def puhe_kommentti(total_seconds: int) -> str:
         return "Puhekanavilla vietetään todella paljon aikaa. Vakioääni porukassa."
     return "Puhekanavat ovat kuin toinen koti. Äänitoiminta on erittäin vilkasta."
 
+def osallistuminen_kommentti(total: int, arvonnat: int, voitot: int, aanestykset: int) -> str:
+    if total <= 0:
+        return "Et ole vielä osallistunut arvontoihin tai äänestyksiin. Kaikki tilaisuudet ovat vielä edessä!"
+    
+    if total < 5:
+        base = "Muutamia osallistumisia. Käyt kurkkaamassa, mutta et vielä aktiivisesti jahtaa kaikkea."
+    elif total < 20:
+        base = "Osallistut säännöllisesti. Olet mukana päätöksenteossa ja arvonnoissa ihan kivalla tahdilla."
+    elif total < 50:
+        base = "Osallistumisia on kertynyt paljon. Olet yksi palvelimen aktiivisemmista osallistujista."
+    else:
+        base = "Osallistumisia on valtavasti. Olet selvästi yksi palvelimen kovimmista osallistujista!"
+
+    lisä = []
+    if arvonnat > 0:
+        lisä.append(f"Arvontoihin osallistuttu **{arvonnat}** kertaa")
+    if voitot > 0:
+        lisä.append(f"ja voitettu **{voitot}** kertaa 🎉")
+    if aanestykset > 0 and not lisä:
+        lisä.append(f"Äänestyksiin osallistuttu **{aanestykset}** kertaa")
+
+    if lisä:
+        return base + " " + " ".join(lisä)
+    return base
+
 def ero_str(nyky: int | float, edellinen: int | float | None, yksikkö: str = "") -> str:
     if edellinen is None:
         return "Ei aiempaa yhteenvetoa vertailuun."
@@ -157,9 +182,33 @@ class YhteenvetoCog(commands.Cog):
         try:
             if not YHTEENVETO_PATH.exists():
                 return None
+
             with open(YHTEENVETO_PATH, encoding="utf-8") as f:
                 data = json.load(f)
-            return data.get(self._key(year, uid), {}).get("data")
+
+            entry = data.get(self._key(year, uid))
+            if not entry:
+                return None
+
+            prev_data = entry.get("data")
+            last_run_str = entry.get("last_run")
+
+            if not last_run_str:
+                return prev_data
+
+            try:
+                last_run = datetime.fromisoformat(last_run_str)
+            except Exception:
+                return prev_data
+
+            now_utc = datetime.utcnow()
+            diff = now_utc - last_run
+
+            if diff.days < VUODEN_PÄIVÄT:
+                return None
+
+            return prev_data
+
         except Exception:
             return None
 
@@ -547,11 +596,14 @@ class YhteenvetoCog(commands.Cog):
         osallistumiset = await hae_osallistumisviestit(user, self.bot)
         tyyppilaskuri = Counter()
         for data in osallistumiset:
-            dt = data.get("datetime")
+            dt = data.get("aika")
             if isinstance(dt, datetime) and self._in_range(dt, start, end):
                 tyyppilaskuri[data["tyyppi"]] += 1
 
-        stats["participation"] = {"total": int(sum(tyyppilaskuri.values())), "types": dict(tyyppilaskuri)}
+        stats["participation"] = {
+            "total": int(sum(tyyppilaskuri.values())),
+            "types": dict(tyyppilaskuri)
+        }
 
         commands_total = 0
         commands_top = []
@@ -800,7 +852,6 @@ class YhteenvetoCog(commands.Cog):
         embed.set_footer(text="Yhteenveto tehty Sannamaija bot tietokannoista.")
         return embed
 
-
     def _xp_sivu(self, user: discord.User, stats: dict, prev: dict | None) -> discord.Embed:
         xp = stats.get("xp", {})
         total_xp = int(xp.get("total_xp", 0))
@@ -839,13 +890,20 @@ class YhteenvetoCog(commands.Cog):
         part_total = int(part.get("total", 0))
         cmd_total = int(cmds.get("total", 0))
 
+        types = part.get("types") or {}
+        arvonnat = int(types.get("Arvonta", 0))
+        voitot = int(types.get("Arvontavoitto", 0))
+        ruoka = int(types.get("Ruokaäänestys", 0))
+        kysely = int(types.get("Kyselyäänestys", 0))
+        aanestykset = ruoka + kysely
+
         embed = discord.Embed(
             title="📥 Osallistumiset & komennot",
             description=f"{user.display_name} – kooste.",
             color=discord.Color.blue(),
         )
 
-        embed.add_field(name="📥 Osallistumisia", value=f"**{part_total}**", inline=True)
+        embed.add_field(name="📥 Osallistumisia yhteensä", value=f"**{part_total}**", inline=True)
         if prev and prev.get("participation", {}).get("total") is not None:
             embed.add_field(
                 name="📈 Vertailu",
@@ -853,13 +911,30 @@ class YhteenvetoCog(commands.Cog):
                 inline=True,
             )
 
-        types = part.get("types") or {}
-        if types:
-            embed.add_field(
-                name="📂 Tyypeittäin",
-                value="\n".join([f"- **{k}** ({v}×)" for k, v in types.items()]),
-                inline=False,
-            )
+        embed.add_field(
+            name="🗳️ Äänestykset",
+            value=(
+                f"- Kyselyäänestykset: **{kysely}**\n"
+                f"- Ruokaäänestykset: **{ruoka}**\n"
+                f"= Yhteensä **{aanestykset}** äänestystä"
+            ),
+            inline=False,
+        )
+
+        embed.add_field(
+            name="🎟️ Arvonnat",
+            value=(
+                f"- Arvontaan osallistumisia: **{arvonnat}**\n"
+                f"- Arvontavoittoja: **{voitot}**"
+            ),
+            inline=False,
+        )
+
+        embed.add_field(
+            name="📝 Osallistumiskommentti",
+            value=osallistuminen_kommentti(part_total, arvonnat, voitot, aanestykset),
+            inline=False,
+        )
 
         embed.add_field(name="💬 Komentoja", value=f"**{cmd_total}**", inline=True)
         if prev and prev.get("commands", {}).get("total") is not None:
@@ -872,7 +947,10 @@ class YhteenvetoCog(commands.Cog):
         top = cmds.get("top") or []
         embed.add_field(
             name="🏆 Useimmin käytetyt komennot",
-            value=("\n".join([f"- `{name}` ({n}×)" for name, n in top]) if top else "Ei komentoja tältä vuodelta."),
+            value=(
+                "\n".join([f"- `{name}` ({n}×)" for name, n in top])
+                if top else "Ei komentoja tältä vuodelta."
+            ),
             inline=False,
         )
 
