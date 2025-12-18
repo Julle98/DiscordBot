@@ -811,11 +811,16 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
         task_type = None
         xp_amount = 0
 
+    prev_max_streak = 0
     if task_type:
+        streaks_before = load_streaks()
+        prev_max_streak = streaks_before.get(uid, {}).get(task_type, {}).get("max_streak", 0)
+
         try:
             was_reset, last_date, grace_used = await update_streak(user, task_type)
         except Exception as e:
             print(f"[ERROR] Streakin päivitys epäonnistui: {e}")
+            was_reset, last_date, grace_used = False, None, False
 
     streaks = load_streaks()
     user_streak_data = streaks.get(uid, {}).get(task_type, {})
@@ -846,6 +851,13 @@ async def complete_task(user: discord.Member, task_name: str, guild: discord.Gui
                     f"{user.mention} suoritti {task_label} tehtävän **{task_name}** ja sai +{xp_amount} XP! ✅\n"
                     f"Streak nousi lukemaan **{current_streak}** ({task_label} tehtävissä). Pisin streak: **{max_streak}** 🔥"
                 )
+
+                if prev_max_streak > 0 and current_streak == prev_max_streak and max_streak == prev_max_streak:
+                    await channel.send(
+                        f"🎉 {user.mention} palautti {task_label} putken takaisin ennätyslukemiin **{current_streak}**! "
+                        f"Siitä se taas lähtee! 🚀"
+                    )
+
                 if grace_used:
                     grace_fails = user_streak_data.get("grace_fails", 0)
                     formatted_last_completed = (
