@@ -78,15 +78,42 @@ def osallistuminen_kommentti(total: int, arvonnat: int, voitot: int, aanestykset
 
     lisä = []
     if arvonnat > 0:
-        lisä.append(f"Arvontoihin osallistuttu **{arvonnat}** kertaa")
+        lisä.append(f"Arvontoihin osallistuttu **{arvonnat}** kertaa.")
     if voitot > 0:
-        lisä.append(f"ja voitettu **{voitot}** kertaa 🎉")
+        lisä.append(f"ja voitettu **{voitot}** kertaa. 🎉")
     if aanestykset > 0 and not lisä:
-        lisä.append(f"Äänestyksiin osallistuttu **{aanestykset}** kertaa")
+        lisä.append(f"Äänestyksiin osallistuttu **{aanestykset}** kertaa.")
 
     if lisä:
         return base + " " + " ".join(lisä)
     return base
+
+def tehtava_kommentti(count: int, daily: int, weekly: int, monthly: int) -> str:
+    if count <= 0:
+        return "Tehtäviä ei ole vielä tehty. Tästä on hyvä aloittaa – ensimmäinen tehtävä odottaa!"
+
+    if count < 10:
+        perus = "Muutamia tehtäviä suoritettu. Rauhallinen aloitustahti."
+    elif count < 40:
+        perus = "Tehtäviä on tehty mukavasti. Olet selvästi mukana tehtävämeiningissä."
+    elif count < 100:
+        perus = "Tehtäviä on suoritettu paljon. Olet yksi palvelimen aktiivisista tekijöistä."
+    else:
+        perus = "Tehtäviä on aivan valtava määrä. Olet todellinen tehtäväkone!"
+
+    streak_osuus = []
+
+    if daily > 0:
+        streak_osuus.append(f"päivittäinen streak **{daily}**")
+    if weekly > 0:
+        streak_osuus.append(f"viikoittainen streak **{weekly}**")
+    if monthly > 0:
+        streak_osuus.append(f"kuukausittainen streak **{monthly}**")
+
+    if streak_osuus:
+        return perus + " Lisäksi sinulla on " + ", ".join(streak_osuus) + "."
+
+    return perus
 
 def ero_str(nyky: int | float, edellinen: int | float | None, yksikkö: str = "") -> str:
     if edellinen is None:
@@ -788,6 +815,18 @@ class YhteenvetoCog(commands.Cog):
             value=("\n".join([f"- **{name}** ({n}×)" for name, n in top]) if top else "Ei tehtäviä tältä vuodelta."),
             inline=False,
         )
+
+        embed.add_field(
+            name="📝 Tehtäväkommentti",
+            value=tehtava_kommentti(
+                int(t["count"]),
+                int(t.get("daily_streak", 0)),
+                int(t.get("weekly_streak", 0)),
+                int(t.get("monthly_streak", 0)),
+            ),
+            inline=False,
+        )
+
         return embed
 
     def _moderointi_toiminta_sivu(self, user: discord.User, stats: dict, prev: dict | None) -> discord.Embed:
@@ -844,12 +883,12 @@ class YhteenvetoCog(commands.Cog):
             title=f"Tilu 24G Rewind [{year}] ({user.display_name} edition)",
             description=(
                 "Oletko valmis näkemään toimintasi tältä vuodelta?\n"
-                f"Pystyt näkemään yhteenvedon: **{until_str}** saakka.\n\n"
+                f"Pystyt näkemään yhteenvedon: **{until_str}** klo 23:59 saakka.\n\n"
                 f"**Ajanjakso:** {ajanjakso}"
             ),
             color=discord.Color.blurple(),
         )
-        embed.set_footer(text="Yhteenveto tehty Sannamaija bot tietokannoista.")
+        embed.set_footer(text="Yhteenveto tehty Sannamaijan tietokannoista.")
         return embed
 
     def _xp_sivu(self, user: discord.User, stats: dict, prev: dict | None) -> discord.Embed:
@@ -863,7 +902,7 @@ class YhteenvetoCog(commands.Cog):
         )
 
         embed.add_field(
-            name="📌 Mistä XP tulee",
+            name="📌 Mistä XP:si tulee",
             value=(
                 f"📘 Tehtävät (vuosi arvio): **{int(xp.get('tasks_xp', 0))} XP**\n"
                 f"🔊 Puhe (kokonais arvio): **{int(xp.get('voice_xp', 0))} XP**\n"
@@ -976,7 +1015,7 @@ class YhteenvetoCog(commands.Cog):
         if now_local() > visible_until_dt:
             until_str = visible_until_dt.strftime("%d.%m.%Y")
             await interaction.response.send_message(
-                f"Rewind-yhteenveto on sulkeutunut ({until_str}).",
+                f"Tilu 24G Wrapped-yhteenveto on sulkeutunut ({until_str}).",
                 ephemeral=True
             )
             return
@@ -984,7 +1023,7 @@ class YhteenvetoCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         lataus_embed = discord.Embed(
-            title="⏳ Ladataan Rewind-dataa...",
+            title="⏳ Ladataan Tilu 24G Wrapped-dataa...",
             description="Haetaan tietoja lokista ja tietokannoista.\nTämä saattaa kestää hetken ennen kuin etusivu avautuu.\nArvioitu odotusaika: 30 sek – 3 min.",
             color=discord.Color.orange(),
         )
@@ -1023,14 +1062,14 @@ class YhteenvetoCog(commands.Cog):
             await interaction.edit_original_response(embed=err, view=None)
             raise 
 
-    @app_commands.command(name="yhteenveto", description="Näytä oma vuoden yhteenveto.")
+    @app_commands.command(name="yhteenveto", description="Näytä oma Tilu 24G Wrapped.")
     @app_commands.checks.has_role("24G")
     async def yhteenveto(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/yhteenveto")
         await kirjaa_ga_event(self.bot, interaction.user.id, "yhteenveto_komento")
         await self._näytä_yhteenveto(interaction, interaction.user)
 
-    @app_commands.command(name="yhteenveto_jäsenet", description="Näytä jäsenen vuoden yhteenveto.")
+    @app_commands.command(name="yhteenveto_jäsenet", description="Näytä jäsenen Tilu 24G Wrapped.")
     @app_commands.describe(jäsen="Jäsen, jonka yhteenveto näytetään.")
     @app_commands.checks.has_role("Mestari")
     async def yhteenveto_jäsenet(self, interaction: discord.Interaction, jäsen: discord.Member):
