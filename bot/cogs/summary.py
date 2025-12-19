@@ -10,6 +10,7 @@ from discord import app_commands
 from bot.utils.logger import kirjaa_komento_lokiin
 from bot.utils.logger import kirjaa_ga_event
 from bot.utils.settings_utils import get_user_settings
+from bot.cogs.achievements import ACHIEVEMENTS_PATH
 
 try:
     from zoneinfo import ZoneInfo
@@ -114,6 +115,54 @@ def tehtava_kommentti(count: int, daily: int, weekly: int, monthly: int) -> str:
         return perus + " Lisäksi sinulla on " + ", ".join(streak_osuus) + "."
 
     return perus
+
+def saavutusten_kategoria(key: str) -> str:
+    if key.startswith("member_"):
+        return "Jäsenyys"
+    if key.startswith("xp_"):
+        return "XP"
+    if key.startswith("tasks_"):
+        return "Tehtävät"
+    if key.startswith("level_"):
+        return "Tasot"
+    if key.startswith("voice_"):
+        return "Puhe"
+    if key.startswith("participation_"):
+        return "Osallistumiset"
+    if key.startswith("cmd_") or key == "all_core_commands_once":
+        return "Komennot"
+    if key == "rule_breaker":
+        return "Erikoiset"
+    return "Muut"
+
+def saavutukset_kommentti(total_year: int, total_all: int, by_cat_year: dict[str, int]) -> str:
+    if total_year <= 0 and total_all <= 0:
+        return "Et ole vielä avannut yhtään saavutusta. Kaikki palkinnot ovat vielä edessä!"
+
+    if total_year <= 0 and total_all > 0:
+        return (
+            f"Olet avannut yhteensä **{total_all}** saavutusta, "
+            "mutta et yhtään uutta tänä vuonna. Ehkä tänä vuonna haetaan uusi pokaali? 🏅"
+        )
+
+    if total_year < 3:
+        perus = f"Tänä vuonna avattu **{total_year}** saavutusta. Rauhallinen keräilytahti."
+    elif total_year < 10:
+        perus = f"Tänä vuonna avattu **{total_year}** saavutusta. Olet hyvin mukana metsästämässä palkintoja!"
+    elif total_year < 25:
+        perus = f"Tänä vuonna avattu **{total_year}** saavutusta. Olet selvästi yksi palvelimen aktiivisista keräilijöistä!"
+    else:
+        perus = f"Tänä vuonna avattu peräti **{total_year}** saavutusta. Todellinen achievement-hirviö! 🔥"
+
+    if by_cat_year:
+        suosituin_kat, määrä = max(by_cat_year.items(), key=lambda x: x[1])
+        lisä = f" Eniten saavutuksia on tullut kategoriasta **{suosituin_kat}** ({määrä} kpl)."
+    else:
+        lisä = ""
+
+    kokonais = f" Yhteensä sinulla on avattuna **{total_all}** saavutusta kaikkina aikoina."
+
+    return perus + lisä + kokonais
 
 def ero_str(nyky: int | float, edellinen: int | float | None, yksikkö: str = "") -> str:
     if edellinen is None:
@@ -273,6 +322,7 @@ class YhteenvetoCog(commands.Cog):
         mod = stats.get("moderation", {})
         act = stats.get("activity", {})
         shop = stats.get("shop", {})
+        ach = stats.get("achievements", {}) or {}
 
         top_task = (tasks.get("top_tasks") or [])[0] if (tasks.get("top_tasks") or []) else None
         top_cmd = (cmds.get("top") or [])[0] if (cmds.get("top") or []) else None
@@ -298,6 +348,8 @@ class YhteenvetoCog(commands.Cog):
         embed.add_field(name="🛒 Ostoksia", value=f"**{int(shop.get('purchases_count', 0))}**", inline=True)
         embed.add_field(name="🎟️ Kuponkeja", value=f"**{int(shop.get('coupons_count', 0))}**", inline=True)
         embed.add_field(name="🎁 Tarjouksia", value=f"**{int(shop.get('offers_count', 0))}**", inline=True)
+        embed.add_field(name="🏅 Saavutukset", value=f"**{int(ach.get('total_year', 0))}**", inline=True)
+        embed.add_field(name="💡 Vihjeet", value=f"**{int(ach.get('hint_usage_total', 0))}**", inline=True)
 
         if top_task:
             embed.add_field(name="🏆 Top-tehtävä", value=f"**{top_task[0]}** ({top_task[1]}×)", inline=False)
@@ -721,6 +773,59 @@ class YhteenvetoCog(commands.Cog):
             pass
 
         stats["activity"] = {"analysed_messages": int(analysed_messages), "total_voice_seconds": int(total_voice_seconds)}
+
+        try:
+            completed_all: dict[str, str] = {}
+            last_streaks: dict = {}
+            hint_usage_total = 0
+
+            if ACHIEVEMENTS_PATH.exists():
+                with open(ACHIEVEMENTS_PATH, encoding="utf-8") as f:
+                    a_data = json.load(f)
+
+                a_user = a_data.get(uid, {}) or {}
+                completed_all = a_user.get("completed", {}) or {}
+                last_streaks = a_user.get("last_streaks", {}) or {}
+
+                hint_usage_dict = a_user.get("hint_usage", {}) or {}
+                hint_usage_total = int(sum(int(v) for v in hint_usage_dict.values()))
+
+            total_all = len(completed_all)
+            cat_all = Counter()
+            cat_year = Counter()
+            total_year = 0
+
+            for ach_key, ts in completed_all.items():
+                cat = saavutusten_kategoria(ach_key)
+                cat_all[cat] += 1
+
+                try:
+                    dt = datetime.fromisoformat(ts)
+                except Exception:
+                    dt = None
+
+                if dt and self._in_range(dt, start, end):
+                    total_year += 1
+                    cat_year[cat] += 1
+
+            stats["achievements"] = {
+                "total_all": int(total_all),
+                "total_year": int(total_year),
+                "by_category_all": dict(cat_all),
+                "by_category_year": dict(cat_year),
+                "last_streaks": last_streaks,
+                "hint_usage_total": int(hint_usage_total),
+            }
+        except Exception:
+            stats["achievements"] = {
+                "total_all": 0,
+                "total_year": 0,
+                "by_category_all": {},
+                "by_category_year": {},
+                "last_streaks": {},
+                "hint_usage_total": 0,
+            }
+
         return stats
 
     def _ostokset_sivu(self, user: discord.User, stats: dict, prev: dict | None) -> discord.Embed:
@@ -995,6 +1100,88 @@ class YhteenvetoCog(commands.Cog):
 
         return embed
 
+    def _saavutukset_sivu(self, user: discord.User, stats: dict, prev: dict | None) -> discord.Embed:
+        a = stats.get("achievements", {}) or {}
+        total_year = int(a.get("total_year", 0))
+        total_all = int(a.get("total_all", 0))
+        by_cat_year = a.get("by_category_year", {}) or {}
+        by_cat_all = a.get("by_category_all", {}) or {}
+        hint_usage_total = int(a.get("hint_usage_total", 0))
+
+        embed = discord.Embed(
+            title="🏅 Saavutukset",
+            description=f"{user.display_name} – avatut saavutukset.",
+            color=discord.Color.blue(),
+        )
+
+        embed.add_field(
+            name="📅 Tänä vuonna avatut",
+            value=f"**{total_year}** saavutusta",
+            inline=True,
+        )
+
+        if prev and prev.get("achievements", {}).get("total_year") is not None:
+            embed.add_field(
+                name="📈 Vertailu",
+                value=ero_str(
+                    total_year,
+                    int(prev["achievements"]["total_year"]),
+                    "saavutusta",
+                ),
+                inline=True,
+            )
+
+        embed.add_field(
+            name="🗓️ Kaikkina aikoina",
+            value=f"**{total_all}** saavutusta",
+            inline=True,
+        )
+
+        if by_cat_year:
+            kat_teksti = "\n".join(
+                f"- **{kat}**: {määrä} kpl"
+                for kat, määrä in sorted(by_cat_year.items(), key=lambda x: x[1], reverse=True)
+            )
+        else:
+            kat_teksti = "Tänä vuonna ei ole avattu uusia saavutuksia."
+
+        embed.add_field(
+            name="📅 Jaottelu (tämä vuosi)",
+            value=kat_teksti,
+            inline=False,
+        )
+
+        if by_cat_all:
+            kat_all_teksti = "\n".join(
+                f"- **{kat}**: {määrä} kpl"
+                for kat, määrä in sorted(by_cat_all.items(), key=lambda x: x[1], reverse=True)
+            )
+            embed.add_field(
+                name="🗓️ Jaottelu (kaikki ajat)",
+                value=kat_all_teksti,
+                inline=False,
+            )
+
+        lisä = []
+
+        if hint_usage_total > 0:
+            lisä.append(f"Vihjeitä käytetty yhteensä **{hint_usage_total}** kertaa.")
+
+        if lisä:
+            embed.add_field(
+                name="💡 Lisäksi",
+                value=" ".join(lisä),
+                inline=False,
+            )
+
+        embed.add_field(
+            name="📝 Saavutuskommentti",
+            value=saavutukset_kommentti(total_year, total_all, by_cat_year),
+            inline=False,
+        )
+
+        return embed
+
     async def _näytä_yhteenveto(self, interaction: discord.Interaction, target: discord.User):
         year = now_local().year
         visible_until_dt = get_visible_until(year)
@@ -1046,6 +1233,7 @@ class YhteenvetoCog(commands.Cog):
                 ("Ostokset", lambda: self._ostokset_sivu(target, current_stats, prev_stats)),
                 ("Osallistumiset & komennot", lambda: self._osallistumiset_komennot_sivu(target, current_stats, prev_stats)),
                 ("Moderointi & toiminta", lambda: self._moderointi_toiminta_sivu(target, current_stats, prev_stats)),
+                ("Saavutukset", lambda: self._saavutukset_sivu(target, current_stats, prev_stats)), 
                 ("Loppukooste", lambda: loppu_embed),
             ]
 
