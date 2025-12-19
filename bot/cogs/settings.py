@@ -20,7 +20,7 @@ async def kirjaa_asetusmuutos_lokiin(bot, user: discord.User, muutokset: dict):
 
     kuvaus = "\n".join([f"🔧 `{key}` → {'✅ Päällä' if val else '❌ Pois'}" for key, val in muutokset.items()])
     embed = discord.Embed(
-        title="⚙️ XP-asetusten muutos",
+        title="⚙️ Asetusten muutos",
         description=f"**Käyttäjä:** {user.mention} (`{user.id}`)\n**Aikaleima:** {nyt}\n\n{kuvaus}",
         color=discord.Color.gold()
     )
@@ -34,9 +34,9 @@ class SettingsView(discord.ui.View):
         self.default_settings = default_settings
 
         options = [
-            discord.SelectOption(label="✅ Kaikki päälle", value="enable_all", description="Aktivoi kaikki XP-asetukset"),
-            discord.SelectOption(label="❌ Kaikki pois", value="disable_all", description="Poista kaikki XP-asetukset käytöstä"),
-            discord.SelectOption(label="🔄 Palauta oletukset", value="reset_defaults", description="Palauta alkuperäiset XP-asetukset"),
+            discord.SelectOption(label="✅ Kaikki päälle", value="enable_all", description="Aktivoi kaikki asetukset"),
+            discord.SelectOption(label="❌ Kaikki pois", value="disable_all", description="Poista kaikki asetukset käytöstä"),
+            discord.SelectOption(label="🔄 Palauta oletukset", value="reset_defaults", description="Palauta alkuperäiset oletus asetukset"),
         ]
 
         for key, label, desc in [
@@ -44,7 +44,7 @@ class SettingsView(discord.ui.View):
             ("xp_puhe", "🎙️ XP puhekanavalta", "Vaihda asetusta XP:n saannista puhekanavilta"),
             ("xp_komennot", "⚙️ XP komennoista", "Vaihda asetusta XP:n saannista komennoista"),
             ("xp_epaaktiivisuus", "🕒 XP bonus epäaktiivisuudesta", "Vaihda asetusta XP:n saannista epäaktiivisuus bonuksissa"),
-            ("yhteenveto_henkilotiedot", "🧾 Henkilötietosi yhteenvedon tekeminen", "Salli/estä henkilökohtaisen Rewind-yhteenvedon luonti"),
+            ("yhteenveto_henkilotiedot", "🧾 Tilu 24G Wrapped tekeminen", "Salli/estä henkilökohtaisen Wrapped-yhteenvedon luonti"),
         ]:
             tila = "✅ Päällä" if self.settings.get(key) else "❌ Pois"
             options.append(discord.SelectOption(
@@ -54,7 +54,7 @@ class SettingsView(discord.ui.View):
             ))
 
         self.select = discord.ui.Select(
-            placeholder="Valitse XP-asetukset",
+            placeholder="Valitse asetuksia muokattavaksi...",
             min_values=1,
             max_values=len(options),
             options=options
@@ -76,7 +76,7 @@ class SettingsView(discord.ui.View):
             await interaction.response.send_message(
                 embed=discord.Embed(
                     title="⚠️ Vahvista asetusten muutos",
-                    description="Olet tekemässä laajaa muutosta XP-asetuksiin.\nKlikkaa alla olevaa nappia vahvistaaksesi tai peruaksesi.",
+                    description="Olet tekemässä laajaa muutosta asetuksiin.\nKlikkaa alla olevaa nappia vahvistaaksesi tai peruaksesi.",
                     color=discord.Color.orange()
                 ),
                 view=ConfirmationView(selected, self.settings, self.update_callback, self.default_settings),
@@ -127,7 +127,7 @@ class Asetukset(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="asetukset", description="Muuta XP-asetuksiasi.")
+    @app_commands.command(name="asetukset", description="Muuta asetuksiasi Sannamaijalla.")
     async def asetukset(self, interaction: discord.Interaction):
         await kirjaa_komento_lokiin(self.bot, interaction, "/asetukset")
         await kirjaa_ga_event(self.bot, interaction.user.id, "asetukset_komento")
@@ -149,7 +149,7 @@ class Asetukset(commands.Cog):
 
         async def update_embed(inter: discord.Interaction, updated_settings, status_message: str):
             embed = discord.Embed(
-                title="⚙️ XP-asetuksesi (päivitetty)",
+                title="⚙️ Asetuksesi (päivitetty)",
                 description=status_message,
                 color=discord.Color.green()
             )
@@ -158,7 +158,7 @@ class Asetukset(commands.Cog):
                 "xp_puhe": "XP puhekanavalta",
                 "xp_komennot": "XP komennoista",
                 "xp_epaaktiivisuus": "XP bonus epäaktiivisuudesta",
-                "yhteenveto_henkilotiedot": "Henkilötietosi yhteenvedon tekeminen"
+                "yhteenveto_henkilotiedot": "Tilu 24G Wrapped tekeminen"
             }.items():
                 embed.add_field(name=label, value="✅ Päällä" if updated_settings[key] else "❌ Pois", inline=False)
 
@@ -178,7 +178,7 @@ class Asetukset(commands.Cog):
                 )
 
         embed = discord.Embed(
-            title="⚙️ XP-asetuksesi",
+            title="⚙️ Asetuksesi",
             color=discord.Color.blurple()
         )
         for key, label in {
@@ -186,7 +186,7 @@ class Asetukset(commands.Cog):
             "xp_puhe": "XP puhekanavalta",
             "xp_komennot": "XP komennoista",
             "xp_epaaktiivisuus": "XP bonus epäaktiivisuudesta",
-            "yhteenveto_henkilotiedot": "Henkilötietosi yhteenvedon tekeminen"
+            "yhteenveto_henkilotiedot": "Tilu 24G Wrapped tekeminen"
         }.items():
             embed.add_field(name=label, value=format_status(settings[key]), inline=False)
 

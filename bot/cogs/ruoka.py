@@ -487,6 +487,15 @@ class ruoka(commands.Cog):
     ):
         await kirjaa_komento_lokiin(self.bot, interaction, "/ruoka")
         await kirjaa_ga_event(self.bot, interaction.user.id, "ruoka_komento")
+
+        ruokalistat_kiinni = os.getenv("RUOKALISTAT_KIINNI", "").upper()
+        if ruokalistat_kiinni == "ON":
+            await interaction.response.send_message(
+                "Ruokalistoja ei ole saatavilla tällä hetkellä ❌",
+                ephemeral=True
+            )
+            return
+
         await interaction.response.defer()
 
         await hae_ruoka(
