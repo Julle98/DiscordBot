@@ -3,6 +3,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from collections import Counter
 import discord
@@ -147,6 +148,30 @@ def hae_streakit(uid: str) -> tuple[int, int, int]:
     monthly = int(user.get("monthly", {}).get("streak", 0))
     return daily, weekly, monthly
 
+async def hae_tehtava_streak(user_id: str) -> int:
+    channel = bot.get_channel(TASK_DATA_CHANNEL_ID)
+    if not channel:
+        return 0
+
+    dates = set()
+    async for msg in channel.history(limit=2000):
+        try:
+            data = json.loads(msg.content)
+            if data.get("type") == "user_task" and str(data.get("user_id")) == user_id:
+                dates.add(msg.created_at.date())
+        except Exception:
+            continue
+
+    if not dates:
+        return 0
+
+    streak = 0
+    d = datetime.now(timezone.utc).date()
+    while d in dates:
+        streak += 1
+        d = d - timedelta(days=1)
+    return streak
+
 def hae_puhe_streak(uid: str) -> int:
     data = load_json(PUHE_STREAK_PATH, {})
     puhedata = data.get(uid, {})
@@ -283,7 +308,7 @@ class Jasen547pv(AchievementDef):
         super().__init__(
             id="member_547_days",
             name="Pitkäaikainen",
-            description="Ollut jäsenenä palvelimella 547 päivää.",
+            description="Ollut jäsenenä palvelimella 1,5 vuotta putkeen.",
             category="Jäsenyys",
             hidden_until_started=True,
         )
@@ -296,7 +321,7 @@ class Jasen730pv(AchievementDef):
         super().__init__(
             id="member_730_days",
             name="Ikoninen jäsen",
-            description="Ollut jäsenenä palvelimella 730 päivää.",
+            description="Ollut jäsenenä palvelimella 2 vuotta putkeen.",
             category="Jäsenyys",
             hidden_until_started=True,
         )
@@ -562,6 +587,48 @@ class Rikkoja(AchievementDef):
         total = stats["warnings"] + stats["mutes"]
         return f"{total} merkintää"
 
+class Rikkeet2(AchievementDef):
+    def __init__(self):
+        super().__init__(id="violations_2", name="Varoiteltu", description="Saanut yhteensä 2 moderointimerkintää.", category="Moderointi", hidden_until_started=True)
+    def is_started(self, stats): return (stats["warnings"] + stats["mutes"]) > 0
+    def is_completed(self, stats): return (stats["warnings"] + stats["mutes"]) >= 2
+    def progress_text(self, stats): return f"{stats['warnings']+stats['mutes']}/2 merkintää"
+
+class Rikkeet3(AchievementDef):
+    def __init__(self):
+        super().__init__(id="violations_3", name="Kova tapaus", description="Saanut yhteensä 3 moderointimerkintää.", category="Moderointi", hidden_until_started=True)
+    def is_started(self, stats): return (stats["warnings"] + stats["mutes"]) >= 2
+    def is_completed(self, stats): return (stats["warnings"] + stats["mutes"]) >= 3
+    def progress_text(self, stats): return f"{stats['warnings']+stats['mutes']}/3 merkintää"
+
+class Rikkeet4(AchievementDef):
+    def __init__(self):
+        super().__init__(id="violations_4", name="Toistuva rikkoja", description="Saanut yhteensä 4 moderointimerkintää.", category="Moderointi", hidden_until_started=True)
+    def is_started(self, stats): return (stats["warnings"] + stats["mutes"]) >= 3
+    def is_completed(self, stats): return (stats["warnings"] + stats["mutes"]) >= 4
+    def progress_text(self, stats): return f"{stats['warnings']+stats['mutes']}/4 merkintää"
+
+class Auttaja1(AchievementDef):
+    def __init__(self):
+        super().__init__(id="help_1", name="Auttaja", description="Lähettänyt /help pyynnön kerran.", category="Osallistumiset", hidden_until_started=True)
+    def is_started(self, stats): return stats["commands"].get("help", 0) > 0
+    def is_completed(self, stats): return stats["commands"].get("help", 0) >= 1
+    def progress_text(self, stats): return f"{stats['commands'].get('help',0)}/1 pyyntö"
+
+class Auttaja5(AchievementDef):
+    def __init__(self):
+        super().__init__(id="help_5", name="Tukipilari", description="Lähettänyt /help pyynnön 5 kertaa.", category="Osallistumiset", hidden_until_started=True)
+    def is_started(self, stats): return stats["commands"].get("help", 0) >= 1
+    def is_completed(self, stats): return stats["commands"].get("help", 0) >= 5
+    def progress_text(self, stats): return f"{stats['commands'].get('help',0)}/5 pyyntöä"
+
+class Auttaja10(AchievementDef):
+    def __init__(self):
+        super().__init__(id="help_10", name="Yhteisön pelastaja", description="Lähettänyt /help pyynnön 10 kertaa.", category="Osallistumiset", hidden_until_started=True)
+    def is_started(self, stats): return stats["commands"].get("help", 0) >= 5
+    def is_completed(self, stats): return stats["commands"].get("help", 0) >= 10
+    def progress_text(self, stats): return f"{stats['commands'].get('help',0)}/10 pyyntöä"
+
 class PuheStreak7(AchievementDef):
     def __init__(self):
         super().__init__(
@@ -675,6 +742,20 @@ class VoiceTime100h(AchievementDef):
 
     def progress_text(self, stats):
         return f"{stats['voice_seconds'] // 3600} / 100 tuntia"
+
+class TehtavaStreak3(AchievementDef):
+    def __init__(self):
+        super().__init__(id="task_streak_3", name="Putki päälle", description="Suorittanut tehtäviä 3 päivää putkeen.", category="Streakit", hidden_until_started=True)
+    def is_started(self, stats): return stats["task_streak"] > 0
+    def is_completed(self, stats): return stats["task_streak"] >= 3
+    def progress_text(self, stats): return f"{stats['task_streak']}/3 päivää"
+
+class TehtavaStreak7(AchievementDef):
+    def __init__(self):
+        super().__init__(id="task_streak_7", name="Rautainen putki", description="Suorittanut tehtäviä 7 päivää putkeen.", category="Streakit", hidden_until_started=True)
+    def is_started(self, stats): return stats["task_streak"] >= 3
+    def is_completed(self, stats): return stats["task_streak"] >= 7
+    def progress_text(self, stats): return f"{stats['task_streak']}/7 päivää"
 
 class CommandOnce(AchievementDef):
     def __init__(self, cmd_name: str, ach_id: str, nice_name: str, desc: str):
@@ -803,6 +884,108 @@ class WrappedViewer(AchievementDef):
     def progress_text(self, stats):
         return f"Käytetty {stats['commands'].get('yhteenveto', 0)}×"
 
+class PlatinaXP(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="platinum_xp",
+            name="XP Mestari",
+            description="Suorittanut kaikki XP-kategorian saavutukset.",
+            category="Platina",
+            hidden_until_started=True,
+        )
+
+class PlatinaTehtavat(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="platinum_tasks",
+            name="Tehtävämestari",
+            description="Suorittanut kaikki Tehtävät-kategorian saavutukset.",
+            category="Platina",
+            hidden_until_started=True,
+        )
+
+class PlatinaTaso(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="platinum_level",
+            name="Tasonhallitsija",
+            description="Suorittanut kaikki Taso-kategorian saavutukset.",
+            category="Platina",
+            hidden_until_started=True,
+        )
+
+class PlatinaPuhe(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="platinum_voice",
+            name="Puhelegenda",
+            description="Suorittanut kaikki Puhe-kategorian saavutukset.",
+            category="Platina",
+            hidden_until_started=True,
+        )
+
+class PlatinaJasenyys(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="platinum_member",
+            name="Ikuinen jäsen",
+            description="Suorittanut kaikki Jäsenyys-kategorian saavutukset.",
+            category="Platina",
+            hidden_until_started=True,
+        )
+
+class PlatinaStreakit(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="platinum_streaks",
+            name="Putkimestari",
+            description="Suorittanut kaikki Streakit-kategorian saavutukset.",
+            category="Platina",
+            hidden_until_started=True,
+        )
+
+class PlatinaModerointi(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="platinum_moderation",
+            name="Kuriton legenda",
+            description="Suorittanut kaikki Moderointi-kategorian saavutukset.",
+            category="Platina",
+            hidden_until_started=True,
+        )
+
+class PlatinaKomennot(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="platinum_commands",
+            name="Komentomestari",
+            description="Suorittanut kaikki Komennot-kategorian saavutukset.",
+            category="Platina",
+            hidden_until_started=True,
+        )
+
+class PlatinaOsallistumiset(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="platinum_participation",
+            name="Yhteisön tukipilari",
+            description="Suorittanut kaikki Osallistumiset-kategorian saavutukset.",
+            category="Platina",
+            hidden_until_started=True,
+        )
+
+class Platina(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="platinum_all",
+            name="Platina",
+            description="Suorittanut kaikki saavutukset.",
+            category="Platina",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return True
+    def is_completed(self, stats): return False 
+
 ACHIEVEMENTS: list[AchievementDef] = [
     Jasen7pv(),
     Jasen30pv(),
@@ -828,6 +1011,14 @@ ACHIEVEMENTS: list[AchievementDef] = [
     Taso75(),
     Taso100(),
     Rikkoja(),
+    Rikkeet2(),
+    Rikkeet3(),
+    Rikkeet4(),
+    Auttaja1(),
+    Auttaja5(),
+    Auttaja10(),
+    TehtavaStreak3(),
+    TehtavaStreak7(),
     StreakReset(),
     PuheStreak7(),
     PuheStreak30(),
@@ -843,7 +1034,16 @@ ACHIEVEMENTS: list[AchievementDef] = [
     CommandOnce("tiedot", "cmd_tiedot_once", "Tietäjä", "Käyttänyt komentoa /tiedot kerran."),
     CommandOnce("yhteenveto", "cmd_yhteenveto_once", "Wrapped katsoja", "Käyttänyt komentoa /yhteenveto kerran."),
     AllCommandsOnce(),
-    WrappedViewer(),
+    PlatinaXP(),
+    PlatinaTehtavat(),
+    PlatinaTaso(),
+    PlatinaPuhe(),
+    PlatinaJasenyys(),
+    PlatinaStreakit(),
+    PlatinaModerointi(),
+    PlatinaKomennot(),
+    PlatinaOsallistumiset(),
+    Platina(),
 ]
 
 class CategorySelect(ui.Select):
@@ -1005,6 +1205,17 @@ class AchievementsView(ui.View):
         self.new_completed_ids = new_completed_ids or set()
 
         cats = sorted({s["def"].category for s in statuses})
+
+        if "Platina" not in cats:
+            cats.append("Platina")
+
+        if "Platina" in cats:
+            cats.remove("Platina")
+            if "Osallistumiset" in cats:
+                cats.insert(cats.index("Osallistumiset") + 1, "Platina")
+            else:
+                cats.append("Platina")
+
         self.add_item(CategorySelect(
             cog=self.cog,
             target=self.target,
@@ -1170,6 +1381,7 @@ class AchievementsCog(commands.Cog):
         participations = await hae_osallistumiset(member)
         daily_streak, weekly_streak, monthly_streak = hae_streakit(uid)
         voice_streak = hae_puhe_streak(uid)
+        task_streak = await hae_tehtava_streak(uid)
 
         voice_seconds = 0
         afk_moved = False
@@ -1198,6 +1410,7 @@ class AchievementsCog(commands.Cog):
             "weekly_streak": weekly_streak,
             "monthly_streak": monthly_streak,
             "voice_streak": voice_streak,
+            "task_streak": task_streak,
             "voice_seconds": voice_seconds,
             "afk_moved": afk_moved,
             "commands": commands_map,
@@ -1217,6 +1430,9 @@ class AchievementsCog(commands.Cog):
         results: list[dict] = []
 
         for ach in ACHIEVEMENTS:
+            if ach.category == "Platina":
+                continue
+
             started = ach.is_started(stats)
             completed_now = ach.is_completed(stats)
             completed_before = ach.id in entry["completed"]
@@ -1240,6 +1456,55 @@ class AchievementsCog(commands.Cog):
                     "completed": completed,
                     "completed_at": completed_at,
                     "progress": ach.progress_text(stats),
+                }
+            )
+
+        def _award_category_platinum(cat_name: str, plat_id: str, xp_reward: int = 100):
+            nonlocal changed
+            if plat_id in entry["completed"]:
+                return
+
+            cat_ids = [
+                a.id for a in ACHIEVEMENTS
+                if a.category == cat_name and a.category != "Platina"
+            ]
+            if not cat_ids:
+                return
+
+            if all(aid in entry["completed"] for aid in cat_ids):
+                entry["completed"][plat_id] = datetime.utcnow().isoformat()
+                plat_def = next(a for a in ACHIEVEMENTS if a.id == plat_id)
+                new_completed.append(plat_def)
+                award_achievement_xp(uid, xp_reward, f"Saavutus: {plat_def.name}")
+                changed = True
+
+        _award_category_platinum("XP", "platinum_xp")
+        _award_category_platinum("Tehtävät", "platinum_tasks")
+        _award_category_platinum("Taso", "platinum_level")
+        _award_category_platinum("Puhe", "platinum_voice")
+        _award_category_platinum("Jäsenyys", "platinum_member")
+        _award_category_platinum("Streakit", "platinum_streaks")
+        _award_category_platinum("Moderointi", "platinum_moderation")
+        _award_category_platinum("Komennot", "platinum_commands")
+        _award_category_platinum("Osallistumiset", "platinum_participation")
+
+        if "platinum_all" not in entry["completed"]:
+            non_platinum_ids = [a.id for a in ACHIEVEMENTS if a.category != "Platina"]
+            if non_platinum_ids and all(aid in entry["completed"] for aid in non_platinum_ids):
+                entry["completed"]["platinum_all"] = datetime.utcnow().isoformat()
+                plat_def = next(a for a in ACHIEVEMENTS if a.id == "platinum_all")
+                new_completed.append(plat_def)
+                award_achievement_xp(uid, 200, "Saavutus: Platina")
+                changed = True
+
+        for ach in [a for a in ACHIEVEMENTS if a.category == "Platina"]:
+            results.append(
+                {
+                    "def": ach,
+                    "started": True, 
+                    "completed": ach.id in entry["completed"],
+                    "completed_at": entry["completed"].get(ach.id),
+                    "progress": None,
                 }
             )
 
@@ -1298,6 +1563,24 @@ class AchievementsCog(commands.Cog):
             ),
             inline=False,
         )
+        embed.add_field(
+            name="🧩 Kategoriat ja etusivu",
+            value=(
+                "• Etusivulla näkyy yleistiedot ja tänään avatut saavutukset.\n"
+                "• Tarkempi lista avautuu valitsemalla kategoria pudotusvalikosta.\n"
+                "• Kategorian sisällä voit selata **avatut / keskeneräiset / lukitut** saavutuksia."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="💎 Platina-saavutukset",
+            value=(
+                "• Jokaisesta kategoriasta voi avata oman **Platina**-saavutuksen, kun sen kategorian kaikki saavutukset ovat valmiit.\n"
+                "• Kun kaikki saavutukset on suoritettu, avautuu myös **Platina (kaikki)**.\n"
+                "• Platina-saavutukset löytyvät kategoriavalikosta kohdasta **Platina**."
+            ),
+            inline=False,
+        )
         if mod:
             embed.add_field(
                 name="🧑‍💼 Modien käyttö",
@@ -1326,7 +1609,7 @@ class AchievementsCog(commands.Cog):
             ),
             inline=False,
         )
-        embed.set_footer(text="Kerää saavutuksia ajan kanssa – ne eivät katoa mihinkään. ☺️")
+        embed.set_footer(text="Kerää saavutuksia ajan kanssa! Ne eivät katoa mihinkään. ☺️")
         return embed
 
     def _build_overview_embed(
@@ -1380,6 +1663,23 @@ class AchievementsCog(commands.Cog):
             title=f"🏆 Saavutukset – {target.display_name}{title_suffix}",
             color=discord.Color.gold(),
         )
+
+        if mode.startswith("cat:") and cat_name:
+            cat_total = len(base)
+
+            cat_done = sum(1 for s in base if s["completed"])
+            cat_in_prog = sum(1 for s in base if s["started"] and not s["completed"])
+            cat_locked = sum(1 for s in base if (not s["started"]) and (not s["completed"]))
+
+            embed.add_field(
+                name=f"📊 {cat_name} – tilanne",
+                value=(
+                    f"✅ Avatut: **{cat_done}/{cat_total}**\n"
+                    f"🔓 Keskeneräiset: **{cat_in_prog}**\n"
+                    f"🔒 Lukitut: **{cat_locked}**"
+                ),
+                inline=False,
+            )
 
         today_completed = self._get_today_completed_statuses(statuses)
         if today_completed:
@@ -1445,7 +1745,7 @@ class AchievementsCog(commands.Cog):
 
                 line = f"{icon} **{name}**"
                 if desc:
-                    line += f"\n> {desc}"
+                    line += f"\n> {desc}"   
                 if progress:
                     line += f"\n> Edistyminen: *{progress}*"
                 lines.append(line)
