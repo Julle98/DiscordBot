@@ -2,6 +2,7 @@ import os
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from collections import Counter
 import discord
@@ -277,6 +278,32 @@ class Jasen365pv(AchievementDef):
     def progress_text(self, stats):
         return f"{stats['member_days']}/365 päivää"
 
+class Jasen547pv(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="member_547_days",
+            name="Pitkäaikainen",
+            description="Ollut jäsenenä palvelimella 547 päivää.",
+            category="Jäsenyys",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["member_days"] >= 1
+    def is_completed(self, stats): return stats["member_days"] >= 547
+    def progress_text(self, stats): return f"{stats['member_days']}/547 päivää"
+
+class Jasen730pv(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="member_730_days",
+            name="Ikoninen jäsen",
+            description="Ollut jäsenenä palvelimella 730 päivää.",
+            category="Jäsenyys",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["member_days"] >= 547
+    def is_completed(self, stats): return stats["member_days"] >= 730
+    def progress_text(self, stats): return f"{stats['member_days']}/730 päivää"
+
 class XP1000(AchievementDef):
     def __init__(self):
         super().__init__(
@@ -334,6 +361,45 @@ class XP10000(AchievementDef):
     def progress_text(self, stats):
         return f"{stats['xp']}/10000 XP"
 
+class XP25000(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="xp_25000",
+            name="Kokeneiden kilta",
+            description="Kertynyt yhteensä vähintään 25000 XP:tä.",
+            category="XP",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["xp"] > 0
+    def is_completed(self, stats): return stats["xp"] >= 25000
+    def progress_text(self, stats): return f"{stats['xp']}/25000 XP"
+
+class XP50000(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="xp_50000",
+            name="Veteraani",
+            description="Kertynyt yhteensä vähintään 50000 XP:tä.",
+            category="XP",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["xp"] >= 25000
+    def is_completed(self, stats): return stats["xp"] >= 50000
+    def progress_text(self, stats): return f"{stats['xp']}/50000 XP"
+
+class XP100000(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="xp_100000",
+            name="XP-legenda",
+            description="Kertynyt yhteensä vähintään 100000 XP:tä.",
+            category="XP",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["xp"] >= 50000
+    def is_completed(self, stats): return stats["xp"] >= 100000
+    def progress_text(self, stats): return f"{stats['xp']}/100000 XP"
+
 class Tehtava10(AchievementDef):
     def __init__(self):
         super().__init__(
@@ -353,6 +419,45 @@ class Tehtava10(AchievementDef):
     def progress_text(self, stats):
         return f"{stats['tasks']}/10 tehtävää"
 
+class Tehtava25(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="tasks_25",
+            name="Tehtäväkone",
+            description="Suorittanut vähintään 25 tehtävää.",
+            category="Tehtävät",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["tasks"] > 0
+    def is_completed(self, stats): return stats["tasks"] >= 25
+    def progress_text(self, stats): return f"{stats['tasks']}/25 tehtävää"
+
+class Tehtava50(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="tasks_50",
+            name="Mestarisuorittaja",
+            description="Suorittanut vähintään 50 tehtävää.",
+            category="Tehtävät",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["tasks"] >= 25
+    def is_completed(self, stats): return stats["tasks"] >= 50
+    def progress_text(self, stats): return f"{stats['tasks']}/50 tehtävää"
+
+class Tehtava100(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="tasks_100",
+            name="Tehtävälegenda",
+            description="Suorittanut vähintään 100 tehtävää.",
+            category="Tehtävät",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["tasks"] >= 50
+    def is_completed(self, stats): return stats["tasks"] >= 100
+    def progress_text(self, stats): return f"{stats['tasks']}/100 tehtävää"
+
 class Taso10(AchievementDef):
     def __init__(self):
         super().__init__(
@@ -371,6 +476,71 @@ class Taso10(AchievementDef):
 
     def progress_text(self, stats):
         return f"Taso {stats['level']}/10"
+
+class Taso15(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="level_15",
+            name="Nousukiidossa",
+            description="Saavuttanut vähintään tason 15.",
+            category="Taso",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["level"] >= 1
+    def is_completed(self, stats): return stats["level"] >= 15
+    def progress_text(self, stats): return f"Taso {stats['level']}/15"
+
+class Taso25(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="level_25",
+            name="Vakiintunut",
+            description="Saavuttanut vähintään tason 25.",
+            category="Taso",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["level"] >= 15
+    def is_completed(self, stats): return stats["level"] >= 25
+    def progress_text(self, stats): return f"Taso {stats['level']}/25"
+
+class Taso50(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="level_50",
+            name="Huipputasolla",
+            description="Saavuttanut vähintään tason 50.",
+            category="Taso",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["level"] >= 25
+    def is_completed(self, stats): return stats["level"] >= 50
+    def progress_text(self, stats): return f"Taso {stats['level']}/50"
+
+class Taso75(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="level_75",
+            name="Eliitti",
+            description="Saavuttanut vähintään tason 75.",
+            category="Taso",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["level"] >= 50
+    def is_completed(self, stats): return stats["level"] >= 75
+    def progress_text(self, stats): return f"Taso {stats['level']}/75"
+
+class Taso100(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="level_100",
+            name="Legenda huipulla",
+            description="Saavuttanut vähintään tason 100.",
+            category="Taso",
+            hidden_until_started=True,
+        )
+    def is_started(self, stats): return stats["level"] >= 75
+    def is_completed(self, stats): return stats["level"] >= 100
+    def progress_text(self, stats): return f"Taso {stats['level']}/100"
 
 class Rikkoja(AchievementDef):
     def __init__(self):
@@ -553,7 +723,7 @@ class AfkMoved(AchievementDef):
             name="Zzz...",
             description="Joutunut AFK-kanavalle epäaktiivisuudesta.",
             category="Puhe",
-            hidden_until_started=False,
+            hidden_until_started=True,   
         )
 
     def is_started(self, stats):
@@ -639,11 +809,24 @@ ACHIEVEMENTS: list[AchievementDef] = [
     Jasen90pv(),
     Jasen180pv(),
     Jasen365pv(),
+    Jasen547pv(),
+    Jasen730pv(),
     XP1000(),
     XP5000(),
     XP10000(),
+    XP25000(),
+    XP50000(),
+    XP100000(),
     Tehtava10(),
+    Tehtava25(),
+    Tehtava50(),
+    Tehtava100(),
     Taso10(),
+    Taso15(),
+    Taso25(),
+    Taso50(),
+    Taso75(),
+    Taso100(),
     Rikkoja(),
     StreakReset(),
     PuheStreak7(),
@@ -663,6 +846,148 @@ ACHIEVEMENTS: list[AchievementDef] = [
     WrappedViewer(),
 ]
 
+class CategorySelect(ui.Select):
+    def __init__(
+        self,
+        cog: "AchievementsCog",
+        target: discord.Member,
+        statuses: list[dict],
+        viewer: discord.Member,
+        new_completed_ids: set[str],
+        categories: list[str],
+    ):
+        self.cog = cog
+        self.target = target
+        self.statuses = statuses
+        self.viewer = viewer
+        self.new_completed_ids = new_completed_ids
+
+        options = [discord.SelectOption(label="Etusivu", value="summary", emoji="🏠")]
+        options += [discord.SelectOption(label=c, value=f"cat:{c}", emoji="📂") for c in categories]
+
+        super().__init__(placeholder="Valitse kategoria…", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.viewer.id:
+            return await interaction.response.send_message("❌ Et voi käyttää tätä näkymää.", ephemeral=True)
+
+        value = self.values[0]
+        if value == "summary":
+            embed = self.cog._build_overview_embed(self.target, self.statuses, mode="summary", new_completed_ids=self.new_completed_ids)
+            view = AchievementsView(self.cog, self.target, self.statuses, viewer=self.viewer, new_completed_ids=self.new_completed_ids)
+            return await interaction.response.edit_message(embed=embed, view=view)
+
+        category = value.split("cat:", 1)[1]
+        embed = self.cog._build_overview_embed(self.target, self.statuses, mode=f"cat:{category}|all", new_completed_ids=self.new_completed_ids)
+        view = CategoryAchievementsView(self.cog, self.target, self.statuses, viewer=self.viewer, new_completed_ids=self.new_completed_ids, category=category, submode="all")
+        await interaction.response.edit_message(embed=embed, view=view)
+
+class CategoryAchievementsView(ui.View):
+    def __init__(
+        self,
+        cog: "AchievementsCog",
+        target: discord.Member,
+        statuses: list[dict],
+        viewer: discord.Member,
+        new_completed_ids: set[str],
+        category: str,
+        submode: str = "all",
+    ):
+        super().__init__(timeout=None)
+        self.cog = cog
+        self.target = target
+        self.statuses = statuses
+        self.viewer = viewer
+        self.new_completed_ids = new_completed_ids
+        self.category = category
+        self.submode = submode
+
+        if self.submode == "locked":
+            self.add_item(self.HintButton())
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.viewer.id
+
+    def _mode(self, sub: str) -> str:
+        return f"cat:{self.category}|{sub}"
+
+    async def _swap(self, interaction: discord.Interaction, sub: str):
+        embed = self.cog._build_overview_embed(
+            self.target,
+            self.statuses,
+            mode=self._mode(sub),
+            new_completed_ids=self.new_completed_ids,
+        )
+        new_view = CategoryAchievementsView(
+            self.cog,
+            self.target,
+            self.statuses,
+            self.viewer,
+            self.new_completed_ids,
+            self.category,
+            submode=sub,
+        )
+        await interaction.response.edit_message(embed=embed, view=new_view)
+
+    @ui.button(label="⬅️ Takaisin etusivulle", style=discord.ButtonStyle.secondary)
+    async def back(self, interaction: discord.Interaction, button: ui.Button):
+        embed = self.cog._build_overview_embed(self.target, self.statuses, mode="summary", new_completed_ids=self.new_completed_ids)
+        view = AchievementsView(self.cog, self.target, self.statuses, viewer=self.viewer, new_completed_ids=self.new_completed_ids)
+        await interaction.response.edit_message(embed=embed, view=view)
+
+    @ui.button(label="✅ Avatut", style=discord.ButtonStyle.success)
+    async def opened(self, interaction: discord.Interaction, button: ui.Button):
+        await self._swap(interaction, "opened")
+
+    @ui.button(label="🔓 Keskeneräiset", style=discord.ButtonStyle.primary)
+    async def in_progress(self, interaction: discord.Interaction, button: ui.Button):
+        await self._swap(interaction, "in_progress")
+
+    @ui.button(label="🔒 Lukitut", style=discord.ButtonStyle.danger)
+    async def locked(self, interaction: discord.Interaction, button: ui.Button):
+        await self._swap(interaction, "locked")
+
+    class HintButton(ui.Button):
+        def __init__(self):
+            super().__init__(label="💡 Vihje lukituista", style=discord.ButtonStyle.secondary)
+
+        async def callback(self, interaction: discord.Interaction):
+            view: "CategoryAchievementsView" = self.view  # type: ignore
+            cog = view.cog
+            uid = str(view.viewer.id)
+
+            if not cog._can_get_hint(uid):
+                return await interaction.response.send_message(
+                    "🔒 Olet käyttänyt tämän päivän vihjeet. Yritä uudelleen huomenna!",
+                    ephemeral=True,
+                )
+
+            locked = [
+                s for s in view.statuses
+                if s["def"].category == view.category
+                and (not s["started"] and not s["completed"])
+            ]
+            if not locked:
+                return await interaction.response.send_message(
+                    "✅ Tässä kategoriassa ei ole lukittuja saavutuksia.",
+                    ephemeral=True,
+                )
+
+            choice = random.choice(locked)
+            ach: AchievementDef = choice["def"]
+            cog._register_hint(uid)
+
+            embed = discord.Embed(
+                title="💡 Vihje lukitusta saavutuksesta",
+                description=(
+                    f"**Kategoria:** {ach.category}\n"
+                    f"📜 Kuvaus: *{ach.description}*"
+                ),
+                color=discord.Color.orange(),
+            )
+            embed.set_footer(text="Voit saada enintään 2 vihjettä per päivä.")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
 class AchievementsView(ui.View):
     def __init__(
         self,
@@ -679,63 +1004,54 @@ class AchievementsView(ui.View):
         self.viewer = viewer
         self.new_completed_ids = new_completed_ids or set()
 
+        cats = sorted({s["def"].category for s in statuses})
+        self.add_item(CategorySelect(
+            cog=self.cog,
+            target=self.target,
+            statuses=self.statuses,
+            viewer=self.viewer,
+            new_completed_ids=self.new_completed_ids,
+            categories=cats,
+        ))
+
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return interaction.user.id == self.viewer.id
 
-    @ui.button(label="✅ Näytä avatut", style=discord.ButtonStyle.success)
-    async def show_opened(self, interaction: discord.Interaction, button: ui.Button):
+class AchievementsCompletedView(ui.View):
+    def __init__(
+        self,
+        cog: "AchievementsCog",
+        target: discord.Member,
+        statuses: list[dict],
+        viewer: discord.Member,
+        new_completed_ids: set[str],
+    ):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.target = target
+        self.statuses = statuses
+        self.viewer = viewer
+        self.new_completed_ids = new_completed_ids
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.viewer.id
+
+    @ui.button(label="❌ Sulje", style=discord.ButtonStyle.danger)
+    async def close(self, interaction: discord.Interaction, button: ui.Button):
         embed = self.cog._build_overview_embed(
-            self.target, self.statuses, mode="opened", new_completed_ids=self.new_completed_ids
+            self.target,
+            self.statuses,
+            mode="all",
+            new_completed_ids=self.new_completed_ids,
         )
-        await interaction.response.edit_message(embed=embed, view=self)
-
-    @ui.button(label="🔓 Näytä keskeneräiset", style=discord.ButtonStyle.primary)
-    async def show_in_progress(self, interaction: discord.Interaction, button: ui.Button):
-        embed = self.cog._build_overview_embed(
-            self.target, self.statuses, mode="in_progress", new_completed_ids=self.new_completed_ids
+        view = AchievementsView(
+            self.cog,
+            self.target,
+            self.statuses,
+            viewer=self.viewer,
+            new_completed_ids=self.new_completed_ids,
         )
-        await interaction.response.edit_message(embed=embed, view=self)
-
-    @ui.button(label="🔒 Näytä lukitut", style=discord.ButtonStyle.secondary)
-    async def show_locked(self, interaction: discord.Interaction, button: ui.Button):
-        embed = self.cog._build_overview_embed(
-            self.target, self.statuses, mode="locked", new_completed_ids=self.new_completed_ids
-        )
-        await interaction.response.edit_message(embed=embed, view=self)
-
-    @ui.button(label="💡 Vihje lukituista", style=discord.ButtonStyle.danger)
-    async def show_hint(self, interaction: discord.Interaction, button: ui.Button):
-        uid = str(self.viewer.id)
-        if not self.cog._can_get_hint(uid):
-            await interaction.response.send_message(
-                "🔒 Olet käyttänyt tämän päivän vihjeet. Yritä uudelleen huomenna!",
-                ephemeral=True,
-            )
-            return
-
-        locked = [s for s in self.statuses if not s["started"] and not s["completed"]]
-        if not locked:
-            await interaction.response.send_message(
-                "✅ Sinulla ei ole lukittuja saavutuksia, joihin voisi antaa vihjeitä.",
-                ephemeral=True,
-            )
-            return
-
-        choice = random.choice(locked)
-        ach: AchievementDef = choice["def"]
-
-        self.cog._register_hint(uid)
-        embed = discord.Embed(
-            title="💡 Vihje lukitusta saavutuksesta",
-            description=(
-                "Tässä vihje yhdestä lukitusta saavutuksestasi:\n\n"
-                f"**Kategoria:** {ach.category}\n"
-                f"📜 Kuvaus: *{ach.description}*"
-            ),
-            color=discord.Color.orange(),
-        )
-        embed.set_footer(text="Voit saada enintään 2 vihjettä per päivä.")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.edit_message(embed=embed, view=view)
 
 class AchievementsCog(commands.Cog):
     def __init__(self, bot_: commands.Bot):
@@ -777,6 +1093,68 @@ class AchievementsCog(commands.Cog):
         used = int(hints.get(today, 0))
         hints[today] = used + 1
         self._save_data()
+
+    _NO_TODAY_TEXTS = [
+        "Valmis tekemään saavutuksia?",
+        "Aika saavutuksille!",
+        "Alkaako saavutusten teko?",
+        "Tänään voisi napsia yhden saavutuksen 👀",
+        "Pieni grind ja iso kunnia 🏆",
+        "Mikä olisi seuraava saavutus?",
+        "Saavutuksia kohti!",
+        "Mikä saavutus olisi seuraavana listalla?",
+        "Tänään on hyvä päivä saavuttaa jotain uutta!",
+        "Saavutukset odottavat sinua!",
+    ]
+
+    def _iso_to_date_utc(self, iso: str | None) -> str | None:
+        if not iso:
+            return None
+        try:
+            dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.astimezone(timezone.utc)
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            return None
+
+    def _get_today_completed_statuses(self, statuses: list[dict]) -> list[dict]:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        out = []
+        for st in statuses:
+            if not st.get("completed"):
+                continue
+            d = self._iso_to_date_utc(st.get("completed_at"))
+            if d == today:
+                out.append(st)
+        return out
+
+    def _build_completed_popup_embed(
+        self,
+        target: discord.Member,
+        new_completed: list[AchievementDef],
+    ) -> discord.Embed:
+        count = len(new_completed)
+        xp_total = sum(-20 if a.id == "rule_breaker" else 20 for a in new_completed)
+
+        lines = [
+            f"🏆 **{a.name}**\n> {a.description}"
+            for a in new_completed
+        ]
+
+        embed = discord.Embed(
+            title=f"🎉 {count} saavutusta suoritettu onnistuneesti!",
+            description=(
+                f"**Palkinto:** `{xp_total:+d} XP`\n\n"
+                + "\n\n".join(lines)
+                + "\n\n_Jatka samaan malliin!_"
+            ),
+            color=discord.Color.green(),
+        )
+
+        embed.set_footer(text="Siirry etusivulle painamalla ❌ Sulje")
+        return embed
 
     async def _collect_stats(self, member: discord.Member, entry_last_streaks: dict) -> dict:
         now = discord.utils.utcnow()
@@ -955,24 +1333,43 @@ class AchievementsCog(commands.Cog):
         self,
         target: discord.Member,
         statuses: list[dict],
-        mode: str = "all",               
-        new_completed_ids: set[str] | None = None, 
+        mode: str = "summary",
+        new_completed_ids: set[str] | None = None,
     ) -> discord.Embed:
         if new_completed_ids is None:
             new_completed_ids = set()
 
-        if mode == "opened":
-            filtered = [s for s in statuses if s["completed"]]
-            title_suffix = " – avatut"
-        elif mode == "in_progress":
-            filtered = [s for s in statuses if s["started"] and not s["completed"]]
-            title_suffix = " – keskeneräiset"
-        elif mode == "locked":
-            filtered = [s for s in statuses if not s["started"] and not s["completed"]]
-            title_suffix = " – lukitut"
+        title_suffix = ""
+        filtered: list[dict] = []
+
+        cat_name = None
+        submode = None
+
+        if mode.startswith("cat:"):
+            payload = mode.split("cat:", 1)[1]
+            if "|" in payload:
+                cat_name, submode = payload.split("|", 1)
+            else:
+                cat_name, submode = payload, "all"
+
+            base = [s for s in statuses if s["def"].category == cat_name]
+
+            if submode == "opened":
+                filtered = [s for s in base if s["completed"]]
+                title_suffix = f" – {cat_name} – avatut"
+            elif submode == "in_progress":
+                filtered = [s for s in base if s["started"] and not s["completed"]]
+                title_suffix = f" – {cat_name} – keskeneräiset"
+            elif submode == "locked":
+                filtered = [s for s in base if not s["started"] and not s["completed"]]
+                title_suffix = f" – {cat_name} – lukitut"
+            else:
+                filtered = base
+                title_suffix = f" – {cat_name}"
         else:
-            filtered = statuses
+            mode = "summary"
             title_suffix = ""
+            filtered = []
 
         total = len(statuses)
         completed_count = sum(1 for s in statuses if s["completed"])
@@ -983,6 +1380,22 @@ class AchievementsCog(commands.Cog):
             title=f"🏆 Saavutukset – {target.display_name}{title_suffix}",
             color=discord.Color.gold(),
         )
+
+        today_completed = self._get_today_completed_statuses(statuses)
+        if today_completed:
+            lines = []
+            for st in today_completed[:10]:
+                ach: AchievementDef = st["def"]
+                if ach.hidden_until_started and not st["started"] and not st["completed"]:
+                    name = "??? (piilotettu saavutus)"
+                else:
+                    name = ach.name
+                lines.append(f"✨ **{name}**")
+            extra = f"\n…ja {len(today_completed)-10} lisää" if len(today_completed) > 10 else ""
+            embed.add_field(name="📅 Tänään avatut", value="\n".join(lines) + extra, inline=False)
+        else:
+            embed.add_field(name="📅 Tänään avatut", value=random.choice(self._NO_TODAY_TEXTS), inline=False)
+
         desc_lines = [
             f"Valmiit: **{completed_count}/{total}**",
             f"Puuttuu vielä: **{missing}**",
@@ -991,10 +1404,24 @@ class AchievementsCog(commands.Cog):
             desc_lines.append(f"✨ Uusia tällä kertaa: **{new_now}**")
         embed.description = "\n".join(desc_lines)
 
+        if mode in ("summary", "all"):
+            by_cat_total: dict[str, int] = {}
+            by_cat_done: dict[str, int] = {}
+            for s in statuses:
+                c = s["def"].category
+                by_cat_total[c] = by_cat_total.get(c, 0) + 1
+                if s["completed"]:
+                    by_cat_done[c] = by_cat_done.get(c, 0) + 1
+
+            lines = [f"• **{c}**: {by_cat_done.get(c,0)}/{by_cat_total[c]}" for c in sorted(by_cat_total)]
+            embed.add_field(name="📂 Kategoriat", value="\n".join(lines) if lines else "—", inline=False)
+
+            embed.set_footer(text="Valitse kategoria valikosta tai selaa nappuloilla.")
+            return embed
+
         by_cat: dict[str, list[dict]] = {}
         for st in filtered:
-            ach: AchievementDef = st["def"]
-            by_cat.setdefault(ach.category, []).append(st)
+            by_cat.setdefault(st["def"].category, []).append(st)
 
         for cat, items in by_cat.items():
             lines = []
@@ -1003,7 +1430,6 @@ class AchievementsCog(commands.Cog):
                 started = st["started"]
                 completed = st["completed"]
                 progress = st["progress"]
-
                 just_now = ach.id in new_completed_ids
 
                 if ach.hidden_until_started and not started and not completed:
@@ -1013,13 +1439,7 @@ class AchievementsCog(commands.Cog):
                     name = ach.name
                     desc = ach.description
 
-                if completed:
-                    icon = "✅"
-                elif started:
-                    icon = "🔓"
-                else:
-                    icon = "🔒"
-
+                icon = "✅" if completed else ("🔓" if started else "🔒")
                 if just_now:
                     name = f"{name} ✨"
 
@@ -1030,12 +1450,9 @@ class AchievementsCog(commands.Cog):
                     line += f"\n> Edistyminen: *{progress}*"
                 lines.append(line)
 
-            if lines:
-                embed.add_field(name=f"📂 {cat}", value="\n\n".join(lines), inline=False)
+            embed.add_field(name=f"📂 {cat}", value="\n\n".join(lines), inline=False)
 
-        embed.set_footer(
-            text="Piilotetut saavutukset paljastuvat, kun alat edistyä niissä. Jokaisesta saavutuksesta +20 XP (Rikkoja: -20 XP)."
-        )
+        embed.set_footer(text="Piilotetut saavutukset paljastuvat, kun alat edistyä niissä.")
         return embed
 
     async def _maybe_first_run_embed(
@@ -1131,21 +1548,39 @@ class AchievementsCog(commands.Cog):
         )
         await interaction.edit_original_response(embed=lataus_embed, view=None)
 
-        first_run_overall = not bool(self._data)
         statuses, new_completed = await self._evaluate_for_user(target)
-
-        await self._send_new_achievements_embed(
-            interaction, target, new_completed, first_run_overall
-        )
-
         new_ids = {a.id for a in new_completed}
-        embed = self._build_overview_embed(
-            target, statuses, mode="all", new_completed_ids=new_ids
-        )
-        view = AchievementsView(
-            self, target, statuses, viewer=interaction.user, new_completed_ids=new_ids
-        )
-        await interaction.edit_original_response(embed=embed, view=view)
+
+        try:
+            embed = self._build_overview_embed(
+                target, statuses, mode="summary", new_completed_ids=new_ids
+            )
+            view = AchievementsView(
+                self, target, statuses, viewer=interaction.user, new_completed_ids=new_ids
+            )
+            await interaction.edit_original_response(embed=embed, view=view)
+        except Exception as e:
+            print(f"[Saavutukset] Etusivu renderöinti kaatui: {e}")
+            await interaction.edit_original_response(
+                embed=discord.Embed(
+                    title="❌ Saavutusten näyttö epäonnistui",
+                    description="Etusivun muodostus kaatui. Virhe merkitty lokiin.\nYritä myöhemmin uudelleen.",
+                    color=discord.Color.red(),
+                ),
+                view=None,
+            )
+            return
+
+        if new_completed:
+            popup_embed = self._build_completed_popup_embed(target, new_completed)
+            popup_view = AchievementsCompletedView(
+                self,
+                target,
+                statuses,
+                viewer=interaction.user,
+                new_completed_ids=new_ids,
+            )
+            await interaction.followup.send(embed=popup_embed, view=popup_view, ephemeral=True)
 
     @app_commands.command(name="saavutukset_jäsenet", description="Näytä jäsenen saavutukset (vain modeille).")
     @app_commands.describe(
@@ -1189,12 +1624,7 @@ class AchievementsCog(commands.Cog):
         )
         await interaction.edit_original_response(embed=lataus_embed, view=None)
 
-        first_run_overall = not bool(self._data)
         statuses, new_completed = await self._evaluate_for_user(jäsen)
-
-        await self._send_new_achievements_embed(
-            interaction, jäsen, new_completed, first_run_overall
-        )
 
         new_ids = {a.id for a in new_completed}
         embed = self._build_overview_embed(
