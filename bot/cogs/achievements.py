@@ -148,30 +148,6 @@ def hae_streakit(uid: str) -> tuple[int, int, int]:
     monthly = int(user.get("monthly", {}).get("streak", 0))
     return daily, weekly, monthly
 
-async def hae_tehtava_streak(user_id: str) -> int:
-    channel = bot.get_channel(TASK_DATA_CHANNEL_ID)
-    if not channel:
-        return 0
-
-    dates = set()
-    async for msg in channel.history(limit=2000):
-        try:
-            data = json.loads(msg.content)
-            if data.get("type") == "user_task" and str(data.get("user_id")) == user_id:
-                dates.add(msg.created_at.date())
-        except Exception:
-            continue
-
-    if not dates:
-        return 0
-
-    streak = 0
-    d = datetime.now(timezone.utc).date()
-    while d in dates:
-        streak += 1
-        d = d - timedelta(days=1)
-    return streak
-
 def hae_puhe_streak(uid: str) -> int:
     data = load_json(PUHE_STREAK_PATH, {})
     puhedata = data.get(uid, {})
@@ -757,6 +733,63 @@ class TehtavaStreak7(AchievementDef):
     def is_completed(self, stats): return stats["task_streak"] >= 7
     def progress_text(self, stats): return f"{stats['task_streak']}/7 päivää"
 
+class WeeklyStreak7(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="weekly_streak_7",
+            name="Viikkoputki",
+            description="Suorittanut viikkotehtäviä 7 viikkoa putkeen.",
+            category="Streakit",
+            hidden_until_started=True,
+        )
+
+    def is_started(self, stats):
+        return stats["weekly_streak"] > 0
+
+    def is_completed(self, stats):
+        return stats["weekly_streak"] >= 7
+
+    def progress_text(self, stats):
+        return f"{stats['weekly_streak']}/7 viikkoa"
+
+class DailyStreak30(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="task_streak_30",
+            name="Kuukauden grindaus",
+            description="Suorittanut päivittäisiä tehtäviä 30 päivää putkeen.",
+            category="Streakit",
+            hidden_until_started=True,
+        )
+
+    def is_started(self, stats):
+        return stats["daily_streak"] > 0
+
+    def is_completed(self, stats):
+        return stats["daily_streak"] >= 30
+
+    def progress_text(self, stats):
+        return f"{stats['daily_streak']}/30 päivää"
+
+class MonthlyStreak6(AchievementDef):
+    def __init__(self):
+        super().__init__(
+            id="monthly_streak_6",
+            name="Kuukausikone",
+            description="Suorittanut kuukausitehtäviä 6 kuukautta putkeen.",
+            category="Streakit",
+            hidden_until_started=True,
+        )
+
+    def is_started(self, stats):
+        return stats["monthly_streak"] > 0
+
+    def is_completed(self, stats):
+        return stats["monthly_streak"] >= 6
+
+    def progress_text(self, stats):
+        return f"{stats['monthly_streak']}/6 kuukautta"
+
 class CommandOnce(AchievementDef):
     def __init__(self, cmd_name: str, ach_id: str, nice_name: str, desc: str):
         super().__init__(
@@ -1019,6 +1052,9 @@ ACHIEVEMENTS: list[AchievementDef] = [
     Auttaja10(),
     TehtavaStreak3(),
     TehtavaStreak7(),
+    WeeklyStreak7(),
+    DailyStreak30(),
+    MonthlyStreak6(),
     StreakReset(),
     PuheStreak7(),
     PuheStreak30(),
@@ -1381,7 +1417,7 @@ class AchievementsCog(commands.Cog):
         participations = await hae_osallistumiset(member)
         daily_streak, weekly_streak, monthly_streak = hae_streakit(uid)
         voice_streak = hae_puhe_streak(uid)
-        task_streak = await hae_tehtava_streak(uid)
+        task_streak = daily_streak
 
         voice_seconds = 0
         afk_moved = False
@@ -1692,9 +1728,17 @@ class AchievementsCog(commands.Cog):
                     name = ach.name
                 lines.append(f"✨ **{name}**")
             extra = f"\n…ja {len(today_completed)-10} lisää" if len(today_completed) > 10 else ""
-            embed.add_field(name="📅 Tänään avatut", value="\n".join(lines) + extra, inline=False)
+            embed.add_field(
+                name="📅 Tänään avatut",
+                value="\n".join(lines) + extra,
+                inline=False,
+            )
         else:
-            embed.add_field(name="📅 Tänään avatut", value=random.choice(self._NO_TODAY_TEXTS), inline=False)
+            embed.add_field(
+                name="📅 Tänään",
+                value=random.choice(self._NO_TODAY_TEXTS),
+                inline=False,
+            )
 
         desc_lines = [
             f"Valmiit: **{completed_count}/{total}**",
@@ -1716,12 +1760,26 @@ class AchievementsCog(commands.Cog):
             lines = [f"• **{c}**: {by_cat_done.get(c,0)}/{by_cat_total[c]}" for c in sorted(by_cat_total)]
             embed.add_field(name="📂 Kategoriat", value="\n".join(lines) if lines else "—", inline=False)
 
-            embed.set_footer(text="Valitse kategoria valikosta tai selaa nappuloilla.")
+            embed.set_footer(text="Valitse kategoria valikosta nähdäksesi tarkemmat tiedot.")
             return embed
 
         by_cat: dict[str, list[dict]] = {}
         for st in filtered:
             by_cat.setdefault(st["def"].category, []).append(st)
+
+        if not by_cat and cat_name:
+            if submode in ("in_progress", "locked"):
+                empty_text = "Kaikki suoritettu täällä. Hyvää työtä! 🎉"
+            else:
+                empty_text = "Tässä näkymässä ei ole vielä mitään näytettävää."
+
+            embed.add_field(
+                name=f"📂 {cat_name}",
+                value=empty_text,
+                inline=False,
+            )
+            embed.set_footer(text="Piilotetut saavutukset paljastuvat, kun alat edistyä niissä.")
+            return embed
 
         for cat, items in by_cat.items():
             lines = []
@@ -1745,7 +1803,7 @@ class AchievementsCog(commands.Cog):
 
                 line = f"{icon} **{name}**"
                 if desc:
-                    line += f"\n> {desc}"   
+                    line += f"\n> {desc}"
                 if progress:
                     line += f"\n> Edistyminen: *{progress}*"
                 lines.append(line)
