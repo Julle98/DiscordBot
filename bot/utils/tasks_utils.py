@@ -77,6 +77,16 @@ LINK_REGEX = re.compile(
     r"(https?://\S+|www\.\S+|discord\.gg/\S+|discordapp\.com/\S+)"
 )
 
+TENOR_REGEX = re.compile(
+    r"(tenor\.com(/fi)?/view/[A-Za-z0-9\-]+|media\.tenor\.com/.*\.gif)",
+    re.IGNORECASE
+)
+
+GIPHY_REGEX = re.compile(
+    r"(giphy\.com/gifs/[A-Za-z0-9\-]+|media\d?\.giphy\.com/media/.*\.gif)",
+    re.IGNORECASE
+)
+
 from pathlib import Path
 import json
 
@@ -611,20 +621,38 @@ class TaskListener(discord.ui.View):
                 await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä viesti, jossa on yli 10 sanaa":
-            if message.channel.id == TASK_CHANNEL_ID and len(message.content.split()) > 10:
-                await self.finish_task()
+            if message.channel.id == TASK_CHANNEL_ID:
+                sanat = [s.lower() for s in message.content.split()]
+                uniikit = set(sanat)
+
+                if len(uniikit) >= 10:
+                    await self.finish_task()
+                else:
+                    await self.virheellinen_suoritus(message)
             else:
                 await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä Tenor-linkki":
-            if message.channel.id == TASK_CHANNEL_ID and "tenor.com/view" in message.content.lower():
-                await self.finish_task()
+            if message.channel.id == TASK_CHANNEL_ID:
+                content = message.content.lower()
+                attachment_ok = any(a.filename.lower().endswith(".gif") for a in message.attachments)
+
+                if TENOR_REGEX.search(content) or attachment_ok:
+                    await self.finish_task()
+                else:
+                    await self.virheellinen_suoritus(message)
             else:
                 await self.virheellinen_suoritus(message)
 
         elif self.task_name == "Lähetä Giphy-linkki":
-            if message.channel.id == TASK_CHANNEL_ID and "giphy.com/gifs" in message.content.lower():
-                await self.finish_task()
+            if message.channel.id == TASK_CHANNEL_ID:
+                content = message.content.lower()
+                attachment_ok = any(a.filename.lower().endswith(".gif") for a in message.attachments)
+
+                if GIPHY_REGEX.search(content) or attachment_ok:
+                    await self.finish_task()
+                else:
+                    await self.virheellinen_suoritus(message)
             else:
                 await self.virheellinen_suoritus(message)
 
@@ -915,12 +943,12 @@ TASK_INSTRUCTIONS = {
     "Lisää reaktio toisen viestiin, jota ei ole vielä reagoitu": "Lisää emoji-reaktio viestiin <#1339846062281588777> kanavalla, jossa ei ollut vielä reaktioita. Aikaa suoritukseen 30 min.",
     "Jaa kuva, josta syntyy vitsi tai reaktio": "Lähetä kuva <#1339846062281588777> kanavalle, johon joku muu vastaa viestillä (reply) tai reagoi emojilla. Aikaa suoritukseen 30 min.",
     "Mainitse kanava viestissä": "Lähetä viesti <#1339846062281588777> kanavalle, jossa mainitset toisen kanavan (esim. #yleinen). Aikaa suoritukseen 30 min.",
-    "Lähetä viesti, jossa on yli 10 sanaa": "Lähetä viesti <#1339846062281588777> kanavalle, jossa on yli 10 sanaa. Aikaa suoritukseen 30 min.",
+    "Lähetä viesti, jossa on yli 10 sanaa": "Lähetä viesti <#1339846062281588777> kanavalle, jossa on vähintään 10 erilaista sanaa. Aikaa suoritukseen 30 min.",
     "Lähetä viesti, jossa on GIF": "Lähetä GIF-kuva <#1339846062281588777> kanavalle. Aikaa suoritukseen 30 min.",
     "Lähetä viesti, jossa on linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää linkin (http/https). Aikaa suoritukseen 30 min.",
     "Vastaa toisen käyttäjän viestiin": "Vastaa toisen käyttäjän viestiin <#1339846062281588777> kanavalla käyttämällä vastaustoimintoa. Aikaa suoritukseen 30 min.",
-    "Lähetä Tenor-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Tenor-palvelun GIF-linkin (Sen täytyy alkaa: tenor.com/view/...). Aikaa suoritukseen 30 min.",
-    "Lähetä Giphy-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Giphy-palvelun GIF-linkin (Sen täytyy alkaa: giphy.com/gifs/...). Aikaa suoritukseen 30 min.",
+    "Lähetä Tenor-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Tenor-GIFin. Hyväksytään Tenor-linkit muodoissa (tenor.com/view/..., tenor.com/fi/view/..., media.tenor.com/...). Voit myös ladata GIF-tiedoston. Aikaa suoritukseen 30 min.",
+    "Lähetä Giphy-linkki": "Lähetä viesti <#1339846062281588777> kanavalle, joka sisältää Giphy-GIFin. Hyväksytään Giphy-linkit muodoissa (giphy.com/gifs/..., media1.giphy.com/media/...). Voit myös ladata GIF-tiedoston. Aikaa suoritukseen 30 min."
 }
 
 class TaskControlView(discord.ui.View):
