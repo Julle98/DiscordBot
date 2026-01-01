@@ -1,5 +1,5 @@
 import os
-from datetime import date, datetime
+from datetime import date, datetime, UTC
 from typing import Optional, Tuple, List
 import discord
 from discord.ext import commands, tasks
@@ -40,9 +40,21 @@ class Counters(commands.Cog):
         self.holiday_vc_id = int(os.getenv("NEXT_HOLIDAY_VC_ID", "0") or "0")
 
         self.holidays: List[Tuple[str, Tuple[int, int], Tuple[int, int]]] = [
-            ("Uusivuosi", (1, 1), (1, 1)),
-            ("Vappu", (5, 1), (5, 1)),
-            ("Joulu", (12, 24), (12, 26)), 
+            ("Uudenvuodenpäivä", (1, 1), (1, 1)),
+            ("Loppiainen", (1, 6), (1, 6)),
+            ("Pitkäperjantai", (4, 18), (4, 18)),    
+            ("Pääsiäispäivä", (4, 20), (4, 20)),     
+            ("Toinen pääsiäispäivä", (4, 21), (4, 21)),
+            ("Vapunpäivä", (5, 1), (5, 1)),
+            ("Helluntaipäivä", (5, 18), (5, 18)),    
+            ("Juhannuspäivä", (6, 21), (6, 21)),     
+            ("Pyhäinpäivä", (11, 1), (11, 1)),        
+            ("Itsenäisyyspäivä", (12, 6), (12, 6)),
+            ("Joulupäivä", (12, 25), (12, 25)),
+            ("Tapaninpäivä", (12, 26), (12, 26)),
+            ("Syysloma", (10, 13), (10, 17)),         
+            ("Joululoma", (12, 22), (1, 6)),         
+            ("Talviloma", (2, 16), (2, 20)),          
         ]
 
         self.update_counters.start()
@@ -67,12 +79,12 @@ class Counters(commands.Cog):
 
         if ch.name != new_name:
             try:
-                await ch.edit(name=new_name, reason="Auto counter update")
+                await ch.edit(name=new_name, reason="Auto counters päivitys")
             except (discord.Forbidden, discord.HTTPException):
                 pass
 
     def _holiday_status_text(self) -> str:
-        today = datetime.now().date()
+        today = datetime.now(UTC).date()
 
         for name, start_md, end_md in self.holidays:
             start_dt, end_dt = _next_occurrence_for_range(today, start_md, end_md)

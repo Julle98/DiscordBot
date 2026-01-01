@@ -56,21 +56,25 @@ def build_embed(options: list[RoleOption]) -> discord.Embed:
     emb.set_footer(text=f"Päivitetty viimeksi {timestamp}")
     return emb
 
-class CountModal(discord.ui.Modal, title="Roolipaneeli: montako vaihtoehtoa?"):
-    count = discord.ui.TextInput(
-        label="Montako roolia lisätään? (1-10)",
-        placeholder="esim. 4",
-        max_length=2,
-    )
-
-    def __init__(self, title: str = "Roolipaneeli: montako vaihtoehtoa?",
-             label: str = "Montako roolia lisätään? (1-10)",
-             min_n: int = 1, max_n: int = MAX_OPTIONS):
+class CountModal(discord.ui.Modal):
+    def __init__(
+        self,
+        title: str = "Roolipaneeli: montako vaihtoehtoa?",
+        label: str = "Montako roolia lisätään? (1-10)",
+        min_n: int = 1,
+        max_n: int = MAX_OPTIONS,
+    ):
         super().__init__(timeout=300, title=title)
         self.value: Optional[int] = None
         self.min_n = min_n
         self.max_n = max_n
-        self.count.label = label
+
+        self.count = discord.ui.TextInput(
+            label=label,
+            placeholder="esim. 4",
+            max_length=2,
+        )
+        self.add_item(self.count)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
@@ -157,11 +161,11 @@ class RoleToggleButton(discord.ui.Button):
 
         try:
             if role in member.roles:
-                await member.remove_roles(role, reason="Role panel toggle")
+                await member.remove_roles(role, reason="Rooli paneeli muutoksesta")
                 action = "removed"
                 await interaction.response.send_message(f"Poistettiin rooli: {role.mention}", ephemeral=True)
             else:
-                await member.add_roles(role, reason="Role panel toggle")
+                await member.add_roles(role, reason="Rooli paneeli muutoksesta")
                 action = "added"
                 await interaction.response.send_message(f"Lisättiin rooli: {role.mention}", ephemeral=True)
 
@@ -398,6 +402,65 @@ class RolePanelCog(commands.Cog):
         self.published_lock = asyncio.Lock()
 
         self._load_builder_sessions_from_disk()
+        self._bootstrapped = False
+
+    async def cog_load(self):
+        await self.register_persistent_views()
+        asyncio.create_task(self._bootstrap_existing_rolepanels())
+
+    async def _bootstrap_existing_rolepanels(self):
+        if self._bootstrapped:
+            return
+        self._bootstrapped = True
+
+        await self.bot.wait_until_ready()
+
+        async with self.published_lock:
+            blob = await self._load_published_panels()
+            guilds = blob.get("guilds", {})
+
+            changed = False
+
+            for guild_id_str, arr in list(guilds.items()):
+                kept: list[dict] = []
+
+                for item in arr:
+                    channel_id = int(item.get("channel_id", 0))
+                    message_id = int(item.get("message_id", 0))
+                    if channel_id <= 0 or message_id <= 0:
+                        changed = True
+                        continue
+
+                    guild = self.bot.get_guild(int(guild_id_str))
+                    if guild is None:
+                        changed = True
+                        continue
+
+                    try:
+                        ch = guild.get_channel(channel_id) or await guild.fetch_channel(channel_id)
+                        msg = await ch.fetch_message(message_id)
+
+                        opts = []
+                        for o in item.get("options", []):
+                            opts.append(RoleOption(
+                                title=o["title"],
+                                emoji=o.get("emoji"),
+                                role_id=int(o["role_id"]),
+                                description=o.get("description", "")
+                            ))
+                        self.bot.add_view(RolePanelView(opts), message_id=msg.id)
+
+                        kept.append(item)
+
+                    except Exception:
+                        changed = True
+                        continue
+
+                guilds[guild_id_str] = kept
+
+            if changed:
+                blob["guilds"] = guilds
+                await self._save_published_panels(blob)
 
     async def cog_load(self):
         await self.register_persistent_views()
