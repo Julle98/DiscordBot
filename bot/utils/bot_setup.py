@@ -8,6 +8,7 @@ intents = discord.Intents.all()
 intents.message_content = True
 intents.guilds = True
 intents.members = True
+intents.moderation = True  
 
 load_dotenv()
 
