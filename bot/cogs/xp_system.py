@@ -33,6 +33,12 @@ EMOJI_REGEX = re.compile(
     r'([\U0001FA70-\U0001FAFF])'  
 )
 
+IGNORED_EMOJI_ROLES = {
+    1339853855315197972,  
+    1368228763770294375,  
+    1339846508199022613,  
+}
+
 komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
 viestit_ja_ajat = {}  # {message_id: (user_id, timestamp)}
 
@@ -44,7 +50,9 @@ class XPSystem(commands.Cog):
         self.emoji_default_limit = 3  
         self.emoji_channel_limits = {
             1339859287739994112: 1,  
-            1395025181310849084: 1, 
+            1395025181310849084: 1,
+            1339846062281588777: 2,
+            1339856017277714474: 2 
         }
 
     def _extract_emojis(self, text: str):
@@ -69,6 +77,9 @@ class XPSystem(commands.Cog):
 
                 violated = [e for e, c in counts.items() if c > limit]
                 if violated:
+                    if any(r.id in IGNORED_EMOJI_ROLES for r in message.author.roles):
+                        return
+
                     try:
                         emote_list = ", ".join(set(violated))
                         dm_text = (
@@ -78,8 +89,7 @@ class XPSystem(commands.Cog):
                             f"Tässä kanavassa sallitaan enintään **{limit}** kpl "
                             f"samaa emojia per viesti.\n\n"
                             f"Näissä emojeissa raja ylittyi: {emote_list}\n\n"
-                            f"Viesti jäi kanavaan, mutta koita jatkossa käyttää"
-                            f"vähemmän samaa emojia 🙂"
+                            f"Viesti jäi kanavaan, mutta koita jatkossa käyttää vähemmän emojeita 🙂"
                         )
                         await message.author.send(dm_text)
                     except discord.Forbidden:
