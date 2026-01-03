@@ -1,19 +1,62 @@
 import os
+import json
 import discord
 from discord.ext import commands
+from discord import app_commands
 
 GUILD_ID = int(os.getenv("GUILD_ID", "0")) or None
 MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", "0")) or None
+AUTOMOD_JSON_PATH = os.getenv("AUTOMOD_JSON_PATH")
+
+IGNORED_AUTOMOD_RULE_IDS: set[int] = {
+    1367167298699268169, 
+}
 
 class AutoModNotifier(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._offence_counts: dict[tuple[int, int], int] = {}
+        self.ignored_rule_ids: set[int] = set(IGNORED_AUTOMOD_RULE_IDS)
+
+        self._load_offences()
+
+    def _load_offences(self) -> None:
+        if not os.path.exists(AUTOMOD_JSON_PATH):
+            return
+
+        try:
+            with open(AUTOMOD_JSON_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return
+
+        for key, value in data.items():
+            try:
+                guild_str, user_str = key.split("-")
+                guild_id = int(guild_str)
+                user_id = int(user_str)
+                count = int(value)
+            except (ValueError, TypeError):
+                continue
+
+            self._offence_counts[(guild_id, user_id)] = count
+
+    def _save_offences(self) -> None:
+        data: dict[str, int] = {}
+        for (guild_id, user_id), count in self._offence_counts.items():
+            data[f"{guild_id}-{user_id}"] = int(count)
+
+        try:
+            with open(AUTOMOD_JSON_PATH, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except OSError:
+            pass
 
     def _get_offence_count(self, guild_id: int, user_id: int) -> int:
         key = (guild_id, user_id)
         self._offence_counts[key] = self._offence_counts.get(key, 0) + 1
+        self._save_offences()
         return self._offence_counts[key]
 
     @staticmethod
@@ -95,11 +138,65 @@ class AutoModNotifier(commands.Cog):
         )
         log_embed.add_field(
             name="DM lähetetty",
-            value="✅ Kyllä" if dm_success else "⚠️ Ei (DM kiinni / epäonnistui)",
+            value="✅ Kyllä" if dm_success else "⚠️ Ei (DM kiinni / hiljainen sääntö)",
             inline=True,
         )
 
         await channel.send(embed=log_embed)
+
+    @app_commands.command(
+        name="automodnollaus",
+        description="Nollaa käyttäjän automod-rikemäärän (tämän cogin mittaus).",
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.has_role("Mestari")
+    async def automodnollaus(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+    ):
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "Tätä komentoa voi käyttää vain palvelimella.",
+                ephemeral=True,
+            )
+            return
+
+        key = (interaction.guild.id, member.id)
+        previous = self._offence_counts.pop(key, None)
+        self._save_offences()
+
+        if previous is None:
+            await interaction.response.send_message(
+                f"{member.mention} ei ole tallennettuja AutoMod-rikkeitä.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message(
+                f"Nollasin käyttäjän {member.mention} AutoMod-rikkeet "
+                f"(aiempi määrä: **{previous}**).",
+                ephemeral=True,
+            )
+
+    @automodnollaus.error
+    async def automod_nollaa_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError,
+    ):
+        if isinstance(error, app_commands.MissingPermissions):
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    "Sinulla ei ole oikeuksia käyttää tätä komentoa.",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    "Sinulla ei ole oikeuksia käyttää tätä komentoa.",
+                    ephemeral=True,
+                )
+        else:
+            raise error
 
     @commands.Cog.listener()
     async def on_automod_action(self, execution: discord.AutoModAction):
@@ -109,13 +206,6 @@ class AutoModNotifier(commands.Cog):
 
         if GUILD_ID is not None and guild.id != GUILD_ID:
             return
-
-        try:
-            rule = await guild.fetch_automod_rule(execution.rule_id)
-            rule_name = rule.name
-        except Exception:
-            rule = None
-            rule_name = f"Sääntö #{execution.rule_id}"
 
         member = guild.get_member(execution.user_id)
         if member is None:
@@ -133,6 +223,25 @@ class AutoModNotifier(commands.Cog):
         ) or "Ei saatavilla"
         matched_keyword = getattr(execution, "matched_keyword", None) or "Ei määritelty"
 
+        try:
+            rule = await guild.fetch_automod_rule(execution.rule_id)
+            rule_name = rule.name
+        except Exception:
+            rule = None
+            rule_name = f"Sääntö #{execution.rule_id}"
+
+        if rule is not None and rule.id in self.ignored_rule_ids:
+            await self._send_modlog(
+                guild=guild,
+                user=user,
+                rule_name=rule_name,
+                matched_keyword=matched_keyword,
+                matched_content=matched_content,
+                offence_count=0,
+                dm_success=False,
+            )
+            return
+
         offence_count = self._get_offence_count(guild.id, user.id)
         consequence_text = self._consequence_text(offence_count)
 
@@ -143,12 +252,6 @@ class AutoModNotifier(commands.Cog):
                 f"Olet rikkonut sääntöä: **{rule_name}**."
             ),
             colour=discord.Colour.orange(),
-        )
-
-        user_embed.add_field(
-            name="Rikottu sääntö / avainsana",
-            value=matched_keyword,
-            inline=False,
         )
 
         content_preview = matched_content

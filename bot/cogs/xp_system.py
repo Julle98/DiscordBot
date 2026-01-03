@@ -5,6 +5,7 @@ from collections import defaultdict
 from io import BytesIO
 import os
 from typing import Optional
+import re
 
 from bot.utils.bot_setup import bot
 from bot.utils.xp_utils import (
@@ -22,16 +23,67 @@ viestit_ja_ajat = {}  # {message_id: (user_id, timestamp)}
 
 ROOLI_POIKKEUKSET = ["Moderaattori", "Admin", "Mestari"]
 
+EMOJI_REGEX = re.compile(
+    r'(<a?:\w+:\d+>)|'  
+    r'([\U0001F1E6-\U0001F1FF])|'  
+    r'([\U0001F300-\U0001F5FF])|'  
+    r'([\U0001F600-\U0001F64F])|' 
+    r'([\U0001F680-\U0001F6FF])|' 
+    r'([\U0001F700-\U0001F77F])|' 
+    r'([\U0001F780-\U0001F7FF])|' 
+    r'([\U0001F800-\U0001F8FF])|' 
+    r'([\U0001F900-\U0001F9FF])|'  
+    r'([\U0001FA70-\U0001FAFF])'  
+)
+
 class XPSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.slowmode_channel_id = int(os.getenv("SLOWMODE_CHANNEL_ID"))
         self.ai = AI(bot)
+        self.emoji_default_limit = 3  
+        self.emoji_channel_limits = {
+            1339859287739994112: 1,  
+            1395025181310849084: 1, 
+        }
+
+    def _extract_emojis(self, text: str):
+        return [m.group(0) for m in EMOJI_REGEX.finditer(text)]
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot:
             return
+
+        if message.guild is not None:
+            limit = self.emoji_channel_limits.get(
+                message.channel.id,
+                self.emoji_default_limit
+            )
+
+            emojis = self._extract_emojis(message.content)
+            if emojis:
+                counts = {}
+                for e in emojis:
+                    counts[e] = counts.get(e, 0) + 1
+
+                violated = [e for e, c in counts.items() if c > limit]
+                if violated:
+                    try:
+                        emote_list = ", ".join(set(violated))
+                        dm_text = (
+                            f"Hei {message.author.mention}!\n\n"
+                            f"Viestissäsi kanavalla **#{message.channel.name}** "
+                            f"oli liian monta samaa emojia.\n"
+                            f"Tässä kanavassa sallitaan enintään **{limit}** kpl "
+                            f"samaa emojia per viesti.\n\n"
+                            f"Näissä emojeissa raja ylittyi: {emote_list}\n\n"
+                            f"Viesti jäi kanavaan, mutta koita jatkossa käyttää"
+                            f"vähemmän samaa emojia 🙂"
+                        )
+                        await message.author.send(dm_text)
+                    except discord.Forbidden:
+                        pass
 
         maininta = self.bot.user.mentioned_in(message)
         reply_to_bot = False
