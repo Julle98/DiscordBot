@@ -9,11 +9,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
-
 XP_CHANNEL_ID = int(os.getenv("XP_CHANNEL_ID", 0))
 MODLOG_CHANNEL_ID = int(os.getenv("MODLOG_CHANNEL_ID", 0))
 SLOWMODE_CHANNEL_ID = int(os.getenv("SLOWMODE_CHANNEL_ID", 0))
 IGNORED_VOICE_CHANNEL_ID = int(os.getenv("IGNORED_VOICE_CHANNEL_ID", 0))
+MESSAGES_LOG_CHANNEL_ID = int(os.getenv("MESSAGES_LOG", 0))
 
 LEVEL_ROLES = {
     1: 1370704701250601030,
@@ -93,6 +93,18 @@ async def käsittele_dm_viesti(bot, message):
     uid = message.author.id
     nyt = datetime.now(timezone.utc)
 
+    log_channel = bot.get_channel(MESSAGES_LOG_CHANNEL_ID)
+
+    if log_channel:
+        try:
+            await log_channel.send(
+                f"📩 **Uusi DM bottiin**\n"
+                f"**Käyttäjä:** {message.author} (`{message.author.id}`)\n"
+                f"**Sisältö:** {message.content or '*ei sisältöä*'}"
+            )
+        except Exception as e:
+            print(f"DM-lokituksessa virhe: {e}")
+
     if uid in dm_estot and nyt < dm_estot[uid]:
         return
 
@@ -101,6 +113,18 @@ async def käsittele_dm_viesti(bot, message):
 
     if len(dm_viestit[uid]) > 2:
         dm_estot[uid] = nyt + timedelta(minutes=5)
+
+        if log_channel:
+            try:
+                await log_channel.send(
+                    f"⛔ **DM-eston asetus**\n"
+                    f"**Käyttäjä:** {message.author} (`{message.author.id}`)\n"
+                    f"**Syy:** Yli 2 DM-viestiä minuutissa\n"
+                    f"**Kesto:** 5 minuuttia"
+                )
+            except Exception as e:
+                print(f"DM-esto-lokituksessa virhe: {e}")
+
         try:
             await message.channel.send("Lähetit liikaa viestejä. DM estetty 5 minuutiksi.")
         except:

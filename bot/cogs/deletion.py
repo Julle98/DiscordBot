@@ -1,12 +1,17 @@
 from discord.ext import commands
+import discord
 import os
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
+from collections import defaultdict
 
 load_dotenv()
-MOD_LOG_CHANNEL_ID = int(os.getenv("MOD_LOG_CHANNEL_ID", 0))
+MESSAGES_LOG_CHANNEL_ID = int(os.getenv("MESSAGES_LOG", 0))
 
-async def handle_message_edit(bot, before, after):
+komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
+viestit_ja_ajat = {}  # {message_id: (user_id, timestamp)}
+
+async def handle_message_edit(bot, before: discord.Message, after: discord.Message):
     now = datetime.now(timezone.utc)
 
     if after.author.bot:
@@ -14,6 +19,17 @@ async def handle_message_edit(bot, before, after):
 
     if before.content == after.content:
         return
+
+    log_channel = bot.get_channel(MESSAGES_LOG_CHANNEL_ID)
+
+    if log_channel:
+        await log_channel.send(
+            f"✏️ **Viestin muokkaus**\n"
+            f"**Käyttäjä:** {after.author.mention}\n"
+            f"**Kanava:** {after.channel.mention}\n"
+            f"**Alkuperäinen:** {before.content or '*ei sisältöä*'}\n"
+            f"**Uusi:** {after.content or '*ei sisältöä*'}"
+        )
 
     message_age = now - before.created_at
 
@@ -29,11 +45,12 @@ async def handle_message_edit(bot, before, after):
             except Exception as dm_error:
                 print(f"⚠️ Ei voitu lähettää yksityisviestiä: {dm_error}")
 
-            log_channel = bot.get_channel(MOD_LOG_CHANNEL_ID)
             if log_channel:
                 await log_channel.send(
-                    f"🛡️ {after.author.mention} yritti muokata yli 24h vanhaa viestiä kanavassa {after.channel.mention}. Viesti poistettiin.\n"
-                    f"**Alkuperäinen viesti:** {before.content}"
+                    f"🛡️ **Yli 24h vanhan viestin muokkaus – viesti poistettu**\n"
+                    f"**Käyttäjä:** {after.author.mention}\n"
+                    f"**Kanava:** {after.channel.mention}\n"
+                    f"**Alkuperäinen viesti:** {before.content or '*ei sisältöä*'}"
                 )
             else:
                 print("⚠️ Lokituskanavaa ei löytynyt")
@@ -41,13 +58,37 @@ async def handle_message_edit(bot, before, after):
         except Exception as e:
             print(f"❌ Virhe viestin poistossa tai ilmoituksessa: {type(e).__name__}: {e}")
 
+
 class DeletionEdit(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @commands.Cog.listener()
-    async def on_message_edit(self, before, after):
+    async def on_message_delete(self, message: discord.Message):
+        tiedot = viestit_ja_ajat.pop(message.id, None)
+        if tiedot:
+            user_id, aika = tiedot
+            nyt = datetime.now(timezone.utc)
+            if nyt - aika < timedelta(seconds=10):
+                komento_ajastukset[user_id].pop("xp_viesti", None)
+
+        if message.author.bot:
+            return
+
+        log_channel = self.bot.get_channel(MESSAGES_LOG_CHANNEL_ID)
+        if log_channel:
+            await log_channel.send(
+                f"🗑️ **Viestin poisto**\n"
+                f"**Käyttäjä:** {message.author.mention}\n"
+                f"**Kanava:** {message.channel.mention}\n"
+                f"**Sisältö:** {message.content or '*ei sisältöä*'}"
+            )
+        else:
+            print("⚠️ Lokituskanavaa ei löytynyt")
+
+    @commands.Cog.listener()
+    async def on_message_edit(self, before: discord.Message, after: discord.Message):
         await handle_message_edit(self.bot, before, after)
-        
+
 async def setup(bot):
     await bot.add_cog(DeletionEdit(bot))

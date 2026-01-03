@@ -18,9 +18,6 @@ from bot.utils.settings_utils import get_user_settings
 from bot.cogs.ai import AI
 from bot.cogs.slowmode import SlowmodeTracker
 
-komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
-viestit_ja_ajat = {}  # {message_id: (user_id, timestamp)}
-
 ROOLI_POIKKEUKSET = ["Moderaattori", "Admin", "Mestari"]
 
 EMOJI_REGEX = re.compile(
@@ -35,6 +32,9 @@ EMOJI_REGEX = re.compile(
     r'([\U0001F900-\U0001F9FF])|'  
     r'([\U0001FA70-\U0001FAFF])'  
 )
+
+komento_ajastukset = defaultdict(dict)  # {user_id: {command_name: viimeinen_aika}}
+viestit_ja_ajat = {}  # {message_id: (user_id, timestamp)}
 
 class XPSystem(commands.Cog):
     def __init__(self, bot):
@@ -181,15 +181,6 @@ class XPSystem(commands.Cog):
 
         await käsittele_viesti_xp(self.bot, message)
         await self.bot.process_commands(message)
-
-    @commands.Cog.listener()
-    async def on_message_delete(self, message: discord.Message):
-        tiedot = viestit_ja_ajat.pop(message.id, None)
-        if tiedot:
-            user_id, aika = tiedot
-            nyt = datetime.now(timezone.utc)
-            if nyt - aika < timedelta(seconds=10):
-                komento_ajastukset[user_id].pop("xp_viesti", None)
 
 async def setup(bot):
     await bot.add_cog(XPSystem(bot))

@@ -16,7 +16,7 @@ from bot.utils.store_utils import start_store_loops
 from bot.utils.tasks_utils import start_tasks_loops
 from bot.utils.antinuke import check_deletions
 from bot.utils.xp_utils import anna_xp_komennosta
-from bot.utils.ruokailuvuorot_utils import paivita_ruokailuvuorot
+from bot.utils.status_utils import upsert_status_embed
 from bot.utils.time_utils import get_current_time_in_helsinki
 from bot.utils.settings_utils import get_user_settings
 from bot.cogs.ruoka import RuokaÄänestysView
@@ -159,9 +159,7 @@ async def on_ready():
     try:
         bot_status_kanava = discord.utils.get(bot.get_all_channels(), name="🛜bot-status")
         if bot_status_kanava:
-            print("Poistetaan vanhoja botin tilaviestejä...")
-            async for message in bot_status_kanava.history(limit=100):
-                await message.delete()
+            guild = bot_status_kanava.guild
 
             current_time = get_current_time_in_helsinki()
             bot_version = os.getenv("BOT_VERSION", "tuntematon")
@@ -173,19 +171,21 @@ async def on_ready():
                 description="Botti on nyt toiminnassa ja valmiina auttamaan!",
                 color=discord.Color.green()
             )
-            embed.set_thumbnail(url=bot_avatar_url)
+            if bot_avatar_url:
+                embed.set_thumbnail(url=bot_avatar_url)
+
             embed.add_field(name="🕒 Käynnistysaika", value=current_time, inline=False)
             embed.add_field(
                 name="🛠️ Ongelmatilanteet",
                 value="Käytä komentoa `/help` tai kirjoita <#1339858713804013598> kanavalle.",
                 inline=False
             )
-            embed.set_footer(text=f"Versio: {bot_version}", icon_url=None)
+            embed.set_footer(text=f"Versio: {bot_version}")
 
-            await bot_status_kanava.send(embed=embed)
-            print("Embed-tilaviesti lähetetty.")
+            await upsert_status_embed(guild, embed)
+            print("Statusviesti päivitetty (upsert).")
         else:
-            print("🛜bot-status kanavaa ei löytynyt, tilaviestiä ei lähetetty.")
+            print("🛜bot-status kanavaa ei löytynyt, statusviestiä ei päivitetty.")
     except Exception as e:
         print(f"Virhe botin tilaviestin lähetyksessä: {e}")
 
@@ -194,7 +194,6 @@ async def on_ready():
     start_antinuke_loops()
     start_store_loops()
     start_tasks_loops()
-    paivita_ruokailuvuorot()
 
     try:
         päivä_id = get_current_time_in_helsinki() 
