@@ -132,7 +132,7 @@ async def käsittele_dm_viesti(bot, message):
         return
 
     try:
-        await message.channel.send("Botti toimii vain palvelimilla – kokeile siellä! 🙂")
+        await message.channel.send("Botti toimii vain palvelimilla. Kokeile siellä! 🙂")
     except:
         pass
 
@@ -150,32 +150,133 @@ def save_streaks(data):
     with open(STREAKS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-async def paivita_streak(user_id: int):
+STREAK_XP_REWARDS = {
+    3: 25,
+    7: 75,
+    14: 100,
+    30: 250,
+    60: 500,
+    100: 750,
+    200: 900,
+    365: 1000,
+}
+
+PERSONAL_RECORD_REWARD = 50     
+SERVER_RECORD_REWARD = 150 
+
+async def paivita_streak(bot, member: discord.Member, channel: discord.TextChannel):
+
+    user_id = str(member.id)
     streaks = load_streaks()
-    uid = str(user_id)
     nyt = datetime.now().date()
 
-    if uid not in streaks or "pvm" not in streaks[uid]:
-        streaks[uid] = {
-            "pvm": nyt.isoformat(),
-            "streak": 1,
-            "pisin": 1  
-        }
-    else:
-        viime = datetime.fromisoformat(streaks[uid]["pvm"]).date()
-        ero = (nyt - viime).days
-        if ero == 1:
-            streaks[uid]["streak"] += 1
-        elif ero > 1:
-            streaks[uid]["streak"] = 1
-        streaks[uid]["pvm"] = nyt.isoformat()
+    if user_id in streaks:
+        pvm_str = streaks[user_id].get("pvm")
+        if pvm_str:
+            try:
+                viime_pvm = datetime.fromisoformat(pvm_str).date()
+                if viime_pvm == nyt:
+                    return
+            except ValueError:
+                pass
 
-        nykyinen = streaks[uid]["streak"]
-        pisin = streaks[uid].get("pisin", nykyinen)
-        if nykyinen > pisin:
-            streaks[uid]["pisin"] = nykyinen
+    reward_xp = 0
+    reward_reasons = []
+
+    server_pisin_ennen = 0
+    server_omistaja_ennen = None
+
+    for k, v in streaks.items():
+        p = v.get("pisin", 0)
+        if p > server_pisin_ennen:
+            server_pisin_ennen = p
+            server_omistaja_ennen = k 
+
+    if user_id not in streaks:
+        streaks[user_id] = {"pvm": nyt.isoformat(), "streak": 1, "pisin": 1}
+    else:
+        viime = datetime.fromisoformat(streaks[user_id]["pvm"]).date()
+        ero = (nyt - viime).days
+
+        if ero == 1:
+            streaks[user_id]["streak"] += 1
+        elif ero > 1:
+            streaks[user_id]["streak"] = 1  
+
+        streaks[user_id]["pvm"] = nyt.isoformat()
+
+    nykyinen = streaks[user_id]["streak"]
+    vanha_pisin = streaks[user_id].get("pisin", 0)
+
+    if nykyinen in STREAK_XP_REWARDS:
+        xp = STREAK_XP_REWARDS[nykyinen]
+        reward_xp += xp
+        reward_reasons.append(f"{nykyinen} päivän viestiputki (+{xp} XP)")
+
+    server_record_taken = False
+    previous_server_holder = None
+
+    if nykyinen > vanha_pisin:
+        streaks[user_id]["pisin"] = nykyinen
+
+        reward_xp += PERSONAL_RECORD_REWARD
+        reward_reasons.append(
+            f"uusi henkilökohtainen ennätys: {nykyinen} päivää (+{PERSONAL_RECORD_REWARD} XP)"
+        )
+
+        if nykyinen > server_pisin_ennen and user_id != server_omistaja_ennen:
+            server_record_taken = True
+            reward_xp += SERVER_RECORD_REWARD
+            reward_reasons.append(
+                f"serverin pisin viestiputki rikottu! (+{SERVER_RECORD_REWARD} XP)"
+            )
+            if server_omistaja_ennen is not None:
+                previous_server_holder = member.guild.get_member(int(server_omistaja_ennen))
 
     save_streaks(streaks)
+
+    if reward_xp <= 0:
+        return
+
+    xp_data = load_xp_data()
+    user_info = xp_data.get(user_id, {"xp": 0, "level": 0})
+
+    old_level = user_info["level"]
+    user_info["xp"] += reward_xp
+    new_level = calculate_level(user_info["xp"])
+
+    if new_level > old_level:
+        dummy_message = type("DummyMessage", (), {
+            "author": member,
+            "channel": channel,
+            "guild": member.guild
+        })()
+        await tarkista_tasonousu(bot, dummy_message, old_level, new_level)
+
+    user_info["level"] = new_level
+    xp_data[user_id] = user_info
+    save_xp_data(xp_data)
+
+    kuvaus = "\n".join(f"• {r}" for r in reward_reasons)
+
+    embed = discord.Embed(
+        title="📨 Viestistreak palkinto!",
+        description=kuvaus,
+        color=discord.Color.gold(),
+        timestamp=discord.utils.utcnow()
+    )
+    embed.add_field(name="Nykyinen streak", value=f"{nykyinen} päivää", inline=True)
+    embed.add_field(name="Pisin streak", value=f"{streaks[user_id]['pisin']} päivää", inline=True)
+    embed.set_author(name=str(member), icon_url=getattr(member.display_avatar, "url", discord.Embed.Empty))
+
+    if server_record_taken and previous_server_holder is not None:
+        embed.add_field(
+            name="Serverin ennätys",
+            value=f"{member.mention} ohitti {previous_server_holder.mention} serverin pisimmässä viestiputkessa!",
+            inline=False,
+        )
+
+    await channel.send(content=member.mention, embed=embed)
 
 viestitetyt_tasonousut = {}
 
@@ -239,7 +340,7 @@ async def anna_xp_komennosta(bot, interaction: discord.Interaction, xp_määrä:
     xp_data[uid] = user_info
     save_xp_data(xp_data)
 
-    await paivita_streak(int(uid))
+    await paivita_streak(bot, interaction.user, interaction.channel)
 
 spam_counts = defaultdict(lambda: {
     "messages": [],
@@ -348,4 +449,4 @@ async def käsittele_viesti_xp(bot, message: discord.Message):
     xp_data[uid] = user_info
     save_xp_data(xp_data)
 
-    await paivita_streak(int(uid))
+    await paivita_streak(bot, message.author, message.channel)
