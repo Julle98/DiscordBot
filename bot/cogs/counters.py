@@ -70,18 +70,21 @@ class Counters(commands.Cog):
     async def _rename_voice_channel(self, channel_id: int, new_suffix: str) -> None:
         if not channel_id:
             return
+
         ch = self.bot.get_channel(channel_id)
+        if ch is None:
+            try:
+                ch = await self.bot.fetch_channel(channel_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                return
+
         if not isinstance(ch, (discord.VoiceChannel, discord.StageChannel)):
             return
 
         prefix = split_prefix(ch.name)
         new_name = f"{prefix}: {new_suffix}"
-
         if ch.name != new_name:
-            try:
-                await ch.edit(name=new_name, reason="Auto counters päivitys")
-            except (discord.Forbidden, discord.HTTPException):
-                pass
+            await ch.edit(name=new_name, reason="Auto counters päivitys")
 
     def _holiday_status_text(self) -> str:
         today = datetime.now(UTC).date()
